@@ -1,0 +1,16 @@
+Eventi e Gare is a mobile app for event organizers and participants.
+
+For organizers:
+- Create free or paid events
+- Configure event details, privacy consent text, and participant number assignment
+- Track registrations in real time
+- Export participant lists to CSV
+- Manage paid sponsor slots and Stripe checkout links
+
+For participants:
+- Search events by name and location
+- Register with privacy consent
+- Complete paid registration flow when required
+- Receive registration confirmation email (when configured)
+
+This release is intended for closed testing and validation of onboarding, registration flows, payments, and operational reporting.

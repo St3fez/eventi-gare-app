@@ -1,0 +1,205 @@
+# Supabase setup: Auth + webhook + client anon key
+
+Questa guida completa i punti:
+1. Configura Auth (email/password o provider)
+2. Crea Edge Function webhook PSP (Stripe) che chiama `public.apply_payment_webhook(...)`
+3. Usa nel client mobile solo chiave `anon` (mai service key)
+
+Importante:
+- `supabase login`, `supabase link`, `supabase functions ...` sono comandi CLI da terminale.
+- Nel SQL Editor Supabase va eseguito solo SQL (es. contenuto di `supabase/schema.sql`).
+
+## 1) Auth (email/password o provider)
+
+### A. Email/password
+1. Apri Supabase Dashboard -> `Authentication` -> `Providers`.
+2. Abilita `Email` provider.
+3. Decidi se richiedere conferma email (`Confirm email`) prima del login.
+4. Configura template email in `Authentication` -> `Email Templates`.
+5. Per questa build mobile senza schermata login dedicata, abilita anche `Anonymous Sign-Ins`.
+
+### B. Provider OAuth (es. Google)
+1. Crea app OAuth nel provider (Google Cloud Console).
+2. Copia `Client ID` e `Client Secret` in Supabase -> `Authentication` -> `Providers` -> `Google`.
+3. Imposta redirect URL richiesti dal provider:
+   - `https://<project-ref>.supabase.co/auth/v1/callback`
+   - eventuali deep link mobile se usi login social in app.
+
+### C. SQL schema e RLS
+Esegui `supabase/schema.sql` nel SQL Editor.
+Include:
+- tabelle organizer/eventi/iscrizioni/pagamenti
+- RLS policy
+- funzione idempotente `public.apply_payment_webhook(...)`
+
+## 2) Edge Function Stripe webhook
+
+La funzione e gia pronta in:
+- `supabase/functions/stripe-webhook/index.ts`
+
+Se `supabase` CLI non parte (es. `The term 'supabase' is not recognized` o blocco Device Guard), usa il percorso Dashboard:
+1. Supabase Dashboard -> `Edge Functions` -> `Create function`.
+2. Nome: `stripe-webhook`.
+3. Copia/incolla il contenuto di `supabase/functions/stripe-webhook/index.ts`.
+4. In funzione, disattiva `Verify JWT` (webhook pubblico da Stripe).
+5. In Dashboard -> `Project Settings` -> `Edge Functions` -> `Secrets`, aggiungi:
+   - `STRIPE_SECRET_KEY`
+   - `STRIPE_WEBHOOK_SIGNING_SECRET`
+6. Deploy dalla Dashboard.
+7. URL finale:
+   - `https://<PROJECT_REF>.functions.supabase.co/stripe-webhook`
+
+### A. Prerequisiti CLI
+```bash
+supabase login
+supabase link --project-ref <PROJECT_REF>
+```
+
+### B. Configura secrets su Supabase
+```bash
+supabase secrets set STRIPE_SECRET_KEY=sk_live_xxx
+supabase secrets set STRIPE_WEBHOOK_SIGNING_SECRET=whsec_xxx
+```
+`SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` sono disponibili nell'ambiente function.
+
+### C. Deploy funzione
+```bash
+supabase functions deploy stripe-webhook --no-verify-jwt
+```
+
+### D. Endpoint webhook da inserire in Stripe
+```text
+https://<PROJECT_REF>.functions.supabase.co/stripe-webhook
+```
+Eventi consigliati:
+- `payment_intent.succeeded`
+- `payment_intent.payment_failed`
+- `payment_intent.canceled`
+- `charge.refunded`
+- `checkout.session.completed`
+- `checkout.session.expired`
+
+### E. Mapping eventi -> funzione SQL
+La funzione edge traduce gli eventi Stripe e chiama:
+```sql
+select public.apply_payment_webhook(...)
+```
+con idempotenza via `webhook_event_id`.
+
+## 2.b) Edge Function email conferma (send-confirmation)
+
+File pronto:
+- `supabase/functions/send-confirmation/index.ts`
+
+Percorso Dashboard (senza CLI):
+1. `Edge Functions` -> `Create function`
+2. Nome: `send-confirmation`
+3. Copia il contenuto da `supabase/functions/send-confirmation/index.ts`
+4. Deploy
+5. URL:
+   - `https://<PROJECT_REF>.functions.supabase.co/send-confirmation`
+
+Secrets opzionali per invio reale via Resend:
+- `RESEND_API_KEY`
+- `EMAIL_FROM`
+
+Se i secrets non ci sono, la function risponde in modalita simulata.
+
+## 2.c) Edge Function sponsor checkout (sponsor-checkout)
+
+File pronto:
+- `supabase/functions/sponsor-checkout/index.ts`
+
+Percorso Dashboard (senza CLI):
+1. `Edge Functions` -> `Create function`
+2. Nome: `sponsor-checkout`
+3. Copia il contenuto da `supabase/functions/sponsor-checkout/index.ts`
+4. Mantieni `Verify JWT` attivo (solo organizer autenticato)
+5. Deploy
+6. URL:
+   - `https://<PROJECT_REF>.functions.supabase.co/sponsor-checkout`
+
+Secrets richiesti:
+- `STRIPE_SECRET_KEY`
+
+Secrets opzionali:
+- `SPONSOR_SUCCESS_URL`
+- `SPONSOR_CANCEL_URL`
+- `SPONSOR_DEFAULT_CURRENCY`
+
+Note:
+- crea record `sponsor_slots` in stato `pending_payment`
+- genera checkout Stripe con metadata `kind=sponsor_slot`
+- i webhook Stripe aggiornano lo slot con `public.apply_sponsor_webhook(...)`
+
+## 3) Client mobile: solo anon key
+
+Nel client Expo/React Native usa solo:
+- `EXPO_PUBLIC_SUPABASE_URL`
+- `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+
+Mai inserire `service_role` nel client.
+
+### File gia predisposti
+- `src/services/supabaseClient.ts`
+- `src/services/authSupabase.ts`
+- `.env.example`
+
+### `.env` esempio
+```env
+EXPO_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
+EXPO_PUBLIC_EMAIL_WEBHOOK_URL=https://<project-ref>.functions.supabase.co/send-confirmation
+EXPO_PUBLIC_SPONSOR_CHECKOUT_URL=https://<project-ref>.functions.supabase.co/sponsor-checkout
+```
+
+## 4) Test rapido webhook in locale (opzionale)
+
+Terminale A:
+```bash
+supabase functions serve stripe-webhook --no-verify-jwt
+```
+
+Terminale B (Stripe CLI):
+```bash
+stripe listen --forward-to http://127.0.0.1:54321/functions/v1/stripe-webhook
+```
+
+## 5) Hardening consigliato
+- Abilita `Confirm email` per organizer.
+- Usa MFA per account admin.
+- Monitora `risk_score` e `risk_flags` prima di settare `verification_status='verified'`.
+- Mantieni `payout_enabled=false` finche KYC/KYB non e completata.
+
+## 6) Troubleshooting: non vedo iscrizioni in Supabase
+- Questa app mantiene anche un fallback locale (AsyncStorage).
+- Per scrivere su Supabase devono essere veri tutti i punti:
+  - sessione utente valida (`auth.uid()`), ottenuta via login o anonymous sign-in
+  - organizzatore sincronizzato (campo `remoteId`)
+  - evento sincronizzato (campo `remoteId`)
+- Le demo locali pregresse (create prima della sync) non hanno `remoteId`: le nuove iscrizioni restano locali.
+- Se vedi errore `captcha verification process failed`, in `Authentication -> Security` disattiva temporaneamente CAPTCHA/Bot protection per i test oppure integra token CAPTCHA nel client.
+- Se l'email organizer esiste gia su altro utente anonimo, l'app applica fallback automatico (`+<uid>`) per evitare conflitto `organizers_email_key`.
+- Le variabili `EXPO_PUBLIC_*` sono lette a build-time: dopo modifiche `.env` devi rigenerare/reinstallare l'APK.
+
+## 7) Patch policy RLS (consigliata)
+Per aggiornare solo policy/trigger (senza rilanciare tutto lo schema):
+1. Apri Supabase SQL Editor.
+2. Esegui il file `supabase/policies_patch.sql`.
+
+Questa patch:
+- rende idempotenti le policy (`drop policy if exists` + `create policy`)
+- aggiunge selezione eventi anche per organizzatore proprietario
+- blocca la modifica client dei campi antifrode organizer (`verification_status`, `payout_enabled`, ecc.)
+- rafforza l'insert registrazioni (consensi obbligatori + coerenza evento/organizer).
+
+## 8) Patch modulo sponsor (nuovo)
+Per aggiungere solo il modulo sponsor su un progetto gia esistente:
+1. Apri Supabase SQL Editor.
+2. Esegui `supabase/sponsor_patch.sql`.
+
+Questa patch crea/aggiorna:
+- tipo `sponsor_slot_status`
+- tabelle `sponsor_slots` e `sponsor_webhook_events`
+- funzione `public.apply_sponsor_webhook(...)`
+- policy RLS + grant select (read-only dal client)

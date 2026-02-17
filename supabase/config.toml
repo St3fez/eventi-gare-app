@@ -1,0 +1,5 @@
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.sponsor-checkout]
+verify_jwt = true

@@ -1,0 +1,7 @@
+Eventi e Gare - Closed Test v1
+
+- New app with Organizer/Participant roles.
+- Free and paid event creation flow.
+- Participant registration with privacy consent.
+- Organizer dashboard with CSV export.
+- Supabase + Stripe integration (test configuration).

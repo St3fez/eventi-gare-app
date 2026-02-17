@@ -1,0 +1,24 @@
+# Generated Play Store Assets
+
+- `store-assets/play/feature-graphic/feature-graphic-1024x500.png`
+- `store-assets/play/icon/play-icon-512.png`
+- `store-assets/play/screenshots-phone/01-home-role-selection.png`
+- `store-assets/play/screenshots-phone/02-organizer-onboarding.png`
+- `store-assets/play/screenshots-phone/03-event-creation.png`
+- `store-assets/play/screenshots-phone/04-organizer-dashboard.png`
+- `store-assets/play/screenshots-phone/05-participant-search.png`
+- `store-assets/play/screenshots-phone/06-participant-registration.png`
+- `store-assets/play/screenshots-phone/07-payment-flow.png`
+- `store-assets/play/screenshots-phone/08-sponsor-module.png`
+- `store-assets/play/screenshots-tablet-10/01-home-role-selection.png`
+- `store-assets/play/screenshots-tablet-10/02-organizer-onboarding.png`
+- `store-assets/play/screenshots-tablet-10/03-event-creation.png`
+- `store-assets/play/screenshots-tablet-10/04-organizer-dashboard.png`
+- `store-assets/play/screenshots-tablet-10/05-participant-search.png`
+- `store-assets/play/screenshots-tablet-10/06-participant-registration.png`
+- `store-assets/play/screenshots-tablet-7/01-home-role-selection.png`
+- `store-assets/play/screenshots-tablet-7/02-organizer-onboarding.png`
+- `store-assets/play/screenshots-tablet-7/03-event-creation.png`
+- `store-assets/play/screenshots-tablet-7/04-organizer-dashboard.png`
+- `store-assets/play/screenshots-tablet-7/05-participant-search.png`
+- `store-assets/play/screenshots-tablet-7/06-participant-registration.png`

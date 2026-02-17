@@ -1,0 +1,17 @@
+Hi,
+
+You are invited to test Eventi e Gare on Google Play (Closed Testing track).
+
+What to test:
+1. Organizer onboarding and event creation (free + paid)
+2. Participant search and registration flow
+3. Payment simulation / payment status transitions
+4. CSV export and dashboard updates
+
+Please report bugs with:
+- device model
+- Android version
+- steps to reproduce
+- screenshot/video if possible
+
+Thank you.
