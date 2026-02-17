@@ -96,6 +96,7 @@ Guida operativa completa:
 ## Pubblicazione sito web + QR
 - `docs/web-publish-quickstart-it.md`
 - `docs/web-publish-quickstart-en.md`
+- `docs/deploy-web-autosync-github-it.md`
 
 ## Build icon
 Icone personalizzate generate in `assets/`:
