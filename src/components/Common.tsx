@@ -1,19 +1,59 @@
-import React from 'react';
-import { Pressable, Switch, Text, TextInput, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import {
+  Animated,
+  Easing,
+  Pressable,
+  Switch,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 
 import { styles } from '../styles';
 
 type SectionCardProps = {
   title: string;
   children: React.ReactNode;
+  delayMs?: number;
 };
 
-export function SectionCard({ title, children }: SectionCardProps) {
+export function SectionCard({ title, children, delayMs = 0 }: SectionCardProps) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(14)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 380,
+        delay: delayMs,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 420,
+        delay: delayMs,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [delayMs, opacity, translateY]);
+
   return (
-    <View style={styles.card}>
+    <Animated.View
+      style={[
+        styles.card,
+        {
+          opacity,
+          transform: [{ translateY }],
+        },
+      ]}
+    >
       <Text style={styles.cardTitle}>{title}</Text>
       {children}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -111,8 +151,13 @@ type FreeEventBannerProps = {
 };
 
 export function FreeEventBanner({ text }: FreeEventBannerProps) {
+  const { width } = useWindowDimensions();
+  const maxContentWidth = 1200;
+  const horizontalMargins = 28;
+  const computedWidth = Math.max(280, Math.min(maxContentWidth, width - horizontalMargins));
+
   return (
-    <View style={styles.bannerWrap}>
+    <View style={[styles.bannerWrap, { width: computedWidth }]}>
       <Text style={styles.bannerText}>{text}</Text>
     </View>
   );

@@ -27,7 +27,7 @@ export function OrganizerProfileScreen({
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
-      <SectionCard title={t('organizer_access')}>
+      <SectionCard title={t('organizer_access')} delayMs={0}>
         <Text style={styles.cardParagraph}>{t('organizer_access_intro')}</Text>
 
         {organizers.length > 0 ? (

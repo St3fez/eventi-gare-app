@@ -56,7 +56,7 @@ export function ParticipantPaymentScreen({
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
-      <SectionCard title={t('payment_title')}>
+      <SectionCard title={t('payment_title')} delayMs={0}>
         <Text style={styles.listTitle}>{event.name}</Text>
         <Text style={styles.listSubText}>{t('amount_label', { value: toMoney(event.feeAmount) })}</Text>
         <Text style={styles.listSubText}>

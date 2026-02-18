@@ -92,7 +92,7 @@ export function OrganizerCreateEventScreen({
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
-      <SectionCard title={t('create_event')}>
+      <SectionCard title={t('create_event')} delayMs={0}>
         <Text style={styles.cardParagraph}>{t('organizer_label', { email: organizer.email })}</Text>
         <Text style={styles.cardParagraph}>
           {t('verification_status', {

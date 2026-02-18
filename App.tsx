@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, SafeAreaView, Text, View } from 'react-native';
+import { Alert, SafeAreaView, Text, View, useWindowDimensions } from 'react-native';
 
 import {
   COMMISSION_RATE,
@@ -108,6 +108,8 @@ const isSponsorSlotVisible = (slot: SponsorSlot): boolean => {
 };
 
 function App() {
+  const { width } = useWindowDimensions();
+  const isDesktopLayout = width >= 1024;
   const [appData, setAppData] = useState<AppData>(createDefaultData);
   const [language, setLanguage] = useState<AppLanguage>('it');
   const [screen, setScreen] = useState<ScreenState>({ name: 'role' });
@@ -1253,15 +1255,24 @@ function App() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style='light' />
-      <LinearGradient colors={['#04192E', '#0A3354', '#116D77']} style={styles.gradient}>
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.appTitle}>{t('app_name')}</Text>
-            <Text style={styles.appSubtitle}>{t('app_subtitle')}</Text>
+      <LinearGradient colors={['#03111E', '#0A2944', '#0F5D70']} style={styles.gradient}>
+        <View pointerEvents='none' style={styles.backgroundDecor}>
+          <View style={[styles.backgroundOrb, styles.backgroundOrbTop]} />
+          <View style={[styles.backgroundOrb, styles.backgroundOrbBottom]} />
+        </View>
+
+        <View style={styles.headerShell}>
+          <View style={[styles.headerRow, isDesktopLayout ? styles.headerRowDesktop : undefined]}>
+            <View>
+              <Text style={styles.appTitle}>{t('app_name')}</Text>
+              <Text style={styles.appSubtitle}>{t('app_subtitle')}</Text>
+            </View>
           </View>
         </View>
 
-        <View style={styles.screenWrapper}>{renderScreen()}</View>
+        <View style={[styles.screenWrapper, isDesktopLayout ? styles.screenWrapperDesktop : undefined]}>
+          {renderScreen()}
+        </View>
         {shouldShowMonetizationBanner ? <FreeEventBanner text={monetizationBannerText} /> : null}
       </LinearGradient>
 
