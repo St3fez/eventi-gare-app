@@ -1,0 +1,78 @@
+name: Deploy Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web
+        run: npm run build:web
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_EMAIL_WEBHOOK_URL: ${{ secrets.EXPO_PUBLIC_EMAIL_WEBHOOK_URL }}
+          EXPO_PUBLIC_SPONSOR_CHECKOUT_URL: ${{ secrets.EXPO_PUBLIC_SPONSOR_CHECKOUT_URL }}
+          EXPO_PUBLIC_SPONSOR_MODULE_CHECKOUT_URL: ${{ secrets.EXPO_PUBLIC_SPONSOR_MODULE_CHECKOUT_URL }}
+          EXPO_PUBLIC_STRIPE_CONNECT_URL: ${{ secrets.EXPO_PUBLIC_STRIPE_CONNECT_URL }}
+          EXPO_PUBLIC_STRIPE_CONNECT_SYNC_URL: ${{ secrets.EXPO_PUBLIC_STRIPE_CONNECT_SYNC_URL }}
+          EXPO_PUBLIC_PARTICIPANT_CHECKOUT_URL: ${{ secrets.EXPO_PUBLIC_PARTICIPANT_CHECKOUT_URL }}
+          EXPO_PUBLIC_ORGANIZER_COMPLIANCE_WEBHOOK_URL: ${{ secrets.EXPO_PUBLIC_ORGANIZER_COMPLIANCE_WEBHOOK_URL }}
+          EXPO_PUBLIC_ADMIN_CONTACT_EMAIL: ${{ secrets.EXPO_PUBLIC_ADMIN_CONTACT_EMAIL }}
+          EXPO_PUBLIC_EVENT_WEB_BASE_URL: ${{ secrets.EXPO_PUBLIC_EVENT_WEB_BASE_URL }}
+          EXPO_PUBLIC_APP_CHANNEL: prod
+          EXPO_PUBLIC_ORGANIZER_TEST_MODE: 'false'
+          EXPO_PUBLIC_ORGANIZER_SECURITY_ENFORCED: 'true'
+          EXPO_PUBLIC_DEMO_ALL_OPEN: 'false'
+          EXPO_PUBLIC_ADMOB_ENABLED: 'false'
+          EXPO_PUBLIC_ADMOB_TEST_MODE: 'false'
+          EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID_ANDROID: ''
+          EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID_IOS: ''
+          EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID_ANDROID: ''
+          EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID_IOS: ''
+
+      - name: Add SPA fallback + nojekyll
+        run: |
+          cp web-build/index.html web-build/404.html
+          touch web-build/.nojekyll
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web-build
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

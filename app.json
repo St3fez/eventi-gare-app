@@ -36,6 +36,9 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "experiments": {
+      "baseUrl": "/eventi-gare-app"
+    },
     "extra": {
       "commissionRate": 0.03
     }

@@ -57,7 +57,7 @@ export type OrganizerSecurityStatus = {
   phone: string;
   phoneVerified: boolean;
   providers: string[];
-  socialProvider: 'google' | 'apple' | null;
+  socialProvider: 'google' | null;
   isAnonymous: boolean;
   securityReady: boolean;
 };
@@ -80,11 +80,7 @@ const parseOrganizerSecurity = (
         .map((entry) => String(entry).toLowerCase())
         .filter(Boolean)
     : [];
-  const socialProvider = providers.includes('google')
-    ? 'google'
-    : providers.includes('apple')
-      ? 'apple'
-      : null;
+  const socialProvider = providers.includes('google') ? 'google' : null;
   const hasEmailProvider = providers.includes('email') || Boolean(user.email);
   const isAnonymous = Boolean(user.is_anonymous);
   const phoneVerified = Boolean(user.phone_confirmed_at);
@@ -126,9 +122,7 @@ const getRedirectTo = (): string | undefined => {
   return 'eventigare://auth/callback';
 };
 
-export const startOrganizerOAuth = async (
-  provider: 'google' | 'apple'
-): Promise<AuthResult<null>> => {
+export const startOrganizerOAuth = async (provider: 'google'): Promise<AuthResult<null>> => {
   const client = requireSupabase();
   const redirectTo = getRedirectTo();
 
@@ -235,7 +229,7 @@ export const requestOrganizerPhoneOtp = async (phone: string): Promise<AuthResul
     return authFail(`Lettura sessione fallita: ${session.error.message}`);
   }
   if (!session.data.session?.user) {
-    return authFail('Effettua prima login Google o Apple.');
+    return authFail('Effettua prima login Google.');
   }
 
   const normalizedPhone = phone.trim();

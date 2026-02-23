@@ -308,6 +308,13 @@ function App() {
   const appSubtitle = IS_DEMO_CHANNEL ? t('app_subtitle_demo') : t('app_subtitle');
 
   useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') {
+      return;
+    }
+    document.title = t('app_name');
+  }, [language, t]);
+
+  useEffect(() => {
     let mounted = true;
     const load = async () => {
       const loaded = await loadAppData(createDefaultData());
@@ -649,7 +656,7 @@ function App() {
     await showInterstitialAd();
   };
 
-  const signInOrganizerWithOAuth = async (provider: 'google' | 'apple') => {
+  const signInOrganizerWithOAuth = async (provider: 'google') => {
     const result = await startOrganizerOAuth(provider);
     if (!result.ok) {
       Alert.alert(t('organizer_security_action_fail_title'), result.reason);
@@ -663,6 +670,12 @@ function App() {
     }
   };
 
+  const passwordHasPunctuation = (value: string) =>
+    /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/.test(value);
+
+  const isOrganizerPasswordValid = (value: string) =>
+    value.length >= 8 && passwordHasPunctuation(value);
+
   const loginOrganizerWithEmail = async (
     email: string,
     password: string,
@@ -674,15 +687,20 @@ function App() {
       return;
     }
 
-    if (!cleanText(password)) {
+    const normalizedPassword = cleanText(password);
+    if (!normalizedPassword) {
       Alert.alert(t('missing_data_title'), t('organizer_security_missing_password'));
+      return;
+    }
+    if (!isOrganizerPasswordValid(normalizedPassword)) {
+      Alert.alert(t('missing_data_title'), t('organizer_security_password_policy'));
       return;
     }
 
     const action =
       mode === 'signup'
-        ? await signUpWithEmail(normalizedEmail, password)
-        : await signInWithEmail(normalizedEmail, password);
+        ? await signUpWithEmail(normalizedEmail, normalizedPassword)
+        : await signInWithEmail(normalizedEmail, normalizedPassword);
 
     if (action.error) {
       Alert.alert(t('organizer_security_action_fail_title'), action.error.message);
@@ -2778,9 +2796,6 @@ function App() {
           <OrganizerAuthScreen
             status={organizerSecurity}
             onBack={() => setScreen({ name: 'role' })}
-            onRefresh={async () => {
-              await refreshOrganizerSecurityState();
-            }}
             onEmailSignIn={async (email, password) => {
               await loginOrganizerWithEmail(email, password, 'signin');
             }}
@@ -2789,9 +2804,6 @@ function App() {
             }}
             onGoogleSignIn={async () => {
               await signInOrganizerWithOAuth('google');
-            }}
-            onAppleSignIn={async () => {
-              await signInOrganizerWithOAuth('apple');
             }}
             onContinue={() => {
               if (organizerSecurity?.securityReady) {

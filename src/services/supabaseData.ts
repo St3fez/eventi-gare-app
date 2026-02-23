@@ -90,7 +90,7 @@ export const ensureSupabaseUser = async (options?: {
   if (existingUser) {
     if (!allowAnonymous && existingUser.is_anonymous) {
       return fail(
-        'Per operare come organizzatore e richiesto login reale (Google/Apple) e verifica telefono SMS.'
+        'Per operare come organizzatore e richiesto login reale (Google) e verifica telefono SMS.'
       );
     }
     return {
@@ -103,7 +103,7 @@ export const ensureSupabaseUser = async (options?: {
 
   if (!allowAnonymous) {
     return fail(
-      'Nessuna sessione autenticata. Effettua login Google/Apple e verifica telefono SMS.'
+      'Nessuna sessione autenticata. Effettua login Google e verifica telefono SMS.'
     );
   }
 

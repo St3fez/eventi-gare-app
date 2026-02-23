@@ -8,6 +8,12 @@ node_modules/
 dist/
 web-build/
 expo-env.d.ts
+expo-web-tunnel.log
+expo-web-tunnel.err.log
+
+# Local tools
+.vscode/
+supabase/.temp/
 
 # Native
 .kotlin/

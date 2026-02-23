@@ -64,6 +64,7 @@ type TextFieldProps = {
   placeholder?: string;
   keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'decimal-pad';
   multiline?: boolean;
+  secureTextEntry?: boolean;
 };
 
 export function TextField({
@@ -73,6 +74,7 @@ export function TextField({
   placeholder,
   keyboardType = 'default',
   multiline = false,
+  secureTextEntry = false,
 }: TextFieldProps) {
   return (
     <View style={styles.fieldBlock}>
@@ -84,6 +86,7 @@ export function TextField({
         placeholderTextColor='#8AA8C0'
         keyboardType={keyboardType}
         multiline={multiline}
+        secureTextEntry={secureTextEntry}
         textAlignVertical={multiline ? 'top' : 'center'}
         style={[styles.input, multiline ? styles.inputMultiline : undefined]}
       />

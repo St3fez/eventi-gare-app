@@ -9,11 +9,9 @@ import { styles } from '../styles';
 type Props = {
   status: OrganizerSecurityStatus | null;
   onBack: () => void;
-  onRefresh: () => Promise<void>;
   onEmailSignIn: (email: string, password: string) => Promise<void>;
   onEmailSignUp: (email: string, password: string) => Promise<void>;
   onGoogleSignIn: () => Promise<void>;
-  onAppleSignIn: () => Promise<void>;
   onContinue: () => void;
   t: Translator;
 };
@@ -21,11 +19,9 @@ type Props = {
 export function OrganizerAuthScreen({
   status,
   onBack,
-  onRefresh,
   onEmailSignIn,
   onEmailSignUp,
   onGoogleSignIn,
-  onAppleSignIn,
   onContinue,
   t,
 }: Props) {
@@ -70,9 +66,6 @@ export function OrganizerAuthScreen({
         <Pressable style={styles.primaryButton} onPress={() => void onGoogleSignIn()}>
           <Text style={styles.primaryButtonText}>{t('organizer_security_google')}</Text>
         </Pressable>
-        <Pressable style={styles.secondaryButton} onPress={() => void onAppleSignIn()}>
-          <Text style={styles.secondaryButtonText}>{t('organizer_security_apple')}</Text>
-        </Pressable>
 
         <TextField
           label={t('organizer_security_email_label')}
@@ -84,7 +77,9 @@ export function OrganizerAuthScreen({
           label={t('organizer_security_password_label')}
           value={password}
           onChangeText={setPassword}
+          secureTextEntry
         />
+        <Text style={styles.helperText}>{t('organizer_security_password_policy')}</Text>
         <View style={styles.inlineActionRow}>
           <Pressable
             style={styles.inlineActionButton}
@@ -99,10 +94,6 @@ export function OrganizerAuthScreen({
             <Text style={styles.inlineActionButtonText}>{t('organizer_security_email_signup')}</Text>
           </Pressable>
         </View>
-
-        <Pressable style={styles.secondaryButton} onPress={() => void onRefresh()}>
-          <Text style={styles.secondaryButtonText}>{t('organizer_security_refresh')}</Text>
-        </Pressable>
 
         <Pressable
           style={securityReady ? styles.primaryButton : styles.secondaryButton}

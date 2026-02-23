@@ -15,8 +15,9 @@ Importante:
 1. Apri Supabase Dashboard -> `Authentication` -> `Providers`.
 2. Abilita `Email` provider.
 3. Decidi se richiedere conferma email (`Confirm email`) prima del login.
-4. Configura template email in `Authentication` -> `Email Templates`.
-5. Per questa build mobile senza schermata login dedicata, abilita anche `Anonymous Sign-Ins`.
+4. Imposta una password policy con minimo 8 caratteri e almeno 1 simbolo di punteggiatura.
+5. Configura template email in `Authentication` -> `Email Templates`.
+6. Per questa build mobile senza schermata login dedicata, abilita anche `Anonymous Sign-Ins`.
 
 ### B. Provider OAuth (es. Google)
 1. Crea app OAuth nel provider (Google Cloud Console).

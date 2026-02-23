@@ -57,7 +57,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     continue: 'Continua',
     organizer_security_title: 'Accesso sicuro organizzatore',
     organizer_security_intro:
-      'Per sicurezza organizzatore: login con Google/Apple oppure email e password.',
+      'Per sicurezza organizzatore: login con Google oppure email e password.',
     organizer_security_account: 'Account corrente: {value}',
     organizer_security_not_logged: 'non autenticato',
     organizer_security_social_status: 'Social login: {value}',
@@ -68,7 +68,6 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     organizer_security_ready: 'Pronto',
     organizer_security_not_ready: 'Non pronto',
     organizer_security_google: 'Accedi con Google',
-    organizer_security_apple: 'Accedi con Apple',
     organizer_security_email_label: 'Email personale',
     organizer_security_password_label: 'Password',
     organizer_security_email_login: 'Accedi con email',
@@ -79,12 +78,14 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     organizer_security_browser_opened:
       'Browser aperto per login OAuth. Torna in app dopo autorizzazione.',
     organizer_security_missing_password: 'Inserisci password.',
+    organizer_security_password_policy:
+      'La password deve avere almeno 8 caratteri e almeno un simbolo di punteggiatura.',
     organizer_security_email_signup_ok:
       'Account email creato. Controlla eventuale verifica email.',
     organizer_security_email_login_ok: 'Accesso email completato.',
     organizer_security_required_title: 'Accesso organizzatore bloccato',
     organizer_security_required_message:
-      'Completa login Google/Apple o email+password prima di creare o gestire eventi.',
+      'Completa login Google o email+password prima di creare o gestire eventi.',
     organizer_access: 'Organizzatore: accesso',
     organizer_access_intro:
       'Inserisci email e dati fiscali. Se gestisci quote a pagamento, indica conto corrente/IBAN.',
@@ -129,7 +130,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_auth_mode_label: 'Accesso partecipanti richiesto',
     participant_auth_mode_anonymous: 'Anonimo',
     participant_auth_mode_email: 'Email',
-    participant_auth_mode_social: 'Google/Apple verificato',
+    participant_auth_mode_social: 'Google verificato',
     participant_auth_mode_flexible: 'Flessibile',
     participant_phone_required_label: 'Numero cellulare obbligatorio',
     participant_phone_required_helper:
@@ -553,7 +554,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     missing_registration_data_message: 'Inserisci almeno nome completo e email.',
     participant_auth_title: 'Accesso partecipante',
     participant_auth_intro:
-      'Puoi proseguire in anonimo, con email/password o con account Google/Apple. Per alcuni eventi puo essere richiesta verifica telefono.',
+      'Puoi proseguire in anonimo, con email/password o con account Google. Per alcuni eventi puo essere richiesta verifica telefono.',
     participant_auth_current_session: 'Sessione corrente: {value}',
     participant_auth_phone_verified_status: 'Telefono verificato: {value}',
     participant_auth_continue_anonymous: 'Continua in anonimo',
@@ -561,7 +562,6 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_auth_email_login: 'Accedi con email',
     participant_auth_email_signup: 'Crea account email',
     participant_auth_google: 'Accedi con Google',
-    participant_auth_apple: 'Accedi con Apple',
     participant_auth_refresh: 'Aggiorna sessione',
     participant_auth_continue: 'Continua alla ricerca eventi',
     participant_auth_not_authenticated: 'non autenticato',
@@ -576,7 +576,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_auth_email_required_message:
       "Questo evento richiede login con account email (non anonimo).",
     participant_auth_social_required_message:
-      'Questo evento richiede login Google o Apple verificato.',
+      'Questo evento richiede login Google verificato.',
     participant_auth_phone_verification_required:
       'Per questo evento devi verificare il telefono via OTP SMS.',
     participant_phone_required_message:
@@ -684,7 +684,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     continue: 'Continue',
     organizer_security_title: 'Organizer secure access',
     organizer_security_intro:
-      'Organizer security requires Google/Apple login or email and password.',
+      'Organizer security requires Google login or email and password.',
     organizer_security_account: 'Current account: {value}',
     organizer_security_not_logged: 'not authenticated',
     organizer_security_social_status: 'Social login: {value}',
@@ -695,7 +695,6 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     organizer_security_ready: 'Ready',
     organizer_security_not_ready: 'Not ready',
     organizer_security_google: 'Sign in with Google',
-    organizer_security_apple: 'Sign in with Apple',
     organizer_security_email_label: 'Personal email',
     organizer_security_password_label: 'Password',
     organizer_security_email_login: 'Sign in with email',
@@ -706,12 +705,14 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     organizer_security_browser_opened:
       'Browser opened for OAuth login. Return to the app after authorization.',
     organizer_security_missing_password: 'Enter password.',
+    organizer_security_password_policy:
+      'Password must be at least 8 characters and include at least one punctuation symbol.',
     organizer_security_email_signup_ok:
       'Email account created. Check any email verification.',
     organizer_security_email_login_ok: 'Email sign-in completed.',
     organizer_security_required_title: 'Organizer access blocked',
     organizer_security_required_message:
-      'Complete Google/Apple login or email+password before creating or managing events.',
+      'Complete Google login or email+password before creating or managing events.',
     organizer_access: 'Organizer: access',
     organizer_access_intro:
       'Enter email and tax details. If you manage paid entries, add bank account/IBAN.',
@@ -756,7 +757,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_auth_mode_label: 'Required participant access',
     participant_auth_mode_anonymous: 'Anonymous',
     participant_auth_mode_email: 'Email',
-    participant_auth_mode_social: 'Verified Google/Apple',
+    participant_auth_mode_social: 'Verified Google',
     participant_auth_mode_flexible: 'Flexible',
     participant_phone_required_label: 'Participant phone required',
     participant_phone_required_helper:
@@ -1184,7 +1185,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     missing_registration_data_message: 'Enter at least full name and email.',
     participant_auth_title: 'Participant access',
     participant_auth_intro:
-      'You can continue anonymously, with email/password, or with Google/Apple. Some events may require phone verification.',
+      'You can continue anonymously, with email/password, or with Google. Some events may require phone verification.',
     participant_auth_current_session: 'Current session: {value}',
     participant_auth_phone_verified_status: 'Phone verified: {value}',
     participant_auth_continue_anonymous: 'Continue anonymously',
@@ -1192,7 +1193,6 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_auth_email_login: 'Sign in with email',
     participant_auth_email_signup: 'Create email account',
     participant_auth_google: 'Sign in with Google',
-    participant_auth_apple: 'Sign in with Apple',
     participant_auth_refresh: 'Refresh session',
     participant_auth_continue: 'Continue to event search',
     participant_auth_not_authenticated: 'not authenticated',
@@ -1207,7 +1207,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_auth_email_required_message:
       'This event requires email account login (not anonymous).',
     participant_auth_social_required_message:
-      'This event requires verified Google or Apple login.',
+      'This event requires verified Google login.',
     participant_auth_phone_verification_required:
       'This event requires SMS phone verification.',
     participant_phone_required_message: 'Phone number is required for this event.',
