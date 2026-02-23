@@ -32,6 +32,15 @@ type SponsorMappedWebhook = {
   payerEmail?: string;
 };
 
+type SponsorModuleMappedWebhook = {
+  eventType: 'checkout.session.completed';
+  organizerId: string;
+  stripeCheckoutSessionId?: string;
+  stripePaymentIntentId?: string;
+  paymentLinkUrl?: string;
+  payerEmail?: string;
+};
+
 type StripeEvent = {
   id: string;
   type: string;
@@ -73,6 +82,12 @@ const jsonResponse = (payload: Record<string, unknown>, status = 200): Response 
 
 const hasSponsorMetadata = (metadata?: Record<string, string>): boolean =>
   Boolean(metadata?.kind === 'sponsor_slot' && metadata?.sponsor_slot_id);
+
+const hasSponsorModuleMetadata = (metadata?: Record<string, string>): boolean =>
+  Boolean(metadata?.kind === 'sponsor_module_activation' && metadata?.organizer_id);
+
+const isNonRegistrationMetadata = (metadata?: Record<string, string>): boolean =>
+  hasSponsorMetadata(metadata) || hasSponsorModuleMetadata(metadata);
 
 const mapStripeSponsorEvent = (event: StripeEvent): SponsorMappedWebhook | null => {
   if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.expired') {
@@ -120,13 +135,35 @@ const mapStripeSponsorEvent = (event: StripeEvent): SponsorMappedWebhook | null 
   return null;
 };
 
+const mapStripeSponsorModuleEvent = (
+  event: StripeEvent
+): SponsorModuleMappedWebhook | null => {
+  if (event.type !== 'checkout.session.completed') {
+    return null;
+  }
+
+  const session = event.data.object as StripeCheckoutSession;
+  if (!hasSponsorModuleMetadata(session.metadata)) {
+    return null;
+  }
+
+  return {
+    eventType: 'checkout.session.completed',
+    organizerId: String(session.metadata?.organizer_id),
+    stripeCheckoutSessionId: session.id,
+    stripePaymentIntentId: session.payment_intent ? String(session.payment_intent) : undefined,
+    paymentLinkUrl: session.url ?? undefined,
+    payerEmail: session.customer_details?.email ?? session.customer_email ?? undefined,
+  };
+};
+
 const mapStripeRegistrationEvent = (
   event: StripeEvent
 ): RegistrationMappedWebhook | null => {
   switch (event.type) {
     case 'payment_intent.succeeded': {
       const intent = event.data.object as StripePaymentIntent;
-      if (hasSponsorMetadata(intent.metadata)) {
+      if (isNonRegistrationMetadata(intent.metadata)) {
         return null;
       }
       return {
@@ -138,7 +175,7 @@ const mapStripeRegistrationEvent = (
     }
     case 'payment_intent.payment_failed': {
       const intent = event.data.object as StripePaymentIntent;
-      if (hasSponsorMetadata(intent.metadata)) {
+      if (isNonRegistrationMetadata(intent.metadata)) {
         return null;
       }
       return {
@@ -154,7 +191,7 @@ const mapStripeRegistrationEvent = (
     }
     case 'payment_intent.canceled': {
       const intent = event.data.object as StripePaymentIntent;
-      if (hasSponsorMetadata(intent.metadata)) {
+      if (isNonRegistrationMetadata(intent.metadata)) {
         return null;
       }
       return {
@@ -167,7 +204,7 @@ const mapStripeRegistrationEvent = (
     }
     case 'charge.refunded': {
       const charge = event.data.object as StripeCharge;
-      if (hasSponsorMetadata(charge.metadata)) {
+      if (isNonRegistrationMetadata(charge.metadata)) {
         return null;
       }
       if (!charge.payment_intent) {
@@ -258,6 +295,33 @@ Deno.serve(async (req: Request) => {
       },
       400
     );
+  }
+
+  const sponsorModuleMapped = mapStripeSponsorModuleEvent(event);
+  if (sponsorModuleMapped) {
+    const { data, error } = await supabaseAdmin.rpc('apply_sponsor_module_webhook', {
+      p_webhook_event_id: event.id,
+      p_event_type: sponsorModuleMapped.eventType,
+      p_organizer_id: sponsorModuleMapped.organizerId,
+      p_payload: event,
+    });
+
+    if (error) {
+      return jsonResponse(
+        {
+          error: 'apply_sponsor_module_webhook failed',
+          detail: error.message,
+        },
+        500
+      );
+    }
+
+    return jsonResponse({
+      received: true,
+      target: 'sponsor_module',
+      applied: data,
+      eventId: event.id,
+    });
   }
 
   const sponsorMapped = mapStripeSponsorEvent(event);

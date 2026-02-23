@@ -26,7 +26,7 @@ Use these generated files in Play Console listing:
 - Size: 1920x1200
 
 ## Single zip package
-- `store-assets/play/eventi-gare-play-assets.zip`
+- `store-assets/play/events-play-assets.zip`
 
 ## Regenerate anytime
 ```powershell

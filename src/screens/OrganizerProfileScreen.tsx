@@ -4,12 +4,21 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SectionCard, TextField } from '../components/Common';
 import { Translator } from '../i18n';
 import { styles } from '../styles';
-import { OrganizerProfile } from '../types';
+import { OrganizerProfile, OrganizerRole } from '../types';
 
 type Props = {
   organizers: OrganizerProfile[];
   onBack: () => void;
-  onCreate: (payload: { email: string; fiscalData?: string; bankAccount?: string }) => void;
+  onCreate: (payload: {
+    email: string;
+    fiscalData?: string;
+    bankAccount?: string;
+    organizationName?: string;
+    organizationRole: OrganizerRole;
+    organizationRoleLabel?: string;
+    legalRepresentative?: string;
+    officialPhone?: string;
+  }) => void;
   onUseExisting: (organizerId: string) => void;
   t: Translator;
 };
@@ -22,6 +31,11 @@ export function OrganizerProfileScreen({
   t,
 }: Props) {
   const [email, setEmail] = useState('');
+  const [organizationName, setOrganizationName] = useState('');
+  const [organizationRole, setOrganizationRole] = useState<OrganizerRole>('presidente_fondazione');
+  const [organizationRoleLabel, setOrganizationRoleLabel] = useState('');
+  const [legalRepresentative, setLegalRepresentative] = useState('');
+  const [officialPhone, setOfficialPhone] = useState('');
   const [fiscalData, setFiscalData] = useState('');
   const [bankAccount, setBankAccount] = useState('');
 
@@ -52,6 +66,83 @@ export function OrganizerProfileScreen({
 
         <TextField label={t('email_required')} value={email} onChangeText={setEmail} keyboardType='email-address' />
         <TextField
+          label={t('organization_name_label')}
+          value={organizationName}
+          onChangeText={setOrganizationName}
+        />
+        <Text style={styles.fieldLabel}>{t('organization_role_label')}</Text>
+        <View style={styles.methodRow}>
+          <Pressable
+            style={[
+              styles.methodChip,
+              organizationRole === 'presidente_fondazione' ? styles.methodChipActive : undefined,
+            ]}
+            onPress={() => setOrganizationRole('presidente_fondazione')}
+          >
+            <Text
+              style={[
+                styles.methodChipText,
+                organizationRole === 'presidente_fondazione'
+                  ? styles.methodChipTextActive
+                  : undefined,
+              ]}
+            >
+              {t('organization_role_president')}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.methodChip,
+              organizationRole === 'segretario_associazione'
+                ? styles.methodChipActive
+                : undefined,
+            ]}
+            onPress={() => setOrganizationRole('segretario_associazione')}
+          >
+            <Text
+              style={[
+                styles.methodChipText,
+                organizationRole === 'segretario_associazione'
+                  ? styles.methodChipTextActive
+                  : undefined,
+              ]}
+            >
+              {t('organization_role_secretary')}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.methodChip, organizationRole === 'altro' ? styles.methodChipActive : undefined]}
+            onPress={() => setOrganizationRole('altro')}
+          >
+            <Text
+              style={[
+                styles.methodChipText,
+                organizationRole === 'altro' ? styles.methodChipTextActive : undefined,
+              ]}
+            >
+              {t('organization_role_other')}
+            </Text>
+          </Pressable>
+        </View>
+        {organizationRole === 'altro' ? (
+          <TextField
+            label={t('organization_role_other_label')}
+            value={organizationRoleLabel}
+            onChangeText={setOrganizationRoleLabel}
+          />
+        ) : null}
+        <TextField
+          label={t('legal_representative_label')}
+          value={legalRepresentative}
+          onChangeText={setLegalRepresentative}
+        />
+        <TextField
+          label={t('official_phone_label')}
+          value={officialPhone}
+          onChangeText={setOfficialPhone}
+          keyboardType='phone-pad'
+        />
+        <TextField
           label={t('fiscal_optional')}
           value={fiscalData}
           onChangeText={setFiscalData}
@@ -66,7 +157,18 @@ export function OrganizerProfileScreen({
 
         <Pressable
           style={styles.primaryButton}
-          onPress={() => onCreate({ email, fiscalData, bankAccount })}
+          onPress={() =>
+            onCreate({
+              email,
+              fiscalData,
+              bankAccount,
+              organizationName,
+              organizationRole,
+              organizationRoleLabel,
+              legalRepresentative,
+              officialPhone,
+            })
+          }
         >
           <Text style={styles.primaryButtonText}>{t('save_organizer')}</Text>
         </Pressable>

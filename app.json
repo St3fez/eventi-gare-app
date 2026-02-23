@@ -1,8 +1,9 @@
 {
   "expo": {
-    "name": "Eventi e Gare",
+    "name": "Events",
     "slug": "eventi-slash-gare",
-    "version": "1.0.0",
+    "scheme": "eventigare",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -15,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.eventi.slash.gare",
-      "buildNumber": "1"
+      "buildNumber": "3"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +24,7 @@
         "backgroundColor": "#04192E"
       },
       "package": "com.eventi.slash.gare",
-      "versionCode": 1,
+      "versionCode": 3,
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.READ_EXTERNAL_STORAGE",

@@ -6,7 +6,8 @@ import {
 } from '../types';
 
 const registrationTransitions: Record<RegistrationStatus, RegistrationStatus[]> = {
-  pending_payment: ['paid', 'payment_failed', 'cancelled'],
+  pending_payment: ['pending_cash', 'paid', 'payment_failed', 'cancelled'],
+  pending_cash: ['paid', 'payment_failed', 'cancelled'],
   paid: ['refunded'],
   payment_failed: [],
   cancelled: [],
@@ -45,7 +46,10 @@ export const expirePendingPaymentSessions = (data: AppData): AppData => {
   let changed = false;
 
   const registrations = data.registrations.map((registration) => {
-    if (registration.registrationStatus !== 'pending_payment') {
+    if (
+      registration.registrationStatus !== 'pending_payment' &&
+      registration.registrationStatus !== 'pending_cash'
+    ) {
       return registration;
     }
     if (!isPaymentSessionExpired(registration.paymentSessionExpiresAt)) {
@@ -53,11 +57,15 @@ export const expirePendingPaymentSessions = (data: AppData): AppData => {
     }
 
     changed = true;
+    const expiredReason =
+      registration.registrationStatus === 'pending_cash'
+        ? 'Scadenza pagamento contanti superata'
+        : 'Sessione pagamento scaduta';
     return {
       ...registration,
       registrationStatus: 'payment_failed' as const,
       paymentStatus: 'expired' as const,
-      paymentFailedReason: 'Sessione pagamento scaduta',
+      paymentFailedReason: expiredReason,
       updatedAt: new Date().toISOString(),
     };
   });

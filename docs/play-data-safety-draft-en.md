@@ -1,4 +1,4 @@
-# Data Safety Draft (Play Console) - Eventi e Gare
+# Data Safety Draft (Play Console) - Events
 
 Use this as a draft only. Final declaration must be validated with your legal/privacy advisor.
 

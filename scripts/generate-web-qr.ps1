@@ -1,7 +1,7 @@
 param(
   [Parameter(Mandatory = $true)]
   [string]$Url,
-  [string]$OutFile = 'dist\web\eventi-e-gare-web-qr.png',
+  [string]$OutFile = 'dist\web\events-web-qr.png',
   [int]$Size = 1024
 )
 

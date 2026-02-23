@@ -5,7 +5,7 @@ import { CheckboxRow, SectionCard, TextField } from '../components/Common';
 import { Translator } from '../i18n';
 import { styles } from '../styles';
 import { EventItem, RegistrationDraft } from '../types';
-import { cleanText, formatDate, toMoney } from '../utils/format';
+import { cleanText, formatDate, formatEventSchedule, toMoney } from '../utils/format';
 
 type Props = {
   event: EventItem;
@@ -29,6 +29,7 @@ export function ParticipantRegistrationScreen({
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('');
   const [birthDate, setBirthDate] = useState('');
+  const [groupParticipantsCount, setGroupParticipantsCount] = useState('1');
   const [privacyConsent, setPrivacyConsent] = useState(false);
   const [retentionConsent, setRetentionConsent] = useState(false);
 
@@ -38,12 +39,19 @@ export function ParticipantRegistrationScreen({
       return;
     }
 
+    const parsedGroupCount = Number.parseInt(groupParticipantsCount, 10);
+    if (!Number.isFinite(parsedGroupCount) || parsedGroupCount <= 0) {
+      Alert.alert(t('missing_data_title'), t('group_participants_invalid'));
+      return;
+    }
+
     const draft: RegistrationDraft = {
       fullName,
       email,
       phone,
       city,
       birthDate,
+      groupParticipantsCount: parsedGroupCount,
       privacyConsent,
       retentionConsent,
     };
@@ -63,11 +71,22 @@ export function ParticipantRegistrationScreen({
           <SectionCard title={t('event_detail')} delayMs={0}>
             <Text style={styles.listTitle}>{event.name}</Text>
             <Text style={styles.listSubText}>{t('place_label', { value: event.location })}</Text>
-            <Text style={styles.listSubText}>{t('date_label', { value: formatDate(event.date) })}</Text>
+            <Text style={styles.listSubText}>
+              {t('date_label', { value: formatEventSchedule(event) })}
+            </Text>
+            <Text style={styles.listSubText}>
+              {t('registration_window_line', {
+                from: formatDate(event.registrationOpenDate),
+                to: formatDate(event.registrationCloseDate),
+              })}
+            </Text>
             <Text style={styles.listSubText}>
               {t('type_label', {
                 value: event.isFree ? t('free_type') : t('paid_type', { fee: toMoney(event.feeAmount) }),
               })}
+            </Text>
+            <Text style={styles.listSubText}>
+              {t('participant_no_auth_line')}
             </Text>
             {!event.isFree ? (
               <Text style={styles.helperText}>{t('paid_pending_helper')}</Text>
@@ -83,11 +102,28 @@ export function ParticipantRegistrationScreen({
             <TextField label={t('phone_label')} value={phone} onChangeText={setPhone} keyboardType='phone-pad' />
             <TextField label={t('city_label')} value={city} onChangeText={setCity} />
             <TextField
+              label={t('group_participants_count_label')}
+              value={groupParticipantsCount}
+              onChangeText={setGroupParticipantsCount}
+              keyboardType='decimal-pad'
+            />
+            <Text style={styles.helperText}>{t('group_participants_count_helper')}</Text>
+            <TextField
               label={t('birthdate_optional')}
               value={birthDate}
               onChangeText={setBirthDate}
               placeholder={t('birthdate_placeholder')}
             />
+            {!event.isFree ? (
+              <Text style={styles.helperText}>
+                {t('group_total_amount_line', {
+                  value: toMoney(
+                    event.feeAmount *
+                      Math.max(1, Number.isFinite(Number.parseInt(groupParticipantsCount, 10)) ? Number.parseInt(groupParticipantsCount, 10) : 1)
+                  ),
+                })}
+              </Text>
+            ) : null}
 
             <CheckboxRow
               value={privacyConsent}
@@ -99,6 +135,7 @@ export function ParticipantRegistrationScreen({
               onToggle={() => setRetentionConsent((value) => !value)}
               label={t('consent_retention')}
             />
+            <Text style={styles.helperText}>{t('retention_policy_notice')}</Text>
 
             <Pressable style={styles.primaryButton} onPress={submit}>
               <Text style={styles.primaryButtonText}>

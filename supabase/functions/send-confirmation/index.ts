@@ -36,7 +36,7 @@ const buildHtml = (p: Required<Pick<ConfirmationPayload, 'participantName' | 'ev
       <p><strong>Codice iscrizione:</strong> ${p.registrationCode}</p>
       ${numberLine}
       ${amountLine}
-      <p>Grazie per aver usato Eventi e Gare.</p>
+      <p>Grazie per aver usato Eventi.</p>
     </div>
   `;
 };

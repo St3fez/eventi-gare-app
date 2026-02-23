@@ -1,7 +1,7 @@
-Eventi e Gare - Closed Test v1
+Eventi - Test Chiuso v3 (1.0.2)
 
-- New app with Organizer/Participant roles.
-- Free and paid event creation flow.
-- Participant registration with privacy consent.
-- Organizer dashboard with CSV export.
-- Supabase + Stripe integration (test configuration).
+- Eventi multi-giorno: aggiunta data fine evento e ora evento nel form organizzatore.
+- Compliance organizzatore: caricamento documenti da dispositivo/computer (no incolla link).
+- Modulo sponsor a pagamento: attivazione per organizzatore (25 EUR), logo caricabile da file e link attivita sponsorizzata.
+- Sezione sponsor visibile ai partecipanti negli eventi con slot sponsor attivi.
+- Migliorie responsive: ridotti tagli/overflow su smartphone in varie sezioni e pulsanti.

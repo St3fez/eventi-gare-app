@@ -1,4 +1,4 @@
-import { SPONSOR_CHECKOUT_URL } from '../constants';
+import { SPONSOR_CHECKOUT_URL, SPONSOR_MODULE_CHECKOUT_URL } from '../constants';
 import { supabase } from './supabaseClient';
 import { ensureSupabaseUser } from './supabaseData';
 
@@ -160,6 +160,97 @@ export const createSponsorCheckout = async (payload: {
       checkoutUrl: body.checkoutUrl,
       sponsorSlot: body.sponsorSlot,
       maxPackageDays: body.maxPackageDays,
+    },
+  };
+};
+
+export type SponsorModuleCheckoutState = {
+  state: 'checkout' | 'already_active';
+  checkoutUrl?: string;
+  organizerId: string;
+  amount?: number;
+  currency?: string;
+  activatedAt?: string;
+};
+
+export const createSponsorModuleCheckout = async (payload: {
+  organizerId: string;
+  successUrl?: string;
+  cancelUrl?: string;
+}): Promise<SyncResult<SponsorModuleCheckoutState>> => {
+  if (!supabase) {
+    return fail('Supabase non configurato.');
+  }
+
+  if (!SPONSOR_MODULE_CHECKOUT_URL) {
+    return fail('EXPO_PUBLIC_SPONSOR_MODULE_CHECKOUT_URL non configurato.');
+  }
+
+  const auth = await ensureSupabaseUser({ allowAnonymous: false });
+  if (!auth.ok) {
+    return fail(auth.reason);
+  }
+
+  const session = await supabase.auth.getSession();
+  if (session.error) {
+    return fail(`Lettura sessione fallita: ${session.error.message}`);
+  }
+
+  const accessToken = session.data.session?.access_token;
+  if (!accessToken) {
+    return fail('Sessione utente mancante: impossibile creare checkout modulo sponsor.');
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(SPONSOR_MODULE_CHECKOUT_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        organizerId: payload.organizerId,
+        successUrl: payload.successUrl,
+        cancelUrl: payload.cancelUrl,
+      }),
+    });
+  } catch {
+    return fail('Endpoint sponsor-module-checkout non raggiungibile.');
+  }
+
+  let body: {
+    ok?: boolean;
+    state?: 'checkout' | 'already_active';
+    checkoutUrl?: string | null;
+    organizerId?: string | null;
+    amount?: number | null;
+    currency?: string | null;
+    activatedAt?: string | null;
+    error?: string;
+    detail?: string;
+  } = {};
+
+  try {
+    body = (await response.json()) as typeof body;
+  } catch {
+    // keep defaults
+  }
+
+  if (!response.ok || !body.ok || !body.state || !body.organizerId) {
+    const reason = [body.error, body.detail].filter(Boolean).join(': ');
+    return fail(reason || `Checkout modulo sponsor fallito (HTTP ${response.status})`);
+  }
+
+  return {
+    ok: true,
+    data: {
+      state: body.state,
+      checkoutUrl: body.checkoutUrl ?? undefined,
+      organizerId: body.organizerId,
+      amount: typeof body.amount === 'number' ? body.amount : undefined,
+      currency: body.currency ?? undefined,
+      activatedAt: body.activatedAt ?? undefined,
     },
   };
 };

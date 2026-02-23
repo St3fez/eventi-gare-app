@@ -7,6 +7,13 @@ import {
   RegistrationRecord,
   SponsorSlot,
 } from '../types';
+import {
+  COMMISSION_RATE,
+  PAID_FEATURE_UNLOCK_CONTACT,
+  SPONSOR_MODULE_ACTIVATION_EUR,
+  STRIPE_PROVIDER_FEE_FIXED,
+  STRIPE_PROVIDER_FEE_RATE,
+} from '../constants';
 
 export const randomId = (prefix: string): string =>
   `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -32,12 +39,47 @@ export const toIsoDate = (raw: string): string => {
   return `${year}-${month}-${day}`;
 };
 
+export const toIsoTime = (raw: string): string => {
+  const value = raw.trim();
+  if (!value) {
+    return '';
+  }
+
+  const match = value.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) {
+    return '';
+  }
+
+  const hours = Number.parseInt(match[1], 10);
+  const minutes = Number.parseInt(match[2], 10);
+  if (
+    !Number.isFinite(hours) ||
+    !Number.isFinite(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return '';
+  }
+
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+};
+
 export const formatDate = (isoDate: string): string => {
   const parsed = new Date(`${isoDate}T12:00:00`);
   if (Number.isNaN(parsed.getTime())) {
     return isoDate;
   }
   return parsed.toLocaleDateString('it-IT');
+};
+
+export const formatTime = (time: string): string => {
+  const normalized = toIsoTime(time);
+  if (normalized) {
+    return normalized;
+  }
+  return cleanText(time);
 };
 
 export const parseEuro = (input: string): number => {
@@ -56,6 +98,26 @@ export const toMoney = (value: number): string =>
   }).format(value);
 
 export const cleanText = (value: string): string => value.trim();
+
+export const normalizeComparableText = (value: string): string =>
+  cleanText(value)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+export const formatEventSchedule = (event: Pick<EventItem, 'date' | 'endDate' | 'startTime'>): string => {
+  const startDate = toIsoDate(event.date);
+  const candidateEndDate = cleanText(event.endDate) ? toIsoDate(event.endDate) : startDate;
+  const endDate = candidateEndDate < startDate ? startDate : candidateEndDate;
+  const datePart =
+    endDate === startDate
+      ? formatDate(startDate)
+      : `${formatDate(startDate)} - ${formatDate(endDate)}`;
+  const timePart = formatTime(event.startTime);
+  return timePart ? `${datePart} | ${timePart}` : datePart;
+};
 
 export const buildRegistrationCode = (eventName: string): string => {
   const tag = eventName
@@ -98,10 +160,38 @@ const normalizeOrganizer = (value: Partial<OrganizerProfile>): OrganizerProfile 
     id: value.id ?? randomId('org_legacy'),
     remoteId: value.remoteId,
     email: value.email ?? '',
+    organizationName: value.organizationName ?? '',
+    organizationRole: value.organizationRole ?? 'altro',
+    organizationRoleLabel: value.organizationRoleLabel ?? '',
+    legalRepresentative: value.legalRepresentative ?? '',
+    officialPhone: value.officialPhone ?? '',
     fiscalData: value.fiscalData ?? '',
     bankAccount: value.bankAccount ?? '',
+    complianceDocuments: {
+      identityDocumentUrl: value.complianceDocuments?.identityDocumentUrl ?? '',
+      organizationDocumentUrl: value.complianceDocuments?.organizationDocumentUrl ?? '',
+      paymentAuthorizationDocumentUrl:
+        value.complianceDocuments?.paymentAuthorizationDocumentUrl ?? '',
+      adminContactMessage: value.complianceDocuments?.adminContactMessage ?? '',
+    },
+    complianceSubmittedAt: value.complianceSubmittedAt,
     verificationStatus: value.verificationStatus ?? 'pending_review',
     payoutEnabled: value.payoutEnabled ?? false,
+    paidFeatureUnlocked: value.paidFeatureUnlocked ?? false,
+    paidFeatureUnlockRequestedAt: value.paidFeatureUnlockRequestedAt,
+    paidFeatureUnlockContact: value.paidFeatureUnlockContact ?? PAID_FEATURE_UNLOCK_CONTACT,
+    sponsorModuleEnabled: value.sponsorModuleEnabled ?? false,
+    sponsorModuleActivatedAt: value.sponsorModuleActivatedAt,
+    sponsorModuleActivationAmount:
+      value.sponsorModuleActivationAmount ?? SPONSOR_MODULE_ACTIVATION_EUR,
+    stripeConnectAccountId: value.stripeConnectAccountId,
+    stripeConnectChargesEnabled: value.stripeConnectChargesEnabled ?? false,
+    stripeConnectPayoutsEnabled: value.stripeConnectPayoutsEnabled ?? false,
+    stripeConnectDetailsSubmitted: value.stripeConnectDetailsSubmitted ?? false,
+    stripeConnectRequirements: Array.isArray(value.stripeConnectRequirements)
+      ? value.stripeConnectRequirements
+      : [],
+    stripeConnectLastSyncAt: value.stripeConnectLastSyncAt,
     riskScore: value.riskScore ?? 0,
     riskFlags: Array.isArray(value.riskFlags) ? value.riskFlags : [],
     verificationChecklist: {
@@ -114,20 +204,71 @@ const normalizeOrganizer = (value: Partial<OrganizerProfile>): OrganizerProfile 
 };
 
 const normalizeEvent = (value: Partial<EventItem>): EventItem => {
+  const todayIso = new Date().toISOString().slice(0, 10);
   const createdAt = value.createdAt ?? new Date().toISOString();
+  const eventDate = toIsoDate(value.date ?? todayIso);
+  const normalizedEndDateCandidate = toIsoDate(value.endDate ?? eventDate);
+  const endDate = normalizedEndDateCandidate < eventDate ? eventDate : normalizedEndDateCandidate;
+  const startTime = toIsoTime(value.startTime ?? '') || '09:00';
+  const registrationOpenDate = toIsoDate(value.registrationOpenDate ?? todayIso);
+  const rawRegistrationCloseDate = toIsoDate(value.registrationCloseDate ?? endDate);
+  const registrationCloseDate =
+    rawRegistrationCloseDate < registrationOpenDate
+      ? registrationOpenDate
+      : rawRegistrationCloseDate > endDate
+        ? endDate
+        : rawRegistrationCloseDate;
+  const isFree = value.isFree ?? true;
+  const feeAmount = value.feeAmount ?? 0;
+  const baseFeeAmount = value.baseFeeAmount ?? feeAmount;
   return {
     id: value.id ?? randomId('evt_legacy'),
     remoteId: value.remoteId,
     organizerId: value.organizerId ?? '',
     name: value.name ?? '',
     location: value.location ?? '',
-    date: value.date ?? new Date().toISOString().slice(0, 10),
-    isFree: value.isFree ?? true,
-    feeAmount: value.feeAmount ?? 0,
+    date: eventDate,
+    endDate,
+    startTime,
+    isFree,
+    feeAmount,
     privacyText: value.privacyText ?? '',
     logoUrl: value.logoUrl ?? '',
     localSponsor: value.localSponsor ?? '',
     assignNumbers: value.assignNumbers ?? true,
+    registrationOpenDate,
+    registrationCloseDate,
+    registrationsOpen: value.registrationsOpen ?? true,
+    visibility: value.visibility ?? (value.active === false ? 'hidden' : 'public'),
+    closedAt: value.closedAt,
+    definitivePublishedAt:
+      value.definitivePublishedAt ??
+      ((value.visibility ?? (value.active === false ? 'hidden' : 'public')) === 'public' &&
+      (value.active ?? true)
+        ? createdAt
+        : undefined),
+    seasonVersion: value.seasonVersion ?? 1,
+    lastParticipantsResetAt: value.lastParticipantsResetAt,
+    baseFeeAmount: isFree ? 0 : baseFeeAmount,
+    feePolicy: value.feePolicy ?? 'organizer_absorbs_fees',
+    paymentChannel: value.paymentChannel === 'bank' ? 'stripe' : value.paymentChannel ?? 'stripe',
+    cashPaymentEnabled: value.cashPaymentEnabled ?? false,
+    cashPaymentInstructions: value.cashPaymentInstructions ?? '',
+    cashPaymentDeadline: value.cashPaymentDeadline,
+    participantAuthMode: value.participantAuthMode ?? 'anonymous',
+    participantPhoneRequired: value.participantPhoneRequired ?? false,
+    developerCommissionRate: value.developerCommissionRate ?? COMMISSION_RATE,
+    providerFeeRate: value.providerFeeRate ?? STRIPE_PROVIDER_FEE_RATE,
+    providerFeeFixed: value.providerFeeFixed ?? STRIPE_PROVIDER_FEE_FIXED,
+    organizerNetAmount:
+      value.organizerNetAmount ??
+      Math.max(
+        0,
+        (isFree ? 0 : feeAmount) -
+          (isFree ? 0 : baseFeeAmount * (value.developerCommissionRate ?? COMMISSION_RATE)) -
+          (isFree ? 0 : baseFeeAmount * (value.providerFeeRate ?? STRIPE_PROVIDER_FEE_RATE)) -
+          (isFree ? 0 : (value.providerFeeFixed ?? STRIPE_PROVIDER_FEE_FIXED))
+      ),
     active: value.active ?? true,
     createdAt,
   };
@@ -178,6 +319,10 @@ const normalizeRegistration = (value: Partial<RegistrationRecord>): Registration
     birthDate: value.birthDate ?? '',
     privacyConsent: value.privacyConsent ?? false,
     retentionConsent: value.retentionConsent ?? false,
+    groupParticipantsCount:
+      Number.isFinite(value.groupParticipantsCount) && (value.groupParticipantsCount ?? 0) > 0
+        ? Number(value.groupParticipantsCount)
+        : 1,
     assignedNumber: value.assignedNumber,
     registrationCode: value.registrationCode ?? randomId('code').slice(-8).toUpperCase(),
     registrationStatus: mappedStatus,

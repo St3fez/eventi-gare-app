@@ -1,14 +1,27 @@
 param(
-  [switch]$Clear
+  [switch]$Clear,
+  [ValidateSet('prod', 'demo')]
+  [string]$Channel = 'prod'
 )
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $webBuildDir = Join-Path $projectRoot 'web-build'
 $distDir = Join-Path $projectRoot 'dist\web'
-$zipPath = Join-Path $distDir 'eventi-e-gare-web-build.zip'
+$zipPath = Join-Path $distDir "events-web-build-$Channel.zip"
 
 $env:NODE_ENV = 'production'
+$env:EXPO_PUBLIC_APP_CHANNEL = $Channel
+
+if ($Channel -eq 'demo') {
+  $env:EXPO_PUBLIC_ORGANIZER_TEST_MODE = 'true'
+  $env:EXPO_PUBLIC_ORGANIZER_SECURITY_ENFORCED = 'false'
+  $env:EXPO_PUBLIC_DEMO_ALL_OPEN = 'true'
+} else {
+  $env:EXPO_PUBLIC_ORGANIZER_TEST_MODE = 'false'
+  $env:EXPO_PUBLIC_ORGANIZER_SECURITY_ENFORCED = 'true'
+  $env:EXPO_PUBLIC_DEMO_ALL_OPEN = 'false'
+}
 
 Push-Location $projectRoot
 try {
@@ -38,3 +51,4 @@ Compress-Archive -Path (Join-Path $webBuildDir '*') -DestinationPath $zipPath -F
 
 Write-Host "Web build ready: $webBuildDir"
 Write-Host "Zip ready for hosting upload: $zipPath"
+Write-Host "Channel: $Channel"

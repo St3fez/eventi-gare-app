@@ -1,4 +1,4 @@
-# Quick Web Publish + QR (Eventi e Gare)
+# Quick Web Publish + QR (Events)
 
 Goal: publish the web version quickly and make it accessible to all mobile users via QR code.
 
@@ -11,7 +11,7 @@ From project root:
 
 Outputs:
 - Static folder: `web-build/`
-- Upload zip: `dist/web/eventi-e-gare-web-build.zip`
+- Upload zip: `dist/web/events-web-build-prod.zip`
 
 Force clean cache build if needed:
 
@@ -26,6 +26,9 @@ No server setup required:
 2. Drag and drop the `web-build` folder (or extracted zip)
 3. Netlify gives you a public HTTPS URL in seconds
 
+Note: Netlify Drop can create random new site domains. If you already have
+`eventi-gare-app`, deploy to that existing site instead (GitHub auto-deploy or `npm run deploy:netlify`).
+
 Equivalent options:
 - Cloudflare Pages
 - Vercel
@@ -38,10 +41,10 @@ When you have the public URL (example `https://eventiegare.netlify.app`):
 ```
 
 Output:
-- `dist/web/eventi-e-gare-web-qr.png`
+- `dist/web/events-web-qr.png`
 
 ## 4) Mobile distribution
-- Share or print `eventi-e-gare-web-qr.png`
+- Share or print `events-web-qr.png`
 - Any smartphone can open the site by scanning the QR
 
 ## 5) Functional notes

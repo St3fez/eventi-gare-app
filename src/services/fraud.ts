@@ -6,6 +6,11 @@ import { cleanText } from '../utils/format';
 export const organizerCanCreatePaidEvents = (organizer: OrganizerProfile): boolean =>
   organizer.verificationStatus === 'verified' && organizer.payoutEnabled;
 
+export const organizerCanUsePaidSection = (
+  organizer: OrganizerProfile,
+  testModeEnabled: boolean
+): boolean => testModeEnabled || (organizer.paidFeatureUnlocked && organizerCanCreatePaidEvents(organizer));
+
 export const verificationStatusLabel = (
   status: OrganizerVerificationStatus,
   language: AppLanguage = 'it'

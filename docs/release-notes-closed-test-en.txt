@@ -1,4 +1,4 @@
-Eventi e Gare - Closed Test v1
+Events - Closed Test v1
 
 - New app with Organizer/Participant roles.
 - Free and paid event creation flow.

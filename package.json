@@ -1,6 +1,6 @@
 {
-  "name": "eventi-slash-gare",
-  "version": "1.0.0",
+  "name": "events-app",
+  "version": "1.0.1",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -9,23 +9,36 @@
     "web": "expo start --web",
     "build:web": "expo export --platform web --output-dir web-build",
     "build:web:clear": "expo export --platform web --output-dir web-build --clear",
+    "build:web:prod": "powershell -ExecutionPolicy Bypass -File ./scripts/build-web-release.ps1 -Channel prod",
+    "build:web:demo": "powershell -ExecutionPolicy Bypass -File ./scripts/build-web-release.ps1 -Channel demo",
+    "build:play:aab:prod": "powershell -ExecutionPolicy Bypass -File ./scripts/build-play-aab.ps1 -Channel prod",
+    "build:play:aab:demo": "powershell -ExecutionPolicy Bypass -File ./scripts/build-play-aab.ps1 -Channel demo",
+    "deploy:netlify": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-netlify-prod.ps1",
+    "deploy:netlify:demo": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-netlify-prod.ps1 -Channel demo",
+    "deploy:netlify:skip-build": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-netlify-prod.ps1 -SkipBuild",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@supabase/supabase-js": "^2.96.0",
     "expo": "~54.0.33",
+    "expo-clipboard": "~8.0.8",
+    "expo-document-picker": "~14.0.8",
     "expo-file-system": "^19.0.21",
     "expo-linear-gradient": "^15.0.8",
     "expo-sharing": "^14.0.8",
     "expo-status-bar": "~3.0.9",
+    "pdf-lib": "^1.17.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
+    "react-native-google-mobile-ads": "^13.0.0",
+    "react-native-qrcode-svg": "^6.3.21",
     "react-native-web": "^0.21.0"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "supabase": "^2.76.12",
     "typescript": "~5.9.2"
   },
   "private": true

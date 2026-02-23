@@ -14,6 +14,9 @@ begin
   if to_regclass('public.sponsor_webhook_events') is not null then
     execute 'alter table public.sponsor_webhook_events enable row level security';
   end if;
+  if to_regclass('public.sponsor_module_webhook_events') is not null then
+    execute 'alter table public.sponsor_module_webhook_events enable row level security';
+  end if;
 end
 $$;
 
@@ -26,6 +29,11 @@ begin
   if auth.role() in ('authenticated', 'anon') then
     if new.verification_status is distinct from old.verification_status
       or new.payout_enabled is distinct from old.payout_enabled
+      or new.stripe_connect_account_id is distinct from old.stripe_connect_account_id
+      or new.stripe_connect_charges_enabled is distinct from old.stripe_connect_charges_enabled
+      or new.stripe_connect_payouts_enabled is distinct from old.stripe_connect_payouts_enabled
+      or new.stripe_connect_details_submitted is distinct from old.stripe_connect_details_submitted
+      or new.stripe_connect_last_sync_at is distinct from old.stripe_connect_last_sync_at
       or new.risk_score is distinct from old.risk_score
       or new.risk_flags is distinct from old.risk_flags
       or new.verification_checklist is distinct from old.verification_checklist then
@@ -181,6 +189,36 @@ begin
   end if;
   if to_regclass('public.sponsor_webhook_events') is not null then
     execute 'revoke all on public.sponsor_webhook_events from anon, authenticated';
+  end if;
+  if to_regclass('public.sponsor_module_webhook_events') is not null then
+    execute 'revoke all on public.sponsor_module_webhook_events from anon, authenticated';
+  end if;
+end
+$$;
+
+do $$
+begin
+  if to_regprocedure('public.apply_payment_webhook(text, public.payment_provider, public.payment_webhook_type, uuid, text, text, text, jsonb)') is not null then
+    execute 'revoke execute on function public.apply_payment_webhook(text, public.payment_provider, public.payment_webhook_type, uuid, text, text, text, jsonb) from public, anon, authenticated';
+    execute 'grant execute on function public.apply_payment_webhook(text, public.payment_provider, public.payment_webhook_type, uuid, text, text, text, jsonb) to service_role';
+  end if;
+end
+$$;
+
+do $$
+begin
+  if to_regprocedure('public.apply_sponsor_webhook(text, text, uuid, text, text, text, text, text, jsonb)') is not null then
+    execute 'revoke execute on function public.apply_sponsor_webhook(text, text, uuid, text, text, text, text, text, jsonb) from public, anon, authenticated';
+    execute 'grant execute on function public.apply_sponsor_webhook(text, text, uuid, text, text, text, text, text, jsonb) to service_role';
+  end if;
+end
+$$;
+
+do $$
+begin
+  if to_regprocedure('public.apply_sponsor_module_webhook(text, text, uuid, jsonb)') is not null then
+    execute 'revoke execute on function public.apply_sponsor_module_webhook(text, text, uuid, jsonb) from public, anon, authenticated';
+    execute 'grant execute on function public.apply_sponsor_module_webhook(text, text, uuid, jsonb) to service_role';
   end if;
 end
 $$;

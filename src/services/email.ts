@@ -8,6 +8,7 @@ export const sendConfirmationEmail = async (payload: {
   amount: number;
   registrationCode: string;
   assignedNumber?: number;
+  groupParticipantsCount?: number;
 }): Promise<EmailResult> => {
   if (!EMAIL_WEBHOOK_URL) {
     return { sent: true, mode: 'simulated', detail: 'Webhook email non configurato.' };

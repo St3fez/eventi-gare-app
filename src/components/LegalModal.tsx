@@ -25,6 +25,7 @@ export function LegalModal({ visible, onClose, t }: LegalModalProps) {
             <Text style={styles.modalParagraph}>{t('legal_p6')}</Text>
             <Text style={styles.modalParagraph}>{t('legal_p7')}</Text>
             <Text style={styles.modalParagraph}>{t('legal_p8')}</Text>
+            <Text style={styles.modalParagraph}>{t('legal_p9')}</Text>
           </ScrollView>
           <Pressable style={styles.primaryButton} onPress={onClose}>
             <Text style={styles.primaryButtonText}>{t('close')}</Text>

@@ -25,3 +25,5 @@ supabase functions deploy stripe-webhook --no-verify-jwt
   - `checkout.session.expired`
   - `payment_intent.payment_failed`
   - `charge.refunded`
+- Gestisce attivazione modulo sponsor (`kind=sponsor_module_activation`) e richiama
+  `public.apply_sponsor_module_webhook(...)` su `checkout.session.completed`.

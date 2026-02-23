@@ -1,4 +1,4 @@
-Eventi e Gare is a mobile app for event organizers and participants.
+Events is a mobile app for event organizers and participants.
 
 For organizers:
 - Create free or paid events

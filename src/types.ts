@@ -18,6 +18,7 @@ export type PaymentIntentStatus =
 
 export type RegistrationStatus =
   | 'pending_payment'
+  | 'pending_cash'
   | 'paid'
   | 'cancelled'
   | 'payment_failed'
@@ -31,11 +32,47 @@ export type SponsorSlotStatus =
   | 'payment_failed'
   | 'refunded';
 
+export type EventFeePolicy = 'organizer_absorbs_fees' | 'participant_pays_fees';
+
+export type EventPaymentChannel = 'stripe' | 'bank';
+
+export type ParticipantAuthMode =
+  | 'anonymous'
+  | 'email'
+  | 'social_verified'
+  | 'flexible';
+
+export type OrganizerRole =
+  | 'presidente_fondazione'
+  | 'segretario_associazione'
+  | 'altro';
+
+export type OrganizerComplianceDocuments = {
+  identityDocumentUrl?: string;
+  organizationDocumentUrl?: string;
+  paymentAuthorizationDocumentUrl?: string;
+  adminContactMessage?: string;
+};
+
+export type OrganizerComplianceAttachmentKind =
+  | 'identity_document'
+  | 'organization_document'
+  | 'payment_authorization_document';
+
+export type OrganizerComplianceAttachment = {
+  kind: OrganizerComplianceAttachmentKind;
+  uri: string;
+  fileName: string;
+  mimeType?: string;
+};
+
 export type ScreenState =
   | { name: 'role' }
+  | { name: 'organizerAuth' }
   | { name: 'organizerProfile' }
-  | { name: 'organizerCreate'; organizerId: string }
+  | { name: 'organizerCreate'; organizerId: string; eventId?: string }
   | { name: 'organizerDashboard'; organizerId: string }
+  | { name: 'participantAuth' }
   | { name: 'participantSearch' }
   | { name: 'participantRegister'; eventId: string }
   | { name: 'participantPayment'; registrationId: string };
@@ -52,10 +89,29 @@ export type OrganizerProfile = {
   id: string;
   remoteId?: string;
   email: string;
+  organizationName?: string;
+  organizationRole: OrganizerRole;
+  organizationRoleLabel?: string;
+  legalRepresentative?: string;
+  officialPhone?: string;
   fiscalData?: string;
   bankAccount?: string;
+  complianceDocuments: OrganizerComplianceDocuments;
+  complianceSubmittedAt?: string;
   verificationStatus: OrganizerVerificationStatus;
   payoutEnabled: boolean;
+  paidFeatureUnlocked: boolean;
+  paidFeatureUnlockRequestedAt?: string;
+  paidFeatureUnlockContact: string;
+  sponsorModuleEnabled: boolean;
+  sponsorModuleActivatedAt?: string;
+  sponsorModuleActivationAmount: number;
+  stripeConnectAccountId?: string;
+  stripeConnectChargesEnabled: boolean;
+  stripeConnectPayoutsEnabled: boolean;
+  stripeConnectDetailsSubmitted: boolean;
+  stripeConnectRequirements?: string[];
+  stripeConnectLastSyncAt?: string;
   riskScore: number;
   riskFlags: string[];
   verificationChecklist: OrganizerVerificationChecklist;
@@ -70,12 +126,34 @@ export type EventItem = {
   name: string;
   location: string;
   date: string;
+  endDate: string;
+  startTime: string;
   isFree: boolean;
   feeAmount: number;
   privacyText: string;
   logoUrl?: string;
   localSponsor?: string;
   assignNumbers: boolean;
+  registrationOpenDate: string;
+  registrationCloseDate: string;
+  registrationsOpen: boolean;
+  visibility: 'public' | 'hidden';
+  closedAt?: string;
+  definitivePublishedAt?: string;
+  seasonVersion: number;
+  lastParticipantsResetAt?: string;
+  baseFeeAmount: number;
+  feePolicy: EventFeePolicy;
+  paymentChannel: EventPaymentChannel;
+  cashPaymentEnabled: boolean;
+  cashPaymentInstructions?: string;
+  cashPaymentDeadline?: string;
+  participantAuthMode: ParticipantAuthMode;
+  participantPhoneRequired: boolean;
+  developerCommissionRate: number;
+  providerFeeRate: number;
+  providerFeeFixed: number;
+  organizerNetAmount: number;
   active: boolean;
   createdAt: string;
 };
@@ -92,6 +170,7 @@ export type RegistrationRecord = {
   birthDate?: string;
   privacyConsent: boolean;
   retentionConsent: boolean;
+  groupParticipantsCount: number;
   assignedNumber?: number;
   registrationCode: string;
   registrationStatus: RegistrationStatus;
@@ -191,12 +270,13 @@ export type RegistrationDraft = {
   phone: string;
   city: string;
   birthDate: string;
+  groupParticipantsCount: number;
   privacyConsent: boolean;
   retentionConsent: boolean;
 };
 
 export type PaymentInput = {
-  method: string;
+  method: 'stripe' | 'cash';
   reference: string;
   payerName: string;
 };

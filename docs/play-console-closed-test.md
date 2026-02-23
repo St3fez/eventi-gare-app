@@ -1,8 +1,8 @@
-# Play Console - Closed Testing (Eventi e Gare)
+# Play Console - Closed Testing (Events)
 
 ## Current status (already prepared)
 - `applicationId`: `com.eventi.slash.gare`
-- App name: `Eventi e Gare`
+- App name: `Events`
 - Signed release AAB: `android/app/build/outputs/bundle/release/app-release.aab`
 - Upload keystore: `android/app/upload-keystore.jks`
 - Release signing config: `android/keystore.properties`

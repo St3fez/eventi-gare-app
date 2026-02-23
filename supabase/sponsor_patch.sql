@@ -1,4 +1,4 @@
--- Eventi e Gare - Sponsor module patch (safe to run multiple times)
+-- Eventi - Sponsor module patch (safe to run multiple times)
 -- Run in Supabase SQL Editor after base schema.
 
 create extension if not exists pgcrypto;
@@ -50,6 +50,14 @@ create table if not exists public.sponsor_webhook_events (
   webhook_event_id text primary key,
   event_type text not null,
   sponsor_slot_id uuid references public.sponsor_slots(id) on delete set null,
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.sponsor_module_webhook_events (
+  webhook_event_id text primary key,
+  event_type text not null,
+  organizer_id uuid references public.organizers(id) on delete set null,
   payload jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
@@ -185,8 +193,65 @@ begin
 end;
 $$;
 
+create or replace function public.apply_sponsor_module_webhook(
+  p_webhook_event_id text,
+  p_event_type text,
+  p_organizer_id uuid,
+  p_payload jsonb default '{}'::jsonb
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_organizer public.organizers%rowtype;
+begin
+  if exists (
+    select 1
+    from public.sponsor_module_webhook_events
+    where webhook_event_id = p_webhook_event_id
+  ) then
+    return false;
+  end if;
+
+  insert into public.sponsor_module_webhook_events (
+    webhook_event_id,
+    event_type,
+    organizer_id,
+    payload
+  ) values (
+    p_webhook_event_id,
+    p_event_type,
+    p_organizer_id,
+    coalesce(p_payload, '{}'::jsonb)
+  );
+
+  select *
+  into v_organizer
+  from public.organizers
+  where id = p_organizer_id
+  for update;
+
+  if not found then
+    raise exception 'Organizer non trovato: %', p_organizer_id;
+  end if;
+
+  if p_event_type = 'checkout.session.completed' then
+    update public.organizers
+    set
+      sponsor_module_enabled = true,
+      sponsor_module_activated_at = coalesce(sponsor_module_activated_at, now())
+    where id = v_organizer.id;
+  end if;
+
+  return true;
+end;
+$$;
+
 alter table public.sponsor_slots enable row level security;
 alter table public.sponsor_webhook_events enable row level security;
+alter table public.sponsor_module_webhook_events enable row level security;
 
 drop policy if exists sponsor_slots_select_public_active on public.sponsor_slots;
 create policy sponsor_slots_select_public_active on public.sponsor_slots
@@ -203,3 +268,40 @@ using (
 revoke all on public.sponsor_slots from anon, authenticated;
 grant select on public.sponsor_slots to anon, authenticated;
 revoke all on public.sponsor_webhook_events from anon, authenticated;
+revoke all on public.sponsor_module_webhook_events from anon, authenticated;
+
+revoke execute on function public.apply_sponsor_webhook(
+  text,
+  text,
+  uuid,
+  text,
+  text,
+  text,
+  text,
+  text,
+  jsonb
+) from public, anon, authenticated;
+grant execute on function public.apply_sponsor_webhook(
+  text,
+  text,
+  uuid,
+  text,
+  text,
+  text,
+  text,
+  text,
+  jsonb
+) to service_role;
+
+revoke execute on function public.apply_sponsor_module_webhook(
+  text,
+  text,
+  uuid,
+  jsonb
+) from public, anon, authenticated;
+grant execute on function public.apply_sponsor_module_webhook(
+  text,
+  text,
+  uuid,
+  jsonb
+) to service_role;

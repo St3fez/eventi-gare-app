@@ -1,6 +1,6 @@
 Hi,
 
-You are invited to test Eventi e Gare on Google Play (Closed Testing track).
+You are invited to test Events on Google Play (Closed Testing track).
 
 What to test:
 1. Organizer onboarding and event creation (free + paid)

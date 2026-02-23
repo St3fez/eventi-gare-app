@@ -154,7 +154,7 @@ export function FreeEventBanner({ text }: FreeEventBannerProps) {
   const { width } = useWindowDimensions();
   const maxContentWidth = 1200;
   const horizontalMargins = 28;
-  const computedWidth = Math.max(280, Math.min(maxContentWidth, width - horizontalMargins));
+  const computedWidth = Math.min(maxContentWidth, Math.max(0, width - horizontalMargins));
 
   return (
     <View style={[styles.bannerWrap, { width: computedWidth }]}>

@@ -20,6 +20,7 @@ type EventRow = {
   id: string;
   name: string;
   event_date: string;
+  event_end_date: string | null;
   organizer_id: string;
 };
 
@@ -148,7 +149,7 @@ Deno.serve(async (req: Request) => {
 
   const eventResult = await supabaseAdmin
     .from('events')
-    .select('id,name,event_date,organizer_id')
+    .select('id,name,event_date,event_end_date,organizer_id')
     .eq('id', eventId)
     .maybeSingle<EventRow>();
 
@@ -176,7 +177,8 @@ Deno.serve(async (req: Request) => {
   }
 
   const now = new Date();
-  const eventEnd = new Date(`${eventResult.data.event_date}T23:59:59.999Z`);
+  const rawEventEndDate = eventResult.data.event_end_date || eventResult.data.event_date;
+  const eventEnd = new Date(`${rawEventEndDate}T23:59:59.999Z`);
   if (Number.isNaN(eventEnd.getTime()) || eventEnd.getTime() <= now.getTime()) {
     return json({ error: 'Event date is in the past, sponsor package cannot be created' }, 400);
   }

@@ -12,6 +12,7 @@ create type public.organizer_verification_status as enum (
 
 create type public.registration_status as enum (
   'pending_payment',
+  'pending_cash',
   'paid',
   'cancelled',
   'payment_failed',
@@ -50,14 +51,44 @@ create type public.sponsor_slot_status as enum (
   'refunded'
 );
 
+create type public.participant_auth_mode as enum (
+  'anonymous',
+  'email',
+  'social_verified',
+  'flexible'
+);
+
 create table if not exists public.organizers (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null unique references auth.users(id) on delete cascade,
   email text not null unique,
+  organization_name text,
+  organization_role text not null default 'altro',
+  organization_role_label text,
+  legal_representative text,
+  official_phone text,
   fiscal_data text,
   bank_account text,
+  compliance_documents jsonb not null default '{
+    "identityDocumentUrl": "",
+    "organizationDocumentUrl": "",
+    "paymentAuthorizationDocumentUrl": "",
+    "adminContactMessage": ""
+  }'::jsonb,
+  compliance_submitted_at timestamptz,
   verification_status public.organizer_verification_status not null default 'pending_review',
   payout_enabled boolean not null default false,
+  paid_feature_unlocked boolean not null default false,
+  paid_feature_unlock_requested_at timestamptz,
+  paid_feature_unlock_contact text not null default 'profstefanoferrari',
+  sponsor_module_enabled boolean not null default false,
+  sponsor_module_activated_at timestamptz,
+  sponsor_module_activation_amount numeric(10, 2) not null default 25,
+  stripe_connect_account_id text,
+  stripe_connect_charges_enabled boolean not null default false,
+  stripe_connect_payouts_enabled boolean not null default false,
+  stripe_connect_details_submitted boolean not null default false,
+  stripe_connect_last_sync_at timestamptz,
   risk_score integer not null default 0,
   risk_flags text[] not null default '{}',
   verification_checklist jsonb not null default '{
@@ -77,16 +108,42 @@ create table if not exists public.events (
   name text not null,
   location text not null,
   event_date date not null,
+  event_end_date date,
+  event_time time,
   is_free boolean not null,
   fee_amount numeric(10, 2) not null default 0,
   privacy_text text not null,
   logo_url text,
   local_sponsor text,
   assign_numbers boolean not null default true,
+  participant_auth_mode public.participant_auth_mode not null default 'anonymous',
+  participant_phone_required boolean not null default false,
+  cash_payment_enabled boolean not null default false,
+  cash_payment_instructions text,
+  cash_payment_deadline date,
+  registrations_open boolean not null default true,
+  closed_at timestamptz,
+  definitive_published_at timestamptz,
+  season_version integer not null default 1,
+  last_participants_reset_at timestamptz,
   active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'events_end_date_not_before_start'
+  ) then
+    alter table public.events
+      add constraint events_end_date_not_before_start
+      check (event_end_date is null or event_end_date >= event_date);
+  end if;
+end
+$$;
 
 create table if not exists public.registrations (
   id uuid primary key default gen_random_uuid(),
@@ -100,6 +157,7 @@ create table if not exists public.registrations (
   birth_date date,
   privacy_consent boolean not null default false,
   retention_consent boolean not null default false,
+  group_participants_count integer not null default 1 check (group_participants_count > 0),
   assigned_number integer,
   registration_code text not null unique,
   registration_status public.registration_status not null default 'pending_payment',
@@ -180,8 +238,18 @@ create table if not exists public.sponsor_webhook_events (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.sponsor_module_webhook_events (
+  webhook_event_id text primary key,
+  event_type text not null,
+  organizer_id uuid references public.organizers(id) on delete set null,
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 create index if not exists idx_events_organizer on public.events(organizer_id);
 create index if not exists idx_events_active_date on public.events(active, event_date);
+create unique index if not exists uq_events_name_location_date
+on public.events (event_date, lower(btrim(name)), lower(btrim(location)));
 create index if not exists idx_reg_event_status on public.registrations(event_id, registration_status);
 create index if not exists idx_reg_organizer on public.registrations(organizer_id);
 create index if not exists idx_payment_intents_registration on public.payment_intents(registration_id);
@@ -492,6 +560,62 @@ begin
 end;
 $$;
 
+create or replace function public.apply_sponsor_module_webhook(
+  p_webhook_event_id text,
+  p_event_type text,
+  p_organizer_id uuid,
+  p_payload jsonb default '{}'::jsonb
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_organizer public.organizers%rowtype;
+begin
+  if exists (
+    select 1
+    from public.sponsor_module_webhook_events
+    where webhook_event_id = p_webhook_event_id
+  ) then
+    return false;
+  end if;
+
+  insert into public.sponsor_module_webhook_events (
+    webhook_event_id,
+    event_type,
+    organizer_id,
+    payload
+  ) values (
+    p_webhook_event_id,
+    p_event_type,
+    p_organizer_id,
+    coalesce(p_payload, '{}'::jsonb)
+  );
+
+  select *
+  into v_organizer
+  from public.organizers
+  where id = p_organizer_id
+  for update;
+
+  if not found then
+    raise exception 'Organizer non trovato: %', p_organizer_id;
+  end if;
+
+  if p_event_type = 'checkout.session.completed' then
+    update public.organizers
+    set
+      sponsor_module_enabled = true,
+      sponsor_module_activated_at = coalesce(sponsor_module_activated_at, now())
+    where id = v_organizer.id;
+  end if;
+
+  return true;
+end;
+$$;
+
 alter table public.organizers enable row level security;
 alter table public.events enable row level security;
 alter table public.registrations enable row level security;
@@ -499,6 +623,7 @@ alter table public.payment_intents enable row level security;
 alter table public.webhook_events enable row level security;
 alter table public.sponsor_slots enable row level security;
 alter table public.sponsor_webhook_events enable row level security;
+alter table public.sponsor_module_webhook_events enable row level security;
 
 -- Prevent organizer users from self-approving antifraud/KYC fields.
 create or replace function public.guard_organizer_sensitive_fields()
@@ -509,6 +634,11 @@ begin
   if auth.role() in ('authenticated', 'anon') then
     if new.verification_status is distinct from old.verification_status
       or new.payout_enabled is distinct from old.payout_enabled
+      or new.stripe_connect_account_id is distinct from old.stripe_connect_account_id
+      or new.stripe_connect_charges_enabled is distinct from old.stripe_connect_charges_enabled
+      or new.stripe_connect_payouts_enabled is distinct from old.stripe_connect_payouts_enabled
+      or new.stripe_connect_details_submitted is distinct from old.stripe_connect_details_submitted
+      or new.stripe_connect_last_sync_at is distinct from old.stripe_connect_last_sync_at
       or new.risk_score is distinct from old.risk_score
       or new.risk_flags is distinct from old.risk_flags
       or new.verification_checklist is distinct from old.verification_checklist then
@@ -651,5 +781,64 @@ revoke all on public.webhook_events from anon, authenticated;
 revoke all on public.sponsor_slots from anon, authenticated;
 grant select on public.sponsor_slots to anon, authenticated;
 revoke all on public.sponsor_webhook_events from anon, authenticated;
+revoke all on public.sponsor_module_webhook_events from anon, authenticated;
+
+-- Webhook functions executable only by service role.
+revoke execute on function public.apply_payment_webhook(
+  text,
+  public.payment_provider,
+  public.payment_webhook_type,
+  uuid,
+  text,
+  text,
+  text,
+  jsonb
+) from public, anon, authenticated;
+grant execute on function public.apply_payment_webhook(
+  text,
+  public.payment_provider,
+  public.payment_webhook_type,
+  uuid,
+  text,
+  text,
+  text,
+  jsonb
+) to service_role;
+
+revoke execute on function public.apply_sponsor_webhook(
+  text,
+  text,
+  uuid,
+  text,
+  text,
+  text,
+  text,
+  text,
+  jsonb
+) from public, anon, authenticated;
+grant execute on function public.apply_sponsor_webhook(
+  text,
+  text,
+  uuid,
+  text,
+  text,
+  text,
+  text,
+  text,
+  jsonb
+) to service_role;
+
+revoke execute on function public.apply_sponsor_module_webhook(
+  text,
+  text,
+  uuid,
+  jsonb
+) from public, anon, authenticated;
+grant execute on function public.apply_sponsor_module_webhook(
+  text,
+  text,
+  uuid,
+  jsonb
+) to service_role;
 
 -- Recommendation: run webhook processing via Edge Function using service role key.

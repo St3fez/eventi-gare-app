@@ -132,6 +132,128 @@ Note:
 - genera checkout Stripe con metadata `kind=sponsor_slot`
 - i webhook Stripe aggiornano lo slot con `public.apply_sponsor_webhook(...)`
 
+## 2.d) Edge Function sponsor module checkout (sponsor-module-checkout)
+
+File pronto:
+- `supabase/functions/sponsor-module-checkout/index.ts`
+
+Percorso Dashboard (senza CLI):
+1. `Edge Functions` -> `Create function`
+2. Nome: `sponsor-module-checkout`
+3. Copia il contenuto da `supabase/functions/sponsor-module-checkout/index.ts`
+4. Mantieni `Verify JWT` attivo (solo organizer autenticato)
+5. Deploy
+6. URL:
+   - `https://<PROJECT_REF>.functions.supabase.co/sponsor-module-checkout`
+
+Secrets richiesti:
+- `STRIPE_SECRET_KEY`
+
+Secrets opzionali:
+- `SPONSOR_MODULE_SUCCESS_URL` (fallback: `SPONSOR_SUCCESS_URL`)
+- `SPONSOR_MODULE_CANCEL_URL` (fallback: `SPONSOR_CANCEL_URL`)
+- `SPONSOR_MODULE_DEFAULT_CURRENCY`
+
+Note:
+- crea checkout Stripe con metadata `kind=sponsor_module_activation`
+- attivazione modulo su webhook `checkout.session.completed` via `public.apply_sponsor_module_webhook(...)`
+
+## 2.e) Edge Function Stripe Connect onboarding (stripe-connect)
+
+File pronto:
+- `supabase/functions/stripe-connect/index.ts`
+
+Percorso Dashboard (senza CLI):
+1. `Edge Functions` -> `Create function`
+2. Nome: `stripe-connect`
+3. Copia il contenuto da `supabase/functions/stripe-connect/index.ts`
+4. Mantieni `Verify JWT` attivo (solo organizer autenticato)
+5. Deploy
+6. URL:
+   - `https://<PROJECT_REF>.functions.supabase.co/stripe-connect`
+
+Secrets richiesti:
+- `STRIPE_SECRET_KEY`
+
+Secrets opzionali:
+- `STRIPE_CONNECT_DEFAULT_COUNTRY` (default `IT`)
+- `STRIPE_CONNECT_RETURN_URL`
+- `STRIPE_CONNECT_REFRESH_URL`
+
+Note:
+- crea/riusa account Stripe Connect (Express)
+- ritorna onboarding link
+- aggiorna campi organizer (`stripe_connect_*`, `payout_enabled`)
+
+## 2.f) Edge Function Stripe Connect sync (stripe-connect-sync)
+
+File pronto:
+- `supabase/functions/stripe-connect-sync/index.ts`
+
+Percorso Dashboard (senza CLI):
+1. `Edge Functions` -> `Create function`
+2. Nome: `stripe-connect-sync`
+3. Copia il contenuto da `supabase/functions/stripe-connect-sync/index.ts`
+4. Mantieni `Verify JWT` attivo (solo organizer autenticato)
+5. Deploy
+6. URL:
+   - `https://<PROJECT_REF>.functions.supabase.co/stripe-connect-sync`
+
+Secrets richiesti:
+- `STRIPE_SECRET_KEY`
+
+Note:
+- aggiorna lo stato Stripe Connect senza ri-creare account link
+
+## 2.g) Edge Function participant checkout (participant-checkout)
+
+File pronto:
+- `supabase/functions/participant-checkout/index.ts`
+
+Percorso Dashboard (senza CLI):
+1. `Edge Functions` -> `Create function`
+2. Nome: `participant-checkout`
+3. Copia il contenuto da `supabase/functions/participant-checkout/index.ts`
+4. Mantieni `Verify JWT` attivo (solo partecipante autenticato)
+5. Deploy
+6. URL:
+   - `https://<PROJECT_REF>.functions.supabase.co/participant-checkout`
+
+Secrets richiesti:
+- `STRIPE_SECRET_KEY`
+
+Secrets opzionali:
+- `PARTICIPANT_SUCCESS_URL`
+- `PARTICIPANT_CANCEL_URL`
+
+Note:
+- verifica ownership registrazione (`participant_user_id = utente corrente`)
+- crea/reusa `payment_intents` per iscrizioni partecipante
+- crea checkout Stripe con metadata `supabase_payment_intent_id`
+- webhook Stripe completa lo stato pagamento via `public.apply_payment_webhook(...)`
+
+## 2.h) Edge Function invio documenti organizer (send-organizer-compliance)
+
+File pronto:
+- `supabase/functions/send-organizer-compliance/index.ts`
+
+Percorso Dashboard (senza CLI):
+1. `Edge Functions` -> `Create function`
+2. Nome: `send-organizer-compliance`
+3. Copia il contenuto da `supabase/functions/send-organizer-compliance/index.ts`
+4. Deploy
+5. URL:
+   - `https://<PROJECT_REF>.functions.supabase.co/send-organizer-compliance`
+
+Secrets richiesti (SMTP):
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `SMTP_FROM`
+
+Se i secret SMTP non sono configurati la function risponde in modalita simulata.
+
 ## 3) Client mobile: solo anon key
 
 Nel client Expo/React Native usa solo:
@@ -151,6 +273,12 @@ EXPO_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
 EXPO_PUBLIC_EMAIL_WEBHOOK_URL=https://<project-ref>.functions.supabase.co/send-confirmation
 EXPO_PUBLIC_SPONSOR_CHECKOUT_URL=https://<project-ref>.functions.supabase.co/sponsor-checkout
+EXPO_PUBLIC_SPONSOR_MODULE_CHECKOUT_URL=https://<project-ref>.functions.supabase.co/sponsor-module-checkout
+EXPO_PUBLIC_STRIPE_CONNECT_URL=https://<project-ref>.functions.supabase.co/stripe-connect
+EXPO_PUBLIC_STRIPE_CONNECT_SYNC_URL=https://<project-ref>.functions.supabase.co/stripe-connect-sync
+EXPO_PUBLIC_PARTICIPANT_CHECKOUT_URL=https://<project-ref>.functions.supabase.co/participant-checkout
+EXPO_PUBLIC_ORGANIZER_COMPLIANCE_WEBHOOK_URL=https://<project-ref>.functions.supabase.co/send-organizer-compliance
+EXPO_PUBLIC_ADMIN_CONTACT_EMAIL=profstefanoferrari@gmail.com
 ```
 
 ## 4) Test rapido webhook in locale (opzionale)
@@ -203,3 +331,13 @@ Questa patch crea/aggiorna:
 - tabelle `sponsor_slots` e `sponsor_webhook_events`
 - funzione `public.apply_sponsor_webhook(...)`
 - policy RLS + grant select (read-only dal client)
+
+## 9) Patch hardening organizer/eventi (nuovo)
+Per aggiungere i nuovi vincoli anti-frode e i campi compliance organizer:
+1. Apri Supabase SQL Editor.
+2. Esegui `supabase/organizer_event_hardening_patch.sql`.
+
+Questa patch crea/aggiorna:
+- policy accesso partecipante per evento (`participant_auth_mode`, `participant_phone_required`)
+- campi organizer per ruolo ente/documentazione/sblocco quote
+- indice univoco anti-duplicazione evento (stesso giorno + stessa localita + stesso nome)

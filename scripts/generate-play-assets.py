@@ -50,7 +50,7 @@ SCREENS: list[ScreenSpec] = [
             'Legal disclaimer and privacy module',
             'Search-ready event catalog',
         ],
-        cta='Start with Eventi e Gare',
+        cta='Start with Events',
     ),
     ScreenSpec(
         slug='organizer-onboarding',
@@ -277,7 +277,7 @@ def create_feature_graphic() -> Path:
     chip_font = load_font(22, bold=True)
 
     tx = 340
-    draw.text((tx, 130), 'Eventi e Gare', font=title_font, fill=TEXT_LIGHT)
+    draw.text((tx, 130), 'Events', font=title_font, fill=TEXT_LIGHT)
     draw.text((tx, 220), 'Organize events. Register participants. Manage sponsors.', font=sub_font, fill=TEXT_MUTED)
 
     chips = ['Organizer + Participant', 'Supabase + Stripe', 'Closed Testing Build']
@@ -320,7 +320,7 @@ def render_screenshot(size: tuple[int, int], spec: ScreenSpec, screen_index: int
         width=3,
     )
 
-    draw.text((margin + 30, margin + 20), 'Eventi e Gare', font=section_font, fill=TEXT_LIGHT)
+    draw.text((margin + 30, margin + 20), 'Events', font=section_font, fill=TEXT_LIGHT)
     draw.text((w - margin - 210, margin + 24), f'Screen {screen_index + 1:02d}', font=small_font, fill=ACCENT_GOLD)
 
     draw_wrapped_text(
@@ -421,7 +421,7 @@ def write_manifest(paths: list[Path]) -> None:
 
 
 def create_zip(paths: list[Path]) -> Path:
-    zip_path = OUT_DIR / 'eventi-gare-play-assets.zip'
+    zip_path = OUT_DIR / 'events-play-assets.zip'
     with zipfile.ZipFile(zip_path, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
         for p in paths:
             arc = p.relative_to(OUT_DIR).as_posix()

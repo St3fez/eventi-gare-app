@@ -4,6 +4,7 @@ export const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#030E1A',
+    overflow: 'hidden',
   },
   loadingSafeArea: {
     flex: 1,
@@ -28,6 +29,7 @@ export const styles = StyleSheet.create({
   },
   gradient: {
     flex: 1,
+    overflow: 'hidden',
   },
   backgroundDecor: {
     position: 'absolute',
@@ -106,6 +108,7 @@ export const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 1200,
     alignSelf: 'center',
+    minWidth: 0,
     paddingHorizontal: 18,
     paddingTop: 18,
     paddingBottom: 124,
@@ -137,6 +140,7 @@ export const styles = StyleSheet.create({
     borderColor: 'rgba(114, 193, 223, 0.34)',
     padding: 16,
     gap: 11,
+    minWidth: 0,
     shadowColor: '#020A12',
     shadowOffset: { width: 0, height: 14 },
     shadowOpacity: 0.34,
@@ -161,6 +165,7 @@ export const styles = StyleSheet.create({
     color: '#D8EDF8',
     fontWeight: '700',
     fontSize: 13.5,
+    flexShrink: 1,
   },
   input: {
     backgroundColor: 'rgba(7, 34, 54, 0.86)',
@@ -180,14 +185,16 @@ export const styles = StyleSheet.create({
   },
   switchHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 10,
+    flexWrap: 'wrap',
   },
   helperText: {
     color: '#9FC6DD',
     fontSize: 12,
     lineHeight: 17,
+    flexShrink: 1,
   },
   primaryButton: {
     backgroundColor: '#36D4B8',
@@ -217,6 +224,7 @@ export const styles = StyleSheet.create({
     fontWeight: '900',
     fontSize: 14.5,
     letterSpacing: 0.2,
+    textAlign: 'center',
   },
   secondaryButton: {
     backgroundColor: 'rgba(7, 31, 49, 0.55)',
@@ -231,6 +239,7 @@ export const styles = StyleSheet.create({
     color: '#DCEFFB',
     fontWeight: '700',
     fontSize: 14,
+    textAlign: 'center',
   },
   inlineMetricRow: {
     flexDirection: 'row',
@@ -240,16 +249,20 @@ export const styles = StyleSheet.create({
   homeTopActions: {
     flexDirection: 'row',
     justifyContent: 'flex-start',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   languageRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+    flexWrap: 'wrap',
     gap: 10,
   },
   languageSwitchWrap: {
     flexDirection: 'row',
     gap: 8,
+    flexWrap: 'wrap',
   },
   languageChip: {
     borderWidth: 1,
@@ -297,6 +310,7 @@ export const styles = StyleSheet.create({
     borderColor: 'rgba(141, 201, 228, 0.42)',
     padding: 12,
     gap: 6,
+    minWidth: 0,
   },
   listCardSelected: {
     borderColor: '#53E3CB',
@@ -306,27 +320,34 @@ export const styles = StyleSheet.create({
     color: '#F1FAFF',
     fontWeight: '800',
     fontSize: 15,
+    flexShrink: 1,
   },
   listSubText: {
     color: '#BBD9EB',
     fontSize: 12,
     lineHeight: 17,
+    flexShrink: 1,
   },
   inlineActionRow: {
     flexDirection: 'row',
     gap: 8,
     marginTop: 8,
+    flexWrap: 'wrap',
   },
   inlineActionButton: {
     backgroundColor: '#1C86AB',
     paddingHorizontal: 12,
     paddingVertical: 8.5,
     borderRadius: 10,
+    minWidth: 0,
+    flexShrink: 1,
+    maxWidth: '100%',
   },
   inlineActionButtonText: {
     color: '#EAF5FD',
     fontSize: 12.5,
     fontWeight: '700',
+    textAlign: 'center',
   },
   registrationCard: {
     backgroundColor: 'rgba(7, 30, 49, 0.89)',
@@ -335,6 +356,16 @@ export const styles = StyleSheet.create({
     borderColor: 'rgba(118, 180, 209, 0.48)',
     padding: 12,
     gap: 4,
+    minWidth: 0,
+  },
+  sponsorLogoPreview: {
+    width: '100%',
+    height: 140,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(118, 180, 209, 0.48)',
+    backgroundColor: 'rgba(7, 30, 49, 0.89)',
+    resizeMode: 'cover',
   },
   methodRow: {
     flexDirection: 'row',
@@ -348,6 +379,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     backgroundColor: 'rgba(7, 32, 50, 0.5)',
+    maxWidth: '100%',
   },
   methodChipActive: {
     backgroundColor: '#36D4B8',
@@ -423,6 +455,13 @@ export const styles = StyleSheet.create({
     shadowOpacity: 0.26,
     shadowRadius: 14,
     elevation: 4,
+  },
+  adBannerWrap: {
+    position: 'absolute',
+    alignSelf: 'center',
+    bottom: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   bannerText: {
     color: '#312202',
