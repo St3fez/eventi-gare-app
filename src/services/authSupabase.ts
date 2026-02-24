@@ -26,6 +26,25 @@ export const signInWithEmail = async (email: string, password: string) => {
   });
 };
 
+export const requestEmailOtp = async (email: string, shouldCreateUser = true) => {
+  const client = requireSupabase();
+  return client.auth.signInWithOtp({
+    email,
+    options: {
+      shouldCreateUser,
+    },
+  });
+};
+
+export const verifyEmailOtp = async (email: string, token: string) => {
+  const client = requireSupabase();
+  return client.auth.verifyOtp({
+    email,
+    token,
+    type: 'email',
+  });
+};
+
 export const signOut = async () => {
   const client = requireSupabase();
   return client.auth.signOut();

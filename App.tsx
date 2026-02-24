@@ -47,9 +47,9 @@ import {
   completeOAuthFromUrl,
   getOrganizerSecurityStatus,
   OrganizerSecurityStatus,
-  signInWithEmail,
-  signUpWithEmail,
+  requestEmailOtp,
   startOrganizerOAuth,
+  verifyEmailOtp,
 } from './src/services/authSupabase';
 import {
   applyPaymentWebhook,
@@ -287,6 +287,12 @@ const addYearsIso = (isoDate: string, years: number): string => {
   return parsed.toISOString().slice(0, 10);
 };
 
+type AuthNotice = {
+  tone: 'error' | 'success' | 'info';
+  title: string;
+  message: string;
+};
+
 function App() {
   const { width } = useWindowDimensions();
   const isDesktopLayout = width >= 1024;
@@ -303,6 +309,7 @@ function App() {
   const [organizerSecurity, setOrganizerSecurity] = useState<OrganizerSecurityStatus | null>(
     null
   );
+  const [authNotice, setAuthNotice] = useState<AuthNotice | null>(null);
   const [handledSharedEventRef, setHandledSharedEventRef] = useState<string | null>(null);
   const t = useMemo(() => createTranslator(language), [language]);
   const appSubtitle = IS_DEMO_CHANNEL ? t('app_subtitle_demo') : t('app_subtitle');
@@ -441,6 +448,7 @@ function App() {
 
   useEffect(() => {
     if (screen.name !== 'organizerAuth') {
+      setAuthNotice(null);
       return;
     }
     void refreshOrganizerSecurityState();
@@ -605,7 +613,7 @@ function App() {
 
   const ensureDraftConsents = (draft: RegistrationDraft): boolean => {
     if (!draft.privacyConsent || !draft.retentionConsent) {
-      Alert.alert(t('required_consents_title'), t('required_consents_message'));
+      showAppAlert(t('required_consents_title'), t('required_consents_message'));
       return false;
     }
     return true;
@@ -624,7 +632,7 @@ function App() {
     });
 
     if (!auth.ok) {
-      Alert.alert(t('participant_auth_required_title'), auth.reason);
+      showAppAlert(t('participant_auth_required_title'), auth.reason);
       return false;
     }
 
@@ -659,60 +667,94 @@ function App() {
   const signInOrganizerWithOAuth = async (provider: 'google') => {
     const result = await startOrganizerOAuth(provider);
     if (!result.ok) {
-      Alert.alert(t('organizer_security_action_fail_title'), result.reason);
+      showAuthAlert(t('organizer_security_action_fail_title'), result.reason);
       return;
     }
     if (Platform.OS !== 'web') {
-      Alert.alert(
+      showAuthAlert(
         t('organizer_security_action_fail_title'),
         t('organizer_security_browser_opened')
       );
     }
   };
 
-  const passwordHasPunctuation = (value: string) =>
-    /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/.test(value);
+  const showAppAlert = (title: string, message: string) => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.alert === 'function') {
+      window.alert(`${title}\n${message}`);
+      return;
+    }
+    Alert.alert(title, message);
+  };
 
-  const isOrganizerPasswordValid = (value: string) =>
-    value.length >= 8 && passwordHasPunctuation(value);
+  const showAuthAlert = (title: string, message: string, tone: AuthNotice['tone'] = 'error') => {
+    setAuthNotice({ tone, title, message });
+    if (Platform.OS !== 'web') {
+      Alert.alert(title, message);
+    }
+  };
 
-  const loginOrganizerWithEmail = async (
-    email: string,
-    password: string,
-    mode: 'signin' | 'signup'
-  ) => {
+  const requestOrganizerEmailOtp = async (email: string) => {
     const normalizedEmail = cleanText(email).toLowerCase();
     if (!normalizedEmail.includes('@')) {
-      Alert.alert(t('invalid_email_title'), t('invalid_email_message'));
+      showAuthAlert(t('invalid_email_title'), t('invalid_email_message'));
       return;
     }
 
-    const normalizedPassword = cleanText(password);
-    if (!normalizedPassword) {
-      Alert.alert(t('missing_data_title'), t('organizer_security_missing_password'));
+    let action;
+    try {
+      action = await requestEmailOtp(normalizedEmail, true);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Errore imprevisto durante invio OTP.';
+      showAuthAlert(t('organizer_security_action_fail_title'), message);
       return;
     }
-    if (!isOrganizerPasswordValid(normalizedPassword)) {
-      Alert.alert(t('missing_data_title'), t('organizer_security_password_policy'));
-      return;
-    }
-
-    const action =
-      mode === 'signup'
-        ? await signUpWithEmail(normalizedEmail, normalizedPassword)
-        : await signInWithEmail(normalizedEmail, normalizedPassword);
 
     if (action.error) {
-      Alert.alert(t('organizer_security_action_fail_title'), action.error.message);
+      showAuthAlert(t('organizer_security_action_fail_title'), action.error.message);
+      return;
+    }
+
+    showAuthAlert(
+      t('organizer_security_action_fail_title'),
+      t('organizer_security_otp_sent'),
+      'success'
+    );
+  };
+
+  const verifyOrganizerEmailOtp = async (email: string, token: string) => {
+    const normalizedEmail = cleanText(email).toLowerCase();
+    if (!normalizedEmail.includes('@')) {
+      showAuthAlert(t('invalid_email_title'), t('invalid_email_message'));
+      return;
+    }
+
+    const normalizedToken = cleanText(token);
+    if (!normalizedToken) {
+      showAuthAlert(t('missing_data_title'), t('organizer_security_otp_missing'));
+      return;
+    }
+
+    let action;
+    try {
+      action = await verifyEmailOtp(normalizedEmail, normalizedToken);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Errore imprevisto durante verifica OTP.';
+      showAuthAlert(t('organizer_security_action_fail_title'), message);
+      return;
+    }
+
+    if (action.error) {
+      showAuthAlert(t('organizer_security_action_fail_title'), action.error.message);
       return;
     }
 
     await refreshOrganizerSecurityState();
-    Alert.alert(
+    showAuthAlert(
       t('organizer_security_action_fail_title'),
-      mode === 'signup'
-        ? t('organizer_security_email_signup_ok')
-        : t('organizer_security_email_login_ok')
+      t('organizer_security_otp_verified'),
+      'success'
     );
   };
 
@@ -2061,7 +2103,7 @@ function App() {
           ? `\n${t('group_participants_line', { count: registration.groupParticipantsCount })}`
           : '';
 
-      Alert.alert(
+      showAppAlert(
         t('registration_completed_title'),
         `${t('registration_completed_message', {
           code: registration.registrationCode,
@@ -2199,7 +2241,7 @@ function App() {
       setAppData(nextData);
       const syncResult = await syncRegistrationRecord(nextData, registration);
       if (!syncResult.ok) {
-        Alert.alert(
+        showAppAlert(
           t('sync_not_completed_title'),
           t('sync_not_completed_message', { reason: syncResult.reason })
         );
@@ -2795,12 +2837,13 @@ function App() {
         return (
           <OrganizerAuthScreen
             status={organizerSecurity}
+            notice={authNotice}
             onBack={() => setScreen({ name: 'role' })}
-            onEmailSignIn={async (email, password) => {
-              await loginOrganizerWithEmail(email, password, 'signin');
+            onEmailOtpRequest={async (email) => {
+              await requestOrganizerEmailOtp(email);
             }}
-            onEmailSignUp={async (email, password) => {
-              await loginOrganizerWithEmail(email, password, 'signup');
+            onEmailOtpVerify={async (email, token) => {
+              await verifyOrganizerEmailOtp(email, token);
             }}
             onGoogleSignIn={async () => {
               await signInOrganizerWithOAuth('google');

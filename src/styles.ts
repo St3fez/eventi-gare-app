@@ -196,6 +196,35 @@ export const styles = StyleSheet.create({
     lineHeight: 17,
     flexShrink: 1,
   },
+  noticeCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    gap: 4,
+    minWidth: 0,
+  },
+  noticeCardError: {
+    backgroundColor: 'rgba(93, 33, 33, 0.85)',
+    borderColor: 'rgba(244, 120, 120, 0.6)',
+  },
+  noticeCardSuccess: {
+    backgroundColor: 'rgba(17, 75, 64, 0.85)',
+    borderColor: 'rgba(83, 227, 203, 0.6)',
+  },
+  noticeCardInfo: {
+    backgroundColor: 'rgba(7, 30, 49, 0.85)',
+    borderColor: 'rgba(118, 180, 209, 0.55)',
+  },
+  noticeTitle: {
+    color: '#F1FAFF',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  noticeText: {
+    color: '#DCEFFB',
+    fontSize: 12,
+    lineHeight: 17,
+  },
   primaryButton: {
     backgroundColor: '#36D4B8',
     borderRadius: 13,

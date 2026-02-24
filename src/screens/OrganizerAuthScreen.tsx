@@ -6,11 +6,18 @@ import { Translator } from '../i18n';
 import { OrganizerSecurityStatus } from '../services/authSupabase';
 import { styles } from '../styles';
 
+type AuthNotice = {
+  tone: 'error' | 'success' | 'info';
+  title: string;
+  message: string;
+};
+
 type Props = {
   status: OrganizerSecurityStatus | null;
+  notice?: AuthNotice | null;
   onBack: () => void;
-  onEmailSignIn: (email: string, password: string) => Promise<void>;
-  onEmailSignUp: (email: string, password: string) => Promise<void>;
+  onEmailOtpRequest: (email: string) => Promise<void>;
+  onEmailOtpVerify: (email: string, token: string) => Promise<void>;
   onGoogleSignIn: () => Promise<void>;
   onContinue: () => void;
   t: Translator;
@@ -18,22 +25,30 @@ type Props = {
 
 export function OrganizerAuthScreen({
   status,
+  notice,
   onBack,
-  onEmailSignIn,
-  onEmailSignUp,
+  onEmailOtpRequest,
+  onEmailOtpVerify,
   onGoogleSignIn,
   onContinue,
   t,
 }: Props) {
   const [email, setEmail] = useState(status?.email ?? '');
-  const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState('');
 
   const socialReady = Boolean(status?.socialProvider);
   const emailReady = Boolean(status?.providers?.includes('email'));
   const securityReady = Boolean(status?.securityReady);
 
+  const noticeStyle =
+    notice?.tone === 'error'
+      ? styles.noticeCardError
+      : notice?.tone === 'success'
+      ? styles.noticeCardSuccess
+      : styles.noticeCardInfo;
+
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent}>
+    <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps='handled'>
       <SectionCard title={t('organizer_security_title')} delayMs={0}>
         <Text style={styles.cardParagraph}>{t('organizer_security_intro')}</Text>
         <Text style={styles.helperText}>
@@ -41,6 +56,12 @@ export function OrganizerAuthScreen({
             value: status?.email || t('organizer_security_not_logged'),
           })}
         </Text>
+        {notice ? (
+          <View style={[styles.noticeCard, noticeStyle]}>
+            <Text style={styles.noticeTitle}>{notice.title}</Text>
+            <Text style={styles.noticeText}>{notice.message}</Text>
+          </View>
+        ) : null}
         <View style={styles.registrationCard}>
           <Text style={styles.listSubText}>
             {t('organizer_security_social_status', {
@@ -74,24 +95,28 @@ export function OrganizerAuthScreen({
           keyboardType='email-address'
         />
         <TextField
-          label={t('organizer_security_password_label')}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
+          label={t('organizer_security_otp_label')}
+          value={otp}
+          onChangeText={setOtp}
+          keyboardType='decimal-pad'
         />
-        <Text style={styles.helperText}>{t('organizer_security_password_policy')}</Text>
+        <Text style={styles.helperText}>{t('organizer_security_otp_hint')}</Text>
         <View style={styles.inlineActionRow}>
           <Pressable
             style={styles.inlineActionButton}
-            onPress={() => void onEmailSignIn(email, password)}
+            onPress={() => void onEmailOtpRequest(email)}
           >
-            <Text style={styles.inlineActionButtonText}>{t('organizer_security_email_login')}</Text>
+            <Text style={styles.inlineActionButtonText}>
+              {t('organizer_security_otp_send')}
+            </Text>
           </Pressable>
           <Pressable
             style={styles.inlineActionButton}
-            onPress={() => void onEmailSignUp(email, password)}
+            onPress={() => void onEmailOtpVerify(email, otp)}
           >
-            <Text style={styles.inlineActionButtonText}>{t('organizer_security_email_signup')}</Text>
+            <Text style={styles.inlineActionButtonText}>
+              {t('organizer_security_otp_verify')}
+            </Text>
           </Pressable>
         </View>
 
