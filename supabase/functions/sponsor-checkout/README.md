@@ -13,6 +13,7 @@ Optional secrets:
 - `SPONSOR_SUCCESS_URL` (default: `https://eventigare.app/sponsor/success`)
 - `SPONSOR_CANCEL_URL` (default: `https://eventigare.app/sponsor/cancel`)
 - `SPONSOR_DEFAULT_CURRENCY` (default: `EUR`)
+- `SPONSOR_ALLOWED_ORIGINS` (CSV list of allowed caller origins)
 
 ## Deploy
 ```bash
@@ -25,3 +26,5 @@ supabase functions deploy sponsor-checkout
 - It creates a pending `sponsor_slots` row, then creates Stripe Checkout URL.
 - Slot metadata includes both Italian and English contract text (`contract_terms.it/en`).
 - Slot becomes visible in app only when webhook marks it `active=true` and `ends_at > now()`.
+- It supports CORS preflight (`OPTIONS`) for web clients.
+- If `Origin` header is present, it must match allowed origins (plus localhost dev origins).

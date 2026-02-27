@@ -7,6 +7,7 @@ export const STRIPE_PROVIDER_FEE_FIXED = 0.25;
 export const BANK_PROVIDER_FEE_RATE = 0;
 export const BANK_PROVIDER_FEE_FIXED = 0;
 export const PAYMENT_SESSION_MINUTES = 15;
+export const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
 
 const parseEnvBoolean = (value: string | undefined): boolean | null => {
   if (typeof value !== 'string') {
@@ -55,6 +56,8 @@ export const EMAIL_WEBHOOK_URL = process.env.EXPO_PUBLIC_EMAIL_WEBHOOK_URL;
 export const ORGANIZER_COMPLIANCE_WEBHOOK_URL =
   process.env.EXPO_PUBLIC_ORGANIZER_COMPLIANCE_WEBHOOK_URL;
 export const EVENT_WEB_BASE_URL = process.env.EXPO_PUBLIC_EVENT_WEB_BASE_URL;
+export const PRIVACY_POLICY_URL =
+  process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL || EVENT_WEB_BASE_URL;
 export const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 export const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 export const SPONSOR_CHECKOUT_URL = process.env.EXPO_PUBLIC_SPONSOR_CHECKOUT_URL;

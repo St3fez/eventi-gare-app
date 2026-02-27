@@ -40,7 +40,7 @@ export function OrganizerProfileScreen({
   const [bankAccount, setBankAccount] = useState('');
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent}>
+    <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps='handled'>
       <SectionCard title={t('organizer_access')} delayMs={0}>
         <Text style={styles.cardParagraph}>{t('organizer_access_intro')}</Text>
 

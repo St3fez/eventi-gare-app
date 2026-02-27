@@ -21,9 +21,13 @@ export const sendConfirmationEmail = async (payload: {
       body: JSON.stringify(payload),
     });
 
-    let body: { sent?: boolean; mode?: 'simulated' | 'resend' | 'webhook'; detail?: string } = {};
+    let body: { sent?: boolean; mode?: 'simulated' | 'resend' | 'webhook' | 'smtp'; detail?: string } = {};
     try {
-      body = (await response.json()) as { sent?: boolean; mode?: 'simulated' | 'resend' | 'webhook'; detail?: string };
+      body = (await response.json()) as {
+        sent?: boolean;
+        mode?: 'simulated' | 'resend' | 'webhook' | 'smtp';
+        detail?: string;
+      };
     } catch {
       // keep defaults
     }

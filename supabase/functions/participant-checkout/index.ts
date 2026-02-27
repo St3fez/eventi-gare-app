@@ -69,10 +69,19 @@ type OrganizerRow = {
 
 const PARTICIPANT_SESSION_MINUTES = 15;
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
 const json = (payload: Record<string, unknown>, status = 200): Response =>
   new Response(JSON.stringify(payload), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...corsHeaders,
+    },
   });
 
 const cleanText = (value: unknown): string =>
@@ -86,19 +95,89 @@ const isFinalRegistrationStatus = (
   status === 'payment_failed' ||
   status === 'refunded';
 
-const normalizeRedirectUrl = (value: unknown, fallback: string): string => {
+const toAllowedOrigin = (value: string): string | null => {
+  try {
+    const parsed = new URL(value);
+    if (!/^https?:$/i.test(parsed.protocol)) {
+      return null;
+    }
+    return parsed.origin;
+  } catch {
+    return null;
+  }
+};
+
+const normalizeFallbackUrl = (value: string, fallback: string): string => {
   const candidate = cleanText(value);
   if (!candidate) {
     return fallback;
   }
-  if (!/^https?:\/\//i.test(candidate)) {
+  return toAllowedOrigin(candidate) ? candidate : fallback;
+};
+
+const resolveAllowedOrigins = (
+  fallbackUrl: string,
+  additionalAllowedOriginsRaw?: string
+): Set<string> => {
+  const origins = new Set<string>();
+  const fallbackOrigin = toAllowedOrigin(fallbackUrl);
+  if (fallbackOrigin) {
+    origins.add(fallbackOrigin);
+  }
+
+  cleanText(additionalAllowedOriginsRaw ?? '')
+    .split(',')
+    .map((entry) => cleanText(entry))
+    .filter(Boolean)
+    .forEach((entry) => {
+      const parsed = toAllowedOrigin(entry);
+      if (parsed) {
+        origins.add(parsed);
+      }
+    });
+
+  // Keep local web testing available without relaxing production origins.
+  ['http://localhost:19006', 'http://127.0.0.1:19006'].forEach((entry) => {
+    const parsed = toAllowedOrigin(entry);
+    if (parsed) {
+      origins.add(parsed);
+    }
+  });
+
+  return origins;
+};
+
+const isOriginAllowed = (origin: string, allowedOrigins: Set<string>): boolean =>
+  allowedOrigins.size === 0 || allowedOrigins.has(origin);
+
+const normalizeRedirectUrl = (
+  value: unknown,
+  fallback: string,
+  allowedOrigins: Set<string>
+): string => {
+  const candidate = cleanText(value);
+  if (!candidate) {
     return fallback;
   }
-  return candidate;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    return fallback;
+  }
+
+  if (!/^https?:$/i.test(parsed.protocol)) {
+    return fallback;
+  }
+  if (allowedOrigins.size > 0 && !allowedOrigins.has(parsed.origin)) {
+    return fallback;
+  }
+  return parsed.toString();
 };
 
 Deno.serve(async (req: Request) => {
-  if (req.method !== 'POST') {
+  if (req.method !== 'POST' && req.method !== 'OPTIONS') {
     return json({ error: 'Method not allowed' }, 405);
   }
 
@@ -106,12 +185,21 @@ Deno.serve(async (req: Request) => {
   const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
 
-  const defaultSuccessUrl =
+  const defaultSuccessUrl = normalizeFallbackUrl(
     Deno.env.get('PARTICIPANT_SUCCESS_URL') ??
-    'https://eventigare.app/participant/payment/success';
-  const defaultCancelUrl =
+      'https://eventigare.app/participant/payment/success',
+    'https://eventigare.app/participant/payment/success'
+  );
+  const defaultCancelUrl = normalizeFallbackUrl(
     Deno.env.get('PARTICIPANT_CANCEL_URL') ??
-    'https://eventigare.app/participant/payment/cancel';
+      'https://eventigare.app/participant/payment/cancel',
+    'https://eventigare.app/participant/payment/cancel'
+  );
+  const allowedOrigins = resolveAllowedOrigins(
+    defaultSuccessUrl,
+    Deno.env.get('PARTICIPANT_ALLOWED_REDIRECT_ORIGINS')
+  );
+  const requestOrigin = cleanText(req.headers.get('origin'));
 
   if (!supabaseUrl || !supabaseServiceRoleKey || !stripeSecretKey) {
     return json(
@@ -121,6 +209,14 @@ Deno.serve(async (req: Request) => {
       },
       500
     );
+  }
+
+  if (requestOrigin && !isOriginAllowed(requestOrigin, allowedOrigins)) {
+    return json({ error: 'Origin not allowed' }, 403);
+  }
+
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
   }
 
   const authHeader = req.headers.get('Authorization');
@@ -329,8 +425,8 @@ Deno.serve(async (req: Request) => {
     apiVersion: '2024-06-20',
   });
 
-  const successUrl = normalizeRedirectUrl(payload.successUrl, defaultSuccessUrl);
-  const cancelUrl = normalizeRedirectUrl(payload.cancelUrl, defaultCancelUrl);
+  const successUrl = normalizeRedirectUrl(payload.successUrl, defaultSuccessUrl, allowedOrigins);
+  const cancelUrl = normalizeRedirectUrl(payload.cancelUrl, defaultCancelUrl, allowedOrigins);
 
   let session: { id: string; url: string | null; payment_intent: string | null };
   try {

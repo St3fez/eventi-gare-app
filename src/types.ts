@@ -290,7 +290,7 @@ export type FreeInterstitial = {
 
 export type EmailResult = {
   sent: boolean;
-  mode: 'webhook' | 'simulated' | 'resend';
+  mode: 'webhook' | 'simulated' | 'resend' | 'smtp';
   statusCode?: number;
   detail?: string;
 };

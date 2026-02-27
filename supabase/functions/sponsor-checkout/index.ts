@@ -24,14 +24,78 @@ type EventRow = {
   organizer_id: string;
 };
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
 const json = (payload: Record<string, unknown>, status = 200): Response =>
   new Response(JSON.stringify(payload), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...corsHeaders,
+    },
   });
 
 const cleanText = (value: unknown): string =>
   typeof value === 'string' ? value.trim() : '';
+
+const toAllowedOrigin = (value: string): string | null => {
+  try {
+    const parsed = new URL(value);
+    if (!/^https?:$/i.test(parsed.protocol)) {
+      return null;
+    }
+    return parsed.origin;
+  } catch {
+    return null;
+  }
+};
+
+const normalizeFallbackUrl = (value: string, fallback: string): string => {
+  const candidate = cleanText(value);
+  if (!candidate) {
+    return fallback;
+  }
+  return toAllowedOrigin(candidate) ? candidate : fallback;
+};
+
+const resolveAllowedOrigins = (
+  fallbackUrl: string,
+  additionalAllowedOriginsRaw?: string
+): Set<string> => {
+  const origins = new Set<string>();
+  const fallbackOrigin = toAllowedOrigin(fallbackUrl);
+  if (fallbackOrigin) {
+    origins.add(fallbackOrigin);
+  }
+
+  cleanText(additionalAllowedOriginsRaw ?? '')
+    .split(',')
+    .map((entry) => cleanText(entry))
+    .filter(Boolean)
+    .forEach((entry) => {
+      const parsed = toAllowedOrigin(entry);
+      if (parsed) {
+        origins.add(parsed);
+      }
+    });
+
+  // Keep local web testing available without relaxing production origins.
+  ['http://localhost:19006', 'http://127.0.0.1:19006'].forEach((entry) => {
+    const parsed = toAllowedOrigin(entry);
+    if (parsed) {
+      origins.add(parsed);
+    }
+  });
+
+  return origins;
+};
+
+const isOriginAllowed = (origin: string, allowedOrigins: Set<string>): boolean =>
+  allowedOrigins.size === 0 || allowedOrigins.has(origin);
 
 const asPositiveNumber = (value: unknown): number => {
   const parsed = typeof value === 'number' ? value : Number.parseFloat(String(value ?? ''));
@@ -74,17 +138,26 @@ const buildContractTerms = (params: {
 };
 
 Deno.serve(async (req: Request) => {
-  if (req.method !== 'POST') {
+  if (req.method !== 'POST' && req.method !== 'OPTIONS') {
     return json({ error: 'Method not allowed' }, 405);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
-  const sponsorSuccessUrl =
-    Deno.env.get('SPONSOR_SUCCESS_URL') ?? 'https://eventigare.app/sponsor/success';
-  const sponsorCancelUrl =
-    Deno.env.get('SPONSOR_CANCEL_URL') ?? 'https://eventigare.app/sponsor/cancel';
+  const sponsorSuccessUrl = normalizeFallbackUrl(
+    Deno.env.get('SPONSOR_SUCCESS_URL') ?? 'https://eventigare.app/sponsor/success',
+    'https://eventigare.app/sponsor/success'
+  );
+  const sponsorCancelUrl = normalizeFallbackUrl(
+    Deno.env.get('SPONSOR_CANCEL_URL') ?? 'https://eventigare.app/sponsor/cancel',
+    'https://eventigare.app/sponsor/cancel'
+  );
+  const allowedOrigins = resolveAllowedOrigins(
+    sponsorSuccessUrl,
+    [Deno.env.get('SPONSOR_ALLOWED_ORIGINS'), sponsorCancelUrl].filter(Boolean).join(',')
+  );
+  const requestOrigin = cleanText(req.headers.get('origin'));
   const defaultCurrency = Deno.env.get('SPONSOR_DEFAULT_CURRENCY') ?? 'EUR';
 
   if (!supabaseUrl || !supabaseServiceRoleKey || !stripeSecretKey) {
@@ -94,6 +167,14 @@ Deno.serve(async (req: Request) => {
       },
       500
     );
+  }
+
+  if (requestOrigin && !isOriginAllowed(requestOrigin, allowedOrigins)) {
+    return json({ error: 'Origin not allowed' }, 403);
+  }
+
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
   }
 
   const authHeader = req.headers.get('Authorization');

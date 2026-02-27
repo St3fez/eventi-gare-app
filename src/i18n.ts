@@ -42,13 +42,21 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     legal_p5:
       '5. Eventi gratuiti: possono mostrare banner sponsor locali e interstiziale di fine iscrizione.',
     legal_p6:
-      '6. Conservazione dati: default operativo 3 mesi dalla registrazione, salvo obblighi di legge o contenziosi; eventuali estensioni vanno pubblicate nella privacy policy ufficiale.',
+      '6. Conservazione dati: i dati sono conservati per il tempo necessario alle finalita dichiarate e nel rispetto degli obblighi legali, fiscali e di tutela dei diritti.',
     legal_p7:
       '7. Pagamenti: in produzione integrare PSP certificato (Stripe, Nexi, PayPal) e riconciliazione fiscale.',
     legal_p8:
       '8. Validazione legale: i testi sono base operativa e devono essere validati da consulente legale/privacy prima del rilascio pubblico.',
     legal_p9:
-      '9. Retention partecipanti: i dati utente sono cancellati automaticamente dopo 3 mesi dalla registrazione, salvo obblighi di legge o contenziosi attivi.',
+      '9. Retention partecipanti: non e prevista una cancellazione automatica unica per tutti i dati; la cancellazione o anonimizzazione avviene secondo policy pubblicata e obblighi normativi applicabili.',
+    privacy_policy_link_line: 'Privacy Policy ufficiale: {url}',
+    privacy_policy_button: 'Apri Privacy Policy',
+    privacy_policy_missing_title: 'Privacy Policy non configurata',
+    privacy_policy_missing_message:
+      'Imposta EXPO_PUBLIC_PRIVACY_POLICY_URL con un URL HTTPS pubblico.',
+    privacy_policy_open_error_title: 'Errore apertura link',
+    privacy_policy_open_error_message:
+      'Non riesco ad aprire il link della Privacy Policy.',
     close: 'Chiudi',
     free_done_title: 'Iscrizione completata',
     free_done_event: 'Evento: {event}',
@@ -155,9 +163,18 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_total_preview: 'Totale pagato dal partecipante: {value}',
     organizer_net_preview: 'Netto organizzatore stimato: {value}',
     assign_numbers: 'Assegna numero partecipante automatico',
-    logo_optional: 'Logo evento (URL opzionale)',
-    sponsor_optional: 'Sponsor locale / banner (opzionale)',
+    logo_optional: 'Logo evento (file immagine opzionale)',
+    event_logo_pick_button: 'Carica logo evento da dispositivo',
+    event_logo_upload_error_title: 'Errore caricamento logo evento',
+    event_logo_upload_error_message:
+      'Impossibile leggere il file selezionato. Riprova con un altro file immagine.',
+    sponsor_optional: 'Sponsor locale (testo opzionale)',
     sponsor_placeholder: 'Sponsor locale: ...',
+    sponsor_local_logo_optional: 'Logo sponsor locale (file immagine opzionale)',
+    sponsor_local_logo_pick_button: 'Carica logo sponsor locale da dispositivo',
+    sponsor_local_logo_upload_error_title: 'Errore caricamento sponsor locale',
+    sponsor_local_logo_upload_error_message:
+      'Impossibile leggere il file selezionato. Riprova con un altro file immagine.',
     sponsor_paid_section: 'Modulo sponsor a pagamento',
     sponsor_paid_intro:
       'Modulo sponsor visibile ai partecipanti. Attivazione una tantum: 25 EUR allo sviluppatore.',
@@ -213,6 +230,9 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     sponsor_logo_upload_error_title: 'Errore caricamento logo sponsor',
     sponsor_logo_upload_error_message:
       'Impossibile leggere il file selezionato. Riprova con un altro file immagine.',
+    image_upload_too_large_title: 'Immagine troppo grande',
+    image_upload_too_large_message:
+      'La dimensione massima consentita e {maxKb} KB. Comprimi l\'immagine e riprova.',
     sponsor_generate_checkout: 'Genera link Stripe sponsor',
     sponsor_section_title: 'Sponsor',
     sponsor_section_empty: 'Nessuno sponsor attivo per questo evento.',
@@ -392,7 +412,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     consent_privacy: 'Acconsento al trattamento dati per gestione iscrizione.',
     consent_retention: 'Acconsento alla conservazione dati secondo policy organizzatore.',
     retention_policy_notice:
-      'Disclaimer: i dati utente vengono cancellati automaticamente dopo 3 mesi.',
+      'Disclaimer: conservazione dati secondo finalita dichiarate, obblighi legali/fiscali e policy privacy pubblicata.',
     confirm_free_registration: 'Conferma iscrizione gratuita',
     open_payment_session: 'Apri sessione pagamento',
     back_search: 'Torna alla ricerca',
@@ -674,13 +694,21 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     legal_p5:
       '5. Free events: local sponsor banner and registration end interstitial may be displayed.',
     legal_p6:
-      '6. Data retention: default operational window is 3 months from registration, except legal obligations or active disputes; any extension must be declared in the official privacy policy.',
+      '6. Data retention: data is stored for the time needed for declared purposes and in compliance with legal, tax and rights-protection obligations.',
     legal_p7:
       '7. Payments: in production integrate a certified PSP (Stripe, Nexi, PayPal) and fiscal reconciliation.',
     legal_p8:
       '8. Legal validation: these texts are an operational baseline and must be validated by a legal/privacy advisor before public release.',
     legal_p9:
-      '9. Participant retention: user data is automatically deleted after 3 months from registration, unless legal obligations or active disputes apply.',
+      '9. Participant retention: there is no single automatic deletion window for all data; deletion or anonymization follows the published policy and applicable legal obligations.',
+    privacy_policy_link_line: 'Official Privacy Policy: {url}',
+    privacy_policy_button: 'Open Privacy Policy',
+    privacy_policy_missing_title: 'Privacy Policy not configured',
+    privacy_policy_missing_message:
+      'Set EXPO_PUBLIC_PRIVACY_POLICY_URL with a public HTTPS URL.',
+    privacy_policy_open_error_title: 'Link opening error',
+    privacy_policy_open_error_message:
+      'Unable to open the Privacy Policy link.',
     close: 'Close',
     free_done_title: 'Registration completed',
     free_done_event: 'Event: {event}',
@@ -787,9 +815,18 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_total_preview: 'Participant total amount: {value}',
     organizer_net_preview: 'Estimated organizer net: {value}',
     assign_numbers: 'Auto-assign participant number',
-    logo_optional: 'Event logo (optional URL)',
-    sponsor_optional: 'Local sponsor / banner (optional)',
+    logo_optional: 'Event logo (optional image file)',
+    event_logo_pick_button: 'Upload event logo from device',
+    event_logo_upload_error_title: 'Event logo upload error',
+    event_logo_upload_error_message:
+      'Unable to read selected file. Try another image file.',
+    sponsor_optional: 'Local sponsor (optional text)',
     sponsor_placeholder: 'Local sponsor: ...',
+    sponsor_local_logo_optional: 'Local sponsor logo (optional image file)',
+    sponsor_local_logo_pick_button: 'Upload local sponsor logo from device',
+    sponsor_local_logo_upload_error_title: 'Local sponsor upload error',
+    sponsor_local_logo_upload_error_message:
+      'Unable to read selected file. Try another image file.',
     sponsor_paid_section: 'Paid sponsor module',
     sponsor_paid_intro:
       'Sponsor section visible to participants. One-time activation required: EUR 25 paid to developer.',
@@ -847,6 +884,9 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     sponsor_logo_upload_error_title: 'Sponsor logo upload error',
     sponsor_logo_upload_error_message:
       'Unable to read selected file. Try another image file.',
+    image_upload_too_large_title: 'Image too large',
+    image_upload_too_large_message:
+      'Maximum allowed size is {maxKb} KB. Compress the image and try again.',
     sponsor_generate_checkout: 'Generate sponsor Stripe link',
     sponsor_section_title: 'Sponsors',
     sponsor_section_empty: 'No active sponsors for this event.',
@@ -1027,7 +1067,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     consent_privacy: 'I consent to data processing for registration management.',
     consent_retention: 'I consent to data retention according to organizer policy.',
     retention_policy_notice:
-      'Disclaimer: user data is automatically deleted after 3 months.',
+      'Disclaimer: data retention follows declared purposes, legal/tax obligations and the published privacy policy.',
     confirm_free_registration: 'Confirm free registration',
     open_payment_session: 'Open payment session',
     back_search: 'Back to search',

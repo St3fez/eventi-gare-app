@@ -13,23 +13,96 @@ type OrganizerRow = {
   stripe_connect_account_id: string | null;
 };
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
 const json = (payload: Record<string, unknown>, status = 200): Response =>
   new Response(JSON.stringify(payload), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...corsHeaders,
+    },
   });
 
 const cleanText = (value: unknown): string =>
   typeof value === 'string' ? value.trim() : '';
 
+const toAllowedOrigin = (value: string): string | null => {
+  try {
+    const parsed = new URL(value);
+    if (!/^https?:$/i.test(parsed.protocol)) {
+      return null;
+    }
+    return parsed.origin;
+  } catch {
+    return null;
+  }
+};
+
+const normalizeFallbackUrl = (value: string, fallback: string): string => {
+  const candidate = cleanText(value);
+  if (!candidate) {
+    return fallback;
+  }
+  return toAllowedOrigin(candidate) ? candidate : fallback;
+};
+
+const resolveAllowedOrigins = (
+  fallbackUrl: string,
+  additionalAllowedOriginsRaw?: string
+): Set<string> => {
+  const origins = new Set<string>();
+  const fallbackOrigin = toAllowedOrigin(fallbackUrl);
+  if (fallbackOrigin) {
+    origins.add(fallbackOrigin);
+  }
+
+  cleanText(additionalAllowedOriginsRaw ?? '')
+    .split(',')
+    .map((entry) => cleanText(entry))
+    .filter(Boolean)
+    .forEach((entry) => {
+      const parsed = toAllowedOrigin(entry);
+      if (parsed) {
+        origins.add(parsed);
+      }
+    });
+
+  // Keep local web testing available without relaxing production origins.
+  ['http://localhost:19006', 'http://127.0.0.1:19006'].forEach((entry) => {
+    const parsed = toAllowedOrigin(entry);
+    if (parsed) {
+      origins.add(parsed);
+    }
+  });
+
+  return origins;
+};
+
+const isOriginAllowed = (origin: string, allowedOrigins: Set<string>): boolean =>
+  allowedOrigins.size === 0 || allowedOrigins.has(origin);
+
 Deno.serve(async (req: Request) => {
-  if (req.method !== 'POST') {
+  if (req.method !== 'POST' && req.method !== 'OPTIONS') {
     return json({ error: 'Method not allowed' }, 405);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
+  const defaultReturnUrl = normalizeFallbackUrl(
+    Deno.env.get('STRIPE_CONNECT_RETURN_URL') ?? 'https://eventigare.app',
+    'https://eventigare.app'
+  );
+  const allowedOrigins = resolveAllowedOrigins(
+    defaultReturnUrl,
+    Deno.env.get('STRIPE_CONNECT_ALLOWED_REDIRECT_ORIGINS')
+  );
+  const requestOrigin = cleanText(req.headers.get('origin'));
 
   if (!supabaseUrl || !supabaseServiceRoleKey || !stripeSecretKey) {
     return json(
@@ -38,6 +111,14 @@ Deno.serve(async (req: Request) => {
       },
       500
     );
+  }
+
+  if (requestOrigin && !isOriginAllowed(requestOrigin, allowedOrigins)) {
+    return json({ error: 'Origin not allowed' }, 403);
+  }
+
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
   }
 
   const authHeader = req.headers.get('Authorization');

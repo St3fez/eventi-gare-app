@@ -88,9 +88,19 @@ export const ensureSupabaseUser = async (options?: {
 
   const existingUser = sessionResult.data.session?.user;
   if (existingUser) {
-    if (!allowAnonymous && existingUser.is_anonymous) {
+    const providers = Array.isArray(existingUser.app_metadata?.providers)
+      ? existingUser.app_metadata.providers
+          .map((entry) => String(entry).toLowerCase())
+          .filter(Boolean)
+      : [];
+    const hasEmailIdentity = providers.includes('email') || Boolean(existingUser.email);
+    const hasNonAnonymousIdentity = providers.some((provider) => provider !== 'anonymous');
+    const isEffectivelyAnonymous =
+      Boolean(existingUser.is_anonymous) && !hasEmailIdentity && !hasNonAnonymousIdentity;
+
+    if (!allowAnonymous && isEffectivelyAnonymous) {
       return fail(
-        'Per operare come organizzatore e richiesto login reale (Google) e verifica telefono SMS.'
+        "Per operare come organizzatore e richiesto un account autenticato (Google o email OTP)."
       );
     }
     return {
@@ -103,7 +113,7 @@ export const ensureSupabaseUser = async (options?: {
 
   if (!allowAnonymous) {
     return fail(
-      'Nessuna sessione autenticata. Effettua login Google e verifica telefono SMS.'
+      'Nessuna sessione autenticata. Effettua login Google o email OTP.'
     );
   }
 
@@ -147,11 +157,6 @@ export const upsertOrganizerInSupabase = async (
     email,
     fiscal_data: nullableText(organizer.fiscalData),
     bank_account: nullableText(organizer.bankAccount),
-    verification_status: organizer.verificationStatus,
-    payout_enabled: organizer.payoutEnabled,
-    risk_score: organizer.riskScore,
-    risk_flags: organizer.riskFlags,
-    verification_checklist: organizer.verificationChecklist,
   });
 
   const extendedPayload = (email: string) => ({
@@ -198,7 +203,7 @@ export const upsertOrganizerInSupabase = async (
     error = fallback.error;
   }
 
-  const rawError = error?.message ?? '';
+  let rawError = error?.message ?? '';
   const isDuplicateEmail = /organizers_email_key|duplicate key value/i.test(rawError);
 
   if ((error || !data?.id) && isDuplicateEmail) {
@@ -234,11 +239,12 @@ export const upsertOrganizerInSupabase = async (
       data = retry.data;
       error = retry.error;
     }
+    rawError = error?.message ?? '';
   }
 
   if (error || !data?.id || !data?.email) {
     const finalError = error?.message ?? 'id/email mancanti';
-    if (/organizers_email_key|duplicate key value/i.test(rawError)) {
+    if (/organizers_email_key|duplicate key value/i.test(rawError || finalError)) {
       return fail(
         'Email organizzatore gia presente in Supabase. Usa un nuovo organizer con email diversa o pulisci i dati demo locali.'
       );

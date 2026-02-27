@@ -159,6 +159,7 @@ $requiredKeys = @(
   'EXPO_PUBLIC_PARTICIPANT_CHECKOUT_URL',
   'EXPO_PUBLIC_ORGANIZER_COMPLIANCE_WEBHOOK_URL',
   'EXPO_PUBLIC_EVENT_WEB_BASE_URL',
+  'EXPO_PUBLIC_PRIVACY_POLICY_URL',
   'EXPO_PUBLIC_APP_CHANNEL',
   'EXPO_PUBLIC_ORGANIZER_TEST_MODE',
   'EXPO_PUBLIC_ORGANIZER_SECURITY_ENFORCED',
@@ -181,6 +182,12 @@ foreach ($key in $requiredKeys) {
 
   Add-Check -Name "ENV $key" -Passed:$true -Detail 'OK'
 }
+
+$privacyPolicyUrl = [string]$envMap['EXPO_PUBLIC_PRIVACY_POLICY_URL']
+Add-Check `
+  -Name 'Privacy policy URL HTTPS' `
+  -Passed:($privacyPolicyUrl -match '^https://') `
+  -Detail "Valore attuale: '$privacyPolicyUrl'"
 
 $channel = ([string]$envMap['EXPO_PUBLIC_APP_CHANNEL']).ToLowerInvariant()
 $testMode = ([string]$envMap['EXPO_PUBLIC_ORGANIZER_TEST_MODE']).ToLowerInvariant()

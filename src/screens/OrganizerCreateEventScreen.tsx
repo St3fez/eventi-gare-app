@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Image, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 
 import {
   COMMISSION_RATE,
   DEFAULT_PRIVACY_TEXT,
+  MAX_IMAGE_UPLOAD_BYTES,
   ORGANIZER_TEST_MODE,
   STRIPE_PROVIDER_FEE_FIXED,
   STRIPE_PROVIDER_FEE_RATE,
@@ -19,7 +22,41 @@ import {
   OrganizerProfile,
   ParticipantAuthMode,
 } from '../types';
-import { cleanText, parseEuro, toIsoDate, toIsoTime, toMoney } from '../utils/format';
+import {
+  cleanText,
+  estimateDataUrlBytes,
+  isImageDataUrl,
+  parseEuro,
+  toIsoDate,
+  toIsoTime,
+  toMoney,
+} from '../utils/format';
+
+const assetToDataUrl = async (asset: DocumentPicker.DocumentPickerAsset): Promise<string> => {
+  if (Platform.OS === 'web') {
+    const response = await fetch(asset.uri);
+    const blob = await response.blob();
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('file_read_error'));
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result);
+          return;
+        }
+        reject(new Error('file_read_error'));
+      };
+      reader.readAsDataURL(blob);
+    });
+    return dataUrl;
+  }
+
+  const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  const mime = cleanText(asset.mimeType ?? '') || 'image/png';
+  return `data:${mime};base64,${base64}`;
+};
 
 type Props = {
   organizer: OrganizerProfile;
@@ -61,6 +98,7 @@ export function OrganizerCreateEventScreen({
   t,
   language,
 }: Props) {
+  const maxImageKb = Math.round(MAX_IMAGE_UPLOAD_BYTES / 1024);
   const todayIso = new Date().toISOString().slice(0, 10);
   const [name, setName] = useState(initialEvent?.name ?? '');
   const [location, setLocation] = useState(initialEvent?.location ?? '');
@@ -97,7 +135,16 @@ export function OrganizerCreateEventScreen({
     initialEvent?.privacyText ?? DEFAULT_PRIVACY_TEXT
   );
   const [logoUrl, setLogoUrl] = useState(initialEvent?.logoUrl ?? '');
-  const [localSponsor, setLocalSponsor] = useState(initialEvent?.localSponsor ?? '');
+  const [logoFileName, setLogoFileName] = useState('');
+  const [localSponsorText, setLocalSponsorText] = useState(() => {
+    const initialValue = initialEvent?.localSponsor ?? '';
+    return isImageDataUrl(initialValue) ? '' : initialValue;
+  });
+  const [localSponsorLogoUrl, setLocalSponsorLogoUrl] = useState(() => {
+    const initialValue = initialEvent?.localSponsor ?? '';
+    return isImageDataUrl(initialValue) ? initialValue : '';
+  });
+  const [localSponsorFileName, setLocalSponsorFileName] = useState('');
   const [assignNumbers, setAssignNumbers] = useState(initialEvent?.assignNumbers ?? true);
 
   useEffect(() => {
@@ -117,9 +164,85 @@ export function OrganizerCreateEventScreen({
     setVisibility(initialEvent?.visibility ?? 'public');
     setPrivacyText(initialEvent?.privacyText ?? DEFAULT_PRIVACY_TEXT);
     setLogoUrl(initialEvent?.logoUrl ?? '');
-    setLocalSponsor(initialEvent?.localSponsor ?? '');
+    setLogoFileName('');
+    const initialSponsor = initialEvent?.localSponsor ?? '';
+    if (isImageDataUrl(initialSponsor)) {
+      setLocalSponsorText('');
+      setLocalSponsorLogoUrl(initialSponsor);
+    } else {
+      setLocalSponsorText(initialSponsor);
+      setLocalSponsorLogoUrl('');
+    }
+    setLocalSponsorFileName('');
     setAssignNumbers(initialEvent?.assignNumbers ?? true);
   }, [initialEvent?.id, todayIso]);
+
+  const pickEventLogo = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      multiple: false,
+      type: ['image/*'],
+    });
+
+    if (result.canceled || !result.assets?.length) {
+      return;
+    }
+
+    const file = result.assets[0];
+    if (!file.uri || !file.name) {
+      return;
+    }
+
+    try {
+      const dataUrl = await assetToDataUrl(file);
+      if (estimateDataUrlBytes(dataUrl) > MAX_IMAGE_UPLOAD_BYTES) {
+        Alert.alert(
+          t('image_upload_too_large_title'),
+          t('image_upload_too_large_message', { maxKb: maxImageKb })
+        );
+        return;
+      }
+      setLogoUrl(dataUrl);
+      setLogoFileName(file.name);
+    } catch {
+      Alert.alert(t('event_logo_upload_error_title'), t('event_logo_upload_error_message'));
+    }
+  };
+
+  const pickLocalSponsorLogo = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      multiple: false,
+      type: ['image/*'],
+    });
+
+    if (result.canceled || !result.assets?.length) {
+      return;
+    }
+
+    const file = result.assets[0];
+    if (!file.uri || !file.name) {
+      return;
+    }
+
+    try {
+      const dataUrl = await assetToDataUrl(file);
+      if (estimateDataUrlBytes(dataUrl) > MAX_IMAGE_UPLOAD_BYTES) {
+        Alert.alert(
+          t('image_upload_too_large_title'),
+          t('image_upload_too_large_message', { maxKb: maxImageKb })
+        );
+        return;
+      }
+      setLocalSponsorLogoUrl(dataUrl);
+      setLocalSponsorFileName(file.name);
+    } catch {
+      Alert.alert(
+        t('sponsor_local_logo_upload_error_title'),
+        t('sponsor_local_logo_upload_error_message')
+      );
+    }
+  };
 
   const canCreatePaid = organizerCanUsePaidSection(organizer, ORGANIZER_TEST_MODE);
   const baseFeeValue = parseEuro(baseFeeAmount);
@@ -237,13 +360,13 @@ export function OrganizerCreateEventScreen({
       participantPhoneRequired: false,
       privacyText,
       logoUrl,
-      localSponsor,
+      localSponsor: localSponsorLogoUrl || localSponsorText,
       assignNumbers,
     });
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent}>
+    <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps='handled'>
       <SectionCard title={initialEvent ? t('edit_event') : t('create_event')} delayMs={0}>
         <Text style={styles.cardParagraph}>{t('organizer_label', { email: organizer.email })}</Text>
         <Text style={styles.cardParagraph}>
@@ -402,18 +525,28 @@ export function OrganizerCreateEventScreen({
           onValueChange={setAssignNumbers}
         />
 
-        <TextField
-          label={t('logo_optional')}
-          value={logoUrl}
-          onChangeText={setLogoUrl}
-          placeholder='https://...'
-        />
+        <Text style={styles.fieldLabel}>{t('logo_optional')}</Text>
+        <Pressable style={styles.secondaryButton} onPress={() => void pickEventLogo()}>
+          <Text style={styles.secondaryButtonText}>{t('event_logo_pick_button')}</Text>
+        </Pressable>
+        <Text style={styles.helperText}>{logoFileName || t('document_not_selected')}</Text>
+        {logoUrl ? <Image source={{ uri: logoUrl }} style={styles.sponsorLogoPreview} /> : null}
+
         <TextField
           label={t('sponsor_optional')}
-          value={localSponsor}
-          onChangeText={setLocalSponsor}
+          value={localSponsorText}
+          onChangeText={setLocalSponsorText}
           placeholder={t('sponsor_placeholder')}
         />
+        <Text style={styles.fieldLabel}>{t('sponsor_local_logo_optional')}</Text>
+        <Pressable style={styles.secondaryButton} onPress={() => void pickLocalSponsorLogo()}>
+          <Text style={styles.secondaryButtonText}>{t('sponsor_local_logo_pick_button')}</Text>
+        </Pressable>
+        <Text style={styles.helperText}>{localSponsorFileName || t('document_not_selected')}</Text>
+        {localSponsorLogoUrl ? (
+          <Image source={{ uri: localSponsorLogoUrl }} style={styles.sponsorLogoPreview} />
+        ) : null}
+
         <TextField
           label={t('privacy_module')}
           value={privacyText}

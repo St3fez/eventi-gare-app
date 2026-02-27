@@ -18,7 +18,7 @@ import { SectionCard, SwitchRow, TextField } from '../components/Common';
 import { Translator } from '../i18n';
 import { styles } from '../styles';
 import { EventItem, SponsorSlot } from '../types';
-import { cleanText, formatEventSchedule, toMoney } from '../utils/format';
+import { cleanText, formatEventSchedule, isImageDataUrl, toMoney } from '../utils/format';
 
 type Props = {
   events: EventItem[];
@@ -232,6 +232,9 @@ export function ParticipantSearchScreen({
               filtered.map((event) => (
                 <View key={event.id} style={styles.listCard}>
                   <Text style={styles.listTitle}>{event.name}</Text>
+                  {cleanText(event.logoUrl ?? '') ? (
+                    <Image source={{ uri: cleanText(event.logoUrl ?? '') }} style={styles.sponsorLogoPreview} />
+                  ) : null}
                   <Text style={styles.listSubText}>
                     {event.location} | {formatEventSchedule(event)}
                   </Text>
@@ -240,8 +243,15 @@ export function ParticipantSearchScreen({
                       ? t('free_event_label')
                       : t('entry_fee_label', { fee: toMoney(event.feeAmount) })}
                   </Text>
-                  {event.localSponsor && event.isFree ? (
-                    <Text style={styles.listSubText}>{event.localSponsor}</Text>
+                  {event.isFree && cleanText(event.localSponsor ?? '') ? (
+                    isImageDataUrl(event.localSponsor ?? '') ? (
+                      <Image
+                        source={{ uri: cleanText(event.localSponsor ?? '') }}
+                        style={styles.sponsorLogoPreview}
+                      />
+                    ) : (
+                      <Text style={styles.listSubText}>{event.localSponsor}</Text>
+                    )
                   ) : null}
                   {(() => {
                     const eventSponsorSlots = visibleSponsorSlotsByEvent.get(event.id) ?? [];

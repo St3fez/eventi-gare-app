@@ -52,11 +52,6 @@ export const listSponsorSlotsFromSupabase = async (): Promise<SyncResult<Sponsor
     return fail('Supabase non configurato.');
   }
 
-  const auth = await ensureSupabaseUser();
-  if (!auth.ok) {
-    return fail(auth.reason);
-  }
-
   const { data, error } = await supabase
     .from('sponsor_slots')
     .select(SPONSOR_SELECT)
@@ -98,7 +93,7 @@ export const createSponsorCheckout = async (payload: {
     return fail('EXPO_PUBLIC_SPONSOR_CHECKOUT_URL non configurato.');
   }
 
-  const auth = await ensureSupabaseUser();
+  const auth = await ensureSupabaseUser({ allowAnonymous: false });
   if (!auth.ok) {
     return fail(auth.reason);
   }

@@ -100,7 +100,19 @@ Percorso Dashboard (senza CLI):
 5. URL:
    - `https://<PROJECT_REF>.functions.supabase.co/send-confirmation`
 
-Secrets opzionali per invio reale via Resend:
+Deploy via CLI consigliato (email conferma chiamata anche senza sessione JWT):
+```bash
+supabase functions deploy send-confirmation --no-verify-jwt
+```
+
+Secrets consigliati per invio reale via SMTP:
+- `SMTP_HOST`
+- `SMTP_PORT` (default `587`)
+- `SMTP_USER`
+- `SMTP_PASS`
+- `SMTP_FROM`
+
+Fallback opzionale via Resend:
 - `RESEND_API_KEY`
 - `EMAIL_FROM`
 
@@ -127,11 +139,13 @@ Secrets opzionali:
 - `SPONSOR_SUCCESS_URL`
 - `SPONSOR_CANCEL_URL`
 - `SPONSOR_DEFAULT_CURRENCY`
+- `SPONSOR_ALLOWED_ORIGINS` (lista CSV origini web autorizzate a chiamare la function)
 
 Note:
 - crea record `sponsor_slots` in stato `pending_payment`
 - genera checkout Stripe con metadata `kind=sponsor_slot`
 - i webhook Stripe aggiornano lo slot con `public.apply_sponsor_webhook(...)`
+- se `Origin` e presente, viene validato contro allowlist (con localhost consentito in dev)
 
 ## 2.d) Edge Function sponsor module checkout (sponsor-module-checkout)
 
@@ -154,10 +168,12 @@ Secrets opzionali:
 - `SPONSOR_MODULE_SUCCESS_URL` (fallback: `SPONSOR_SUCCESS_URL`)
 - `SPONSOR_MODULE_CANCEL_URL` (fallback: `SPONSOR_CANCEL_URL`)
 - `SPONSOR_MODULE_DEFAULT_CURRENCY`
+- `SPONSOR_MODULE_ALLOWED_REDIRECT_ORIGINS` (lista CSV origini consentite per success/cancel URL)
 
 Note:
 - crea checkout Stripe con metadata `kind=sponsor_module_activation`
 - attivazione modulo su webhook `checkout.session.completed` via `public.apply_sponsor_module_webhook(...)`
+- se `Origin` e presente, viene validato contro allowlist (con localhost consentito in dev)
 
 ## 2.e) Edge Function Stripe Connect onboarding (stripe-connect)
 
@@ -180,11 +196,13 @@ Secrets opzionali:
 - `STRIPE_CONNECT_DEFAULT_COUNTRY` (default `IT`)
 - `STRIPE_CONNECT_RETURN_URL`
 - `STRIPE_CONNECT_REFRESH_URL`
+- `STRIPE_CONNECT_ALLOWED_REDIRECT_ORIGINS` (lista CSV origini consentite per return/refresh URL)
 
 Note:
 - crea/riusa account Stripe Connect (Express)
 - ritorna onboarding link
 - aggiorna campi organizer (`stripe_connect_*`, `payout_enabled`)
+- se `Origin` e presente, viene validato contro allowlist (con localhost consentito in dev)
 
 ## 2.f) Edge Function Stripe Connect sync (stripe-connect-sync)
 
@@ -203,8 +221,13 @@ Percorso Dashboard (senza CLI):
 Secrets richiesti:
 - `STRIPE_SECRET_KEY`
 
+Secrets opzionali:
+- `STRIPE_CONNECT_RETURN_URL`
+- `STRIPE_CONNECT_ALLOWED_REDIRECT_ORIGINS` (lista CSV origini web autorizzate a chiamare la function)
+
 Note:
 - aggiorna lo stato Stripe Connect senza ri-creare account link
+- se `Origin` e presente, viene validato contro allowlist (con localhost consentito in dev)
 
 ## 2.g) Edge Function participant checkout (participant-checkout)
 
@@ -226,12 +249,14 @@ Secrets richiesti:
 Secrets opzionali:
 - `PARTICIPANT_SUCCESS_URL`
 - `PARTICIPANT_CANCEL_URL`
+- `PARTICIPANT_ALLOWED_REDIRECT_ORIGINS` (lista CSV origini consentite per success/cancel URL)
 
 Note:
 - verifica ownership registrazione (`participant_user_id = utente corrente`)
 - crea/reusa `payment_intents` per iscrizioni partecipante
 - crea checkout Stripe con metadata `supabase_payment_intent_id`
 - webhook Stripe completa lo stato pagamento via `public.apply_payment_webhook(...)`
+- se `Origin` e presente, viene validato contro allowlist (con localhost consentito in dev)
 
 ## 2.h) Edge Function invio documenti organizer (send-organizer-compliance)
 
@@ -280,6 +305,7 @@ EXPO_PUBLIC_STRIPE_CONNECT_SYNC_URL=https://<project-ref>.functions.supabase.co/
 EXPO_PUBLIC_PARTICIPANT_CHECKOUT_URL=https://<project-ref>.functions.supabase.co/participant-checkout
 EXPO_PUBLIC_ORGANIZER_COMPLIANCE_WEBHOOK_URL=https://<project-ref>.functions.supabase.co/send-organizer-compliance
 EXPO_PUBLIC_ADMIN_CONTACT_EMAIL=profstefanoferrari@gmail.com
+EXPO_PUBLIC_PRIVACY_POLICY_URL=https://eventi-gare-app.netlify.app/privacy-policy
 ```
 
 ## 4) Test rapido webhook in locale (opzionale)

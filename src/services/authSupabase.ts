@@ -28,6 +28,13 @@ export const signInWithEmail = async (email: string, password: string) => {
 
 export const requestEmailOtp = async (email: string, shouldCreateUser = true) => {
   const client = requireSupabase();
+  const session = await client.auth.getSession();
+  if (session.data.session?.user?.is_anonymous) {
+    const signOut = await client.auth.signOut();
+    if (signOut.error) {
+      throw new Error(`Impossibile uscire dalla sessione anonima: ${signOut.error.message}`);
+    }
+  }
   return client.auth.signInWithOtp({
     email,
     options: {
@@ -101,7 +108,8 @@ const parseOrganizerSecurity = (
     : [];
   const socialProvider = providers.includes('google') ? 'google' : null;
   const hasEmailProvider = providers.includes('email') || Boolean(user.email);
-  const isAnonymous = Boolean(user.is_anonymous);
+  const hasNonAnonymousProvider = providers.some((provider) => provider !== 'anonymous');
+  const isAnonymous = Boolean(user.is_anonymous) && !hasNonAnonymousProvider && !hasEmailProvider;
   const phoneVerified = Boolean(user.phone_confirmed_at);
   const status: OrganizerSecurityStatus = {
     userId: user.id,
@@ -136,7 +144,8 @@ const getRedirectTo = (): string | undefined => {
     if (typeof window === 'undefined' || !window.location?.origin) {
       return undefined;
     }
-    return window.location.origin;
+    const path = window.location.pathname || '/';
+    return `${window.location.origin}${path}`;
   }
   return 'eventigare://auth/callback';
 };

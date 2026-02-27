@@ -13,6 +13,7 @@ Optional secrets:
 - `SPONSOR_MODULE_SUCCESS_URL` (fallback: `SPONSOR_SUCCESS_URL` or `https://eventigare.app/sponsor/success`)
 - `SPONSOR_MODULE_CANCEL_URL` (fallback: `SPONSOR_CANCEL_URL` or `https://eventigare.app/sponsor/cancel`)
 - `SPONSOR_MODULE_DEFAULT_CURRENCY` (default: `EUR`)
+- `SPONSOR_MODULE_ALLOWED_REDIRECT_ORIGINS` (CSV list of allowed origins for success/cancel URLs)
 
 ## Deploy
 ```bash
@@ -24,3 +25,5 @@ supabase functions deploy sponsor-module-checkout
 - It verifies organizer ownership (`organizers.user_id = current user`).
 - It creates Stripe Checkout session with metadata `kind=sponsor_module_activation`.
 - Webhook `stripe-webhook` enables the module after `checkout.session.completed`.
+- It supports CORS preflight (`OPTIONS`) for web clients.
+- If `Origin` header is present, it must match allowed origins (plus localhost dev origins).

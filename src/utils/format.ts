@@ -99,6 +99,25 @@ export const toMoney = (value: number): string =>
 
 export const cleanText = (value: string): string => value.trim();
 
+export const isImageDataUrl = (value: string): boolean =>
+  /^data:image\/[a-z0-9.+-]+;base64,/i.test(cleanText(value));
+
+export const estimateDataUrlBytes = (value: string): number => {
+  const normalized = cleanText(value);
+  const commaIndex = normalized.indexOf(',');
+  if (commaIndex < 0) {
+    return 0;
+  }
+
+  const base64 = normalized.slice(commaIndex + 1);
+  if (!base64) {
+    return 0;
+  }
+
+  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+  return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+};
+
 export const normalizeComparableText = (value: string): string =>
   cleanText(value)
     .toLowerCase()

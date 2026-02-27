@@ -1,8 +1,17 @@
 /// <reference path="../_shared/ide-shims.d.ts" />
 
+import nodemailer from 'npm:nodemailer@6.10.0';
+
 // Supabase Edge Function: send-confirmation
-// Optional provider: Resend
+// Preferred provider: SMTP
+// Optional fallback provider: Resend
 // Secrets (optional for real email):
+// - SMTP_HOST
+// - SMTP_PORT (default 587)
+// - SMTP_USER
+// - SMTP_PASS
+// - SMTP_FROM
+// Optional fallback:
 // - RESEND_API_KEY
 // - EMAIL_FROM (es. no-reply@yourdomain.com)
 
@@ -27,24 +36,61 @@ type ConfirmationPayload = {
   assignedNumber?: number;
 };
 
+const escapeHtml = (input: string): string =>
+  input
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+
 const buildHtml = (p: Required<Pick<ConfirmationPayload, 'participantName' | 'eventName' | 'registrationCode'>> & {
   amount?: number;
   assignedNumber?: number;
 }) => {
+  const safeName = escapeHtml(p.participantName);
+  const safeEventName = escapeHtml(p.eventName);
+  const safeRegistrationCode = escapeHtml(p.registrationCode);
   const amountLine = typeof p.amount === 'number' ? `<p><strong>Quota:</strong> EUR ${p.amount.toFixed(2)}</p>` : '';
   const numberLine = typeof p.assignedNumber === 'number' ? `<p><strong>Numero iscrizione:</strong> ${p.assignedNumber}</p>` : '';
 
   return `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#0b2a45;">
       <h2>Conferma iscrizione</h2>
-      <p>Ciao ${p.participantName},</p>
-      <p>la tua iscrizione a <strong>${p.eventName}</strong> e stata registrata con successo.</p>
-      <p><strong>Codice iscrizione:</strong> ${p.registrationCode}</p>
+      <p>Ciao ${safeName},</p>
+      <p>la tua iscrizione a <strong>${safeEventName}</strong> e stata registrata con successo.</p>
+      <p><strong>Codice iscrizione:</strong> ${safeRegistrationCode}</p>
       ${numberLine}
       ${amountLine}
       <p>Grazie per aver usato Eventi.</p>
     </div>
   `;
+};
+
+const buildText = (
+  p: Required<Pick<ConfirmationPayload, 'participantName' | 'eventName' | 'registrationCode'>> & {
+    amount?: number;
+    assignedNumber?: number;
+  }
+) => {
+  const lines = [
+    'Conferma iscrizione',
+    '',
+    `Ciao ${p.participantName},`,
+    `la tua iscrizione a ${p.eventName} e stata registrata con successo.`,
+    `Codice iscrizione: ${p.registrationCode}`,
+  ];
+
+  if (typeof p.assignedNumber === 'number') {
+    lines.push(`Numero iscrizione: ${p.assignedNumber}`);
+  }
+
+  if (typeof p.amount === 'number') {
+    lines.push(`Quota: EUR ${p.amount.toFixed(2)}`);
+  }
+
+  lines.push('', 'Grazie per aver usato Eventi.');
+  return lines.join('\n');
 };
 
 Deno.serve(async (req: Request) => {
@@ -74,19 +120,15 @@ Deno.serve(async (req: Request) => {
 
   const participantName = payload.participantName ?? 'Partecipante';
 
+  const smtpHost = Deno.env.get('SMTP_HOST');
+  const smtpPort = Number.parseInt(Deno.env.get('SMTP_PORT') ?? '587', 10);
+  const smtpUser = Deno.env.get('SMTP_USER');
+  const smtpPass = Deno.env.get('SMTP_PASS');
+  const smtpFrom = Deno.env.get('SMTP_FROM');
   const resendApiKey = Deno.env.get('RESEND_API_KEY');
   const emailFrom = Deno.env.get('EMAIL_FROM');
-
-  // Fallback dev mode: if no provider configured, return success-simulated.
-  if (!resendApiKey || !emailFrom) {
-    return json({
-      sent: true,
-      mode: 'simulated',
-      detail: 'Provider email non configurato (RESEND_API_KEY/EMAIL_FROM mancanti).',
-      to: payload.participantEmail,
-      registrationCode: payload.registrationCode,
-    });
-  }
+  const smtpConfigured = Boolean(smtpHost && smtpUser && smtpPass && smtpFrom);
+  const resendConfigured = Boolean(resendApiKey && emailFrom);
 
   const subject = `Conferma iscrizione - ${payload.eventName}`;
   const html = buildHtml({
@@ -96,38 +138,115 @@ Deno.serve(async (req: Request) => {
     amount: payload.amount,
     assignedNumber: payload.assignedNumber,
   });
-
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: emailFrom,
-      to: [payload.participantEmail],
-      subject,
-      html,
-    }),
+  const text = buildText({
+    participantName,
+    eventName: payload.eventName,
+    registrationCode: payload.registrationCode,
+    amount: payload.amount,
+    assignedNumber: payload.assignedNumber,
   });
 
-  const resultText = await response.text();
-  if (!response.ok) {
-    return json(
-      {
-        sent: false,
-        mode: 'resend',
-        error: 'Provider email failed',
-        status: response.status,
-        detail: resultText,
+  const sendWithResend = async (): Promise<Response> => {
+    if (!resendApiKey || !emailFrom) {
+      return json(
+        {
+          sent: false,
+          mode: 'resend',
+          detail: 'RESEND_API_KEY/EMAIL_FROM mancanti.',
+        },
+        502
+      );
+    }
+
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json',
       },
-      502
-    );
+      body: JSON.stringify({
+        from: emailFrom,
+        to: [payload.participantEmail],
+        subject,
+        html,
+      }),
+    });
+
+    const resultText = await response.text();
+    if (!response.ok) {
+      return json(
+        {
+          sent: false,
+          mode: 'resend',
+          error: 'Provider email failed',
+          status: response.status,
+          detail: resultText,
+        },
+        502
+      );
+    }
+
+    return json({
+      sent: true,
+      mode: 'resend',
+      providerResponse: resultText,
+    });
+  };
+
+  if (smtpConfigured) {
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+    });
+
+    try {
+      await transporter.sendMail({
+        from: smtpFrom,
+        to: [payload.participantEmail],
+        subject,
+        text,
+        html,
+      });
+
+      return json({
+        sent: true,
+        mode: 'smtp',
+        detail: `Email conferma inviata a ${payload.participantEmail}`,
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'SMTP send failed';
+      if (resendConfigured) {
+        const resendResponse = await sendWithResend();
+        if (resendResponse.ok) {
+          return resendResponse;
+        }
+      }
+      return json(
+        {
+          sent: false,
+          mode: 'smtp',
+          detail,
+        },
+        502
+      );
+    }
+  }
+
+  if (resendConfigured) {
+    return sendWithResend();
   }
 
   return json({
     sent: true,
-    mode: 'resend',
-    providerResponse: resultText,
+    mode: 'simulated',
+    detail:
+      'Provider email non configurato. Imposta SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM (oppure RESEND_API_KEY/EMAIL_FROM).',
+    to: payload.participantEmail,
+    registrationCode: payload.registrationCode,
   });
 });

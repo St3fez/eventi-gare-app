@@ -21,6 +21,7 @@ Imposta queste env uguali a quelle del tuo `.env` locale:
 - `EXPO_PUBLIC_ORGANIZER_COMPLIANCE_WEBHOOK_URL`
 - `EXPO_PUBLIC_ADMIN_CONTACT_EMAIL`
 - `EXPO_PUBLIC_EVENT_WEB_BASE_URL`
+- `EXPO_PUBLIC_PRIVACY_POLICY_URL`
 
 Nota: tutte iniziano con `EXPO_PUBLIC_` perche Expo le inietta in fase build web.
 

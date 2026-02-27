@@ -103,6 +103,7 @@ import {
   buildRegistrationCode,
   cleanText,
   formatDate,
+  isImageDataUrl,
   normalizeComparableText,
   randomId,
   toMoney,
@@ -278,6 +279,14 @@ const getEventPublicBaseUrl = (): string | null => {
 const buildEventDuplicateKey = (name: string, location: string, date: string): string =>
   `${normalizeComparableText(name)}|${normalizeComparableText(location)}|${toIsoDate(date)}`;
 
+const localSponsorText = (value?: string): string => {
+  const normalized = cleanText(value ?? '');
+  if (!normalized || isImageDataUrl(normalized)) {
+    return '';
+  }
+  return normalized;
+};
+
 const addYearsIso = (isoDate: string, years: number): string => {
   const parsed = new Date(`${isoDate}T12:00:00`);
   if (!Number.isFinite(parsed.getTime())) {
@@ -347,6 +356,9 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (ORGANIZER_SECURITY_ENFORCED) {
+      return;
+    }
     const bootAuth = async () => {
       const auth = await ensureSupabaseUser();
       if (!auth.ok) {
@@ -440,7 +452,6 @@ function App() {
 
     const status = await getOrganizerSecurityStatus();
     if (!status.ok) {
-      setOrganizerSecurity(null);
       if (showMissingAlert) {
         Alert.alert(t('organizer_security_required_title'), status.reason);
       }
@@ -453,6 +464,60 @@ function App() {
     }
     return status.data.securityReady;
   };
+
+  const ensureOrganizerSecurityForProtectedAction = async (): Promise<boolean> => {
+    if (!ORGANIZER_SECURITY_ENFORCED) {
+      return true;
+    }
+    if (organizerSecurity?.securityReady) {
+      return true;
+    }
+    return refreshOrganizerSecurityState(true);
+  };
+
+  const openOrganizerWorkspace = useCallback(
+    (status?: OrganizerSecurityStatus | null) => {
+      if (!ORGANIZER_SECURITY_ENFORCED) {
+        setScreen({ name: 'organizerProfile' });
+        return;
+      }
+
+      const currentStatus = status ?? organizerSecurity;
+      if (!currentStatus?.securityReady) {
+        setScreen({ name: 'organizerProfile' });
+        return;
+      }
+
+      const currentUserId = cleanText(currentStatus.userId ?? '');
+      const currentEmail = cleanText(currentStatus.email ?? '').toLowerCase();
+      const matchedOrganizer = appData.organizers.find((organizer) => {
+        if (currentUserId && organizer.userId && organizer.userId === currentUserId) {
+          return true;
+        }
+        if (currentEmail && organizer.email.toLowerCase() === currentEmail) {
+          return true;
+        }
+        return false;
+      });
+
+      if (!matchedOrganizer) {
+        setScreen({ name: 'organizerProfile' });
+        return;
+      }
+
+      if (currentUserId && !matchedOrganizer.userId && currentEmail) {
+        setAppData((current) => ({
+          ...current,
+          organizers: current.organizers.map((organizer) =>
+            organizer.id === matchedOrganizer.id ? { ...organizer, userId: currentUserId } : organizer
+          ),
+        }));
+      }
+
+      setScreen({ name: 'organizerDashboard', organizerId: matchedOrganizer.id });
+    },
+    [appData.organizers, organizerSecurity]
+  );
 
   useEffect(() => {
     if (screen.name !== 'organizerAuth') {
@@ -481,7 +546,16 @@ function App() {
         const cleanUrl = `${window.location.origin}${window.location.pathname}`;
         window.history.replaceState({}, '', cleanUrl);
       }
-      await refreshOrganizerSecurityState();
+      const securityReady = await refreshOrganizerSecurityState();
+      if (securityReady) {
+        const latestSecurity = await getOrganizerSecurityStatus();
+        if (latestSecurity.ok) {
+          setOrganizerSecurity(latestSecurity.data);
+          openOrganizerWorkspace(latestSecurity.data);
+          return;
+        }
+        openOrganizerWorkspace();
+      }
     };
 
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -510,6 +584,9 @@ function App() {
         return true;
       }
       if (!activeOrganizerUserId) {
+        if (activeOrganizerEmail) {
+          return organizer.email.toLowerCase() === activeOrganizerEmail;
+        }
         return false;
       }
       if (organizer.userId) {
@@ -634,18 +711,24 @@ function App() {
 
     const fallbackSponsors: Array<string | undefined> = [];
     if (screen.name === 'participantRegister') {
-      fallbackSponsors.push(participantEventForRegister?.localSponsor);
+      fallbackSponsors.push(localSponsorText(participantEventForRegister?.localSponsor));
     } else if (screen.name === 'participantPayment') {
-      fallbackSponsors.push(participantEventForPayment?.localSponsor);
+      fallbackSponsors.push(localSponsorText(participantEventForPayment?.localSponsor));
     } else if (screen.name === 'participantSearch') {
-      fallbackSponsors.push(appData.events.find((event) => event.active && event.localSponsor)?.localSponsor);
+      fallbackSponsors.push(
+        localSponsorText(appData.events.find((event) => event.active && event.localSponsor)?.localSponsor)
+      );
     } else if (screen.name === 'organizerDashboard') {
       fallbackSponsors.push(
-        appData.events.find((event) => event.organizerId === screen.organizerId && event.localSponsor)
-          ?.localSponsor
+        localSponsorText(
+          appData.events.find((event) => event.organizerId === screen.organizerId && event.localSponsor)
+            ?.localSponsor
+        )
       );
     } else if (screen.name === 'organizerCreate' || screen.name === 'organizerProfile') {
-      fallbackSponsors.push(appData.events.find((event) => event.active && event.localSponsor)?.localSponsor);
+      fallbackSponsors.push(
+        localSponsorText(appData.events.find((event) => event.active && event.localSponsor)?.localSponsor)
+      );
     }
 
     const fallbackSponsor = fallbackSponsors.find((entry) => cleanText(entry ?? ''));
@@ -735,7 +818,7 @@ function App() {
     const slotLabel = slot
       ? cleanText(language === 'it' ? slot.sponsorNameIt : slot.sponsorNameEn)
       : '';
-    const sponsor = slotLabel || cleanText(event.localSponsor ?? '') || undefined;
+    const sponsor = slotLabel || localSponsorText(event.localSponsor) || undefined;
     loadInterstitialAd();
     for (let secondsRemaining = 5; secondsRemaining >= 1; secondsRemaining -= 1) {
       setProcessingInterstitial({
@@ -834,12 +917,21 @@ function App() {
       return;
     }
 
-    await refreshOrganizerSecurityState();
+    const securityReady = await refreshOrganizerSecurityState();
     showAuthAlert(
       t('organizer_security_action_fail_title'),
       t('organizer_security_otp_verified'),
       'success'
     );
+    if (securityReady) {
+      const latestSecurity = await getOrganizerSecurityStatus();
+      if (latestSecurity.ok) {
+        setOrganizerSecurity(latestSecurity.data);
+        openOrganizerWorkspace(latestSecurity.data);
+        return;
+      }
+      openOrganizerWorkspace();
+    }
   };
 
   const patchOrganizerRemoteId = (organizerId: string, remoteId: string) => {
@@ -1003,8 +1095,14 @@ function App() {
     legalRepresentative?: string;
     officialPhone?: string;
   }) => {
+    let security = await getOrganizerSecurityStatus();
+    if (!security.ok && organizerSecurity?.securityReady) {
+      security = {
+        ok: true,
+        data: organizerSecurity,
+      };
+    }
     if (ORGANIZER_SECURITY_ENFORCED) {
-      const security = await getOrganizerSecurityStatus();
       if (!security.ok || !security.data.securityReady) {
         Alert.alert(
           t('organizer_security_required_title'),
@@ -1014,7 +1112,9 @@ function App() {
         return;
       }
     }
-    const security = await getOrganizerSecurityStatus();
+    if (security.ok) {
+      setOrganizerSecurity(security.data);
+    }
     const email = cleanText(
       security.ok && security.data.securityReady ? security.data.email : payload.email
     ).toLowerCase();
@@ -1024,7 +1124,65 @@ function App() {
       return;
     }
 
-    if (appData.organizers.some((entry) => entry.email.toLowerCase() === email)) {
+    const existingOrganizerByEmail = appData.organizers.find(
+      (entry) => entry.email.toLowerCase() === email
+    );
+    if (existingOrganizerByEmail) {
+      const sameSessionOwner =
+        !ownerUserId ||
+        !existingOrganizerByEmail.userId ||
+        existingOrganizerByEmail.userId === ownerUserId;
+
+      if (sameSessionOwner) {
+        const nowIso = new Date().toISOString();
+        const organizerForSync: OrganizerProfile = {
+          ...existingOrganizerByEmail,
+          userId: ownerUserId ?? existingOrganizerByEmail.userId,
+          email,
+          updatedAt: nowIso,
+        };
+
+        const shouldSyncExisting =
+          !organizerForSync.remoteId ||
+          organizerForSync.email !== existingOrganizerByEmail.email ||
+          organizerForSync.userId !== existingOrganizerByEmail.userId;
+
+        if (shouldSyncExisting) {
+          const organizerSync = await upsertOrganizerInSupabase(organizerForSync);
+          if (!organizerSync.ok) {
+            Alert.alert(t('sync_not_completed_title'), organizerSync.reason);
+            return;
+          }
+
+          setAppData((current) => ({
+            ...current,
+            organizers: current.organizers.map((entry) =>
+              entry.id === existingOrganizerByEmail.id
+                ? {
+                    ...entry,
+                    userId: organizerForSync.userId,
+                    email: organizerSync.data.email,
+                    remoteId: organizerSync.data.id,
+                    updatedAt: nowIso,
+                  }
+                : entry
+            ),
+          }));
+        } else if (ownerUserId && !existingOrganizerByEmail.userId) {
+          setAppData((current) => ({
+            ...current,
+            organizers: current.organizers.map((entry) =>
+              entry.id === existingOrganizerByEmail.id
+                ? { ...entry, userId: ownerUserId, updatedAt: nowIso }
+                : entry
+            ),
+          }));
+        }
+
+        setScreen({ name: 'organizerDashboard', organizerId: existingOrganizerByEmail.id });
+        return;
+      }
+
       Alert.alert(t('email_already_registered_title'), t('email_already_registered_message'));
       return;
     }
@@ -1076,29 +1234,26 @@ function App() {
       updatedAt: now,
     };
 
-    let organizerToStore = organizer;
     const syncResult = await upsertOrganizerInSupabase(organizer);
-
-    if (syncResult.ok) {
-      organizerToStore = {
-        ...organizer,
-        remoteId: syncResult.data.id,
-        email: syncResult.data.email,
-      };
+    if (!syncResult.ok) {
+      Alert.alert(t('sync_not_completed_title'), syncResult.reason);
+      return;
     }
+
+    const organizerToStore: OrganizerProfile = {
+      ...organizer,
+      remoteId: syncResult.data.id,
+      email: syncResult.data.email,
+    };
 
     setAppData((current) => ({
       ...current,
       organizers: [organizerToStore, ...current.organizers],
     }));
 
-    const syncNote = syncResult.ok
-      ? t('organizer_sync_ok')
-      : t('organizer_sync_fail', { reason: syncResult.reason });
-
     Alert.alert(
       t('organizer_created_title'),
-      t('organizer_created_message', { note: syncNote })
+      t('organizer_created_message', { note: t('organizer_sync_ok') })
     );
 
     setScreen({ name: 'organizerCreate', organizerId: organizerToStore.id });
@@ -1131,6 +1286,11 @@ function App() {
       assignNumbers: boolean;
     }
   ) => {
+    const securityReady = await ensureOrganizerSecurityForProtectedAction();
+    if (!securityReady) {
+      return;
+    }
+
     const name = cleanText(payload.name);
     const location = cleanText(payload.location);
 
@@ -1340,6 +1500,11 @@ function App() {
     packageDays: number;
     amount: number;
   }) => {
+    const securityReady = await ensureOrganizerSecurityForProtectedAction();
+    if (!securityReady) {
+      return;
+    }
+
     const sourceData = withExpiredSessionsHandled(appData);
     const event = sourceData.events.find((entry) => entry.id === payload.eventId);
     if (!event) {
@@ -1620,6 +1785,11 @@ function App() {
   };
 
   const activateSponsorModuleForOrganizer = async (organizerId: string) => {
+    const securityReady = await ensureOrganizerSecurityForProtectedAction();
+    if (!securityReady) {
+      return;
+    }
+
     const organizer = appData.organizers.find((entry) => entry.id === organizerId);
     if (!organizer) {
       Alert.alert(t('organizer_not_found_title'), t('organizer_not_found_message'));
@@ -2166,7 +2336,7 @@ function App() {
       setFreeInterstitial({
         eventName: event.name,
         registrationCode: registration.registrationCode,
-        sponsor: event.localSponsor,
+        sponsor: localSponsorText(event.localSponsor) || undefined,
       });
 
       const emailText = !emailResult.sent
@@ -2890,11 +3060,27 @@ function App() {
             eventCount={appData.events.length}
             registrationCount={appData.registrations.length}
             onOrganizer={() => {
-              if (ORGANIZER_SECURITY_ENFORCED) {
-                setScreen({ name: 'organizerAuth' });
-                return;
-              }
-              setScreen({ name: 'organizerProfile' });
+              void (async () => {
+                if (!ORGANIZER_SECURITY_ENFORCED) {
+                  setScreen({ name: 'organizerProfile' });
+                  return;
+                }
+
+                const securityReady = await refreshOrganizerSecurityState();
+                if (!securityReady) {
+                  setScreen({ name: 'organizerAuth' });
+                  return;
+                }
+
+                const latestSecurity = await getOrganizerSecurityStatus();
+                if (latestSecurity.ok) {
+                  setOrganizerSecurity(latestSecurity.data);
+                  openOrganizerWorkspace(latestSecurity.data);
+                  return;
+                }
+
+                openOrganizerWorkspace();
+              })();
             }}
             onParticipant={() => {
               setScreen({ name: 'participantSearch' });
@@ -2933,15 +3119,17 @@ function App() {
             onGoogleSignIn={async () => {
               await signInOrganizerWithOAuth('google');
             }}
-            onContinue={() => {
-              if (organizerSecurity?.securityReady) {
-                setScreen({ name: 'organizerProfile' });
-                return;
+            onContinue={async () => {
+              const securityReady = await refreshOrganizerSecurityState(true);
+              if (securityReady) {
+                const latestSecurity = await getOrganizerSecurityStatus();
+                if (latestSecurity.ok) {
+                  setOrganizerSecurity(latestSecurity.data);
+                  openOrganizerWorkspace(latestSecurity.data);
+                  return;
+                }
+                openOrganizerWorkspace();
               }
-              Alert.alert(
-                t('organizer_security_required_title'),
-                t('organizer_security_required_message')
-              );
             }}
             t={t}
           />

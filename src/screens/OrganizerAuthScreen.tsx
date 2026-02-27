@@ -19,7 +19,7 @@ type Props = {
   onEmailOtpRequest: (email: string) => Promise<void>;
   onEmailOtpVerify: (email: string, token: string) => Promise<void>;
   onGoogleSignIn: () => Promise<void>;
-  onContinue: () => void;
+  onContinue: () => void | Promise<void>;
   t: Translator;
 };
 
@@ -122,8 +122,7 @@ export function OrganizerAuthScreen({
 
         <Pressable
           style={securityReady ? styles.primaryButton : styles.secondaryButton}
-          onPress={onContinue}
-          disabled={!securityReady}
+          onPress={() => void onContinue()}
         >
           <Text
             style={

@@ -21,6 +21,7 @@ import { MetricChip, SectionCard, SwitchRow, TextField } from '../components/Com
 import {
   ADMIN_CONTACT_EMAIL,
   COMMISSION_RATE,
+  MAX_IMAGE_UPLOAD_BYTES,
   ORGANIZER_TEST_MODE,
   SPONSOR_MODULE_ACTIVATION_EUR,
 } from '../constants';
@@ -36,7 +37,14 @@ import {
   RegistrationRecord,
   SponsorSlot,
 } from '../types';
-import { cleanText, formatDate, formatEventSchedule, parseEuro, toMoney } from '../utils/format';
+import {
+  cleanText,
+  estimateDataUrlBytes,
+  formatDate,
+  formatEventSchedule,
+  parseEuro,
+  toMoney,
+} from '../utils/format';
 
 type Props = {
   organizer: OrganizerProfile;
@@ -131,6 +139,7 @@ export function OrganizerDashboardScreen({
   t,
   language,
 }: Props) {
+  const maxImageKb = Math.round(MAX_IMAGE_UPLOAD_BYTES / 1024);
   const { width } = useWindowDimensions();
   const isDesktopLayout = width >= 1180;
   const [selectedEventId, setSelectedEventId] = useState<string | undefined>(events[0]?.id);
@@ -517,6 +526,13 @@ export function OrganizerDashboardScreen({
 
     try {
       const dataUrl = await assetToDataUrl(file);
+      if (estimateDataUrlBytes(dataUrl) > MAX_IMAGE_UPLOAD_BYTES) {
+        Alert.alert(
+          t('image_upload_too_large_title'),
+          t('image_upload_too_large_message', { maxKb: maxImageKb })
+        );
+        return;
+      }
       setSponsorLogoUrl(dataUrl);
       setSponsorLogoFileName(file.name);
     } catch {
