@@ -395,9 +395,16 @@ function App() {
       return;
     }
 
-    const sharedEvent = appData.events.find(
-      (entry) => entry.id === sharedRef || entry.remoteId === sharedRef
-    );
+    const sharedEvent = appData.events.find((entry) => {
+      const remoteId = cleanText(entry.remoteId ?? '');
+      if (remoteId && remoteId === sharedRef) {
+        return true;
+      }
+      if (IS_DEMO_CHANNEL && entry.id === sharedRef) {
+        return true;
+      }
+      return false;
+    });
     setHandledSharedEventRef(sharedRef);
 
     if (!sharedEvent || sharedEvent.visibility !== 'public' || !sharedEvent.active) {
@@ -973,7 +980,11 @@ function App() {
     if (!base) {
       return null;
     }
-    const reference = event.remoteId || event.id;
+    const remoteReference = cleanText(event.remoteId ?? '');
+    if (!IS_DEMO_CHANNEL && !remoteReference) {
+      return null;
+    }
+    const reference = remoteReference || event.id;
     return `${base}/?eventRef=${encodeURIComponent(reference)}`;
   };
 
@@ -1042,33 +1053,20 @@ function App() {
       };
     }
 
-    let organizerRemoteId = organizer.remoteId;
+    const organizerRemoteId = cleanText(organizer.remoteId ?? '');
     if (!organizerRemoteId) {
-      const organizerSync = await upsertOrganizerInSupabase(organizer);
-      if (!organizerSync.ok) {
-        return {
-          ok: false as const,
-          reason: organizerSync.reason,
-        };
-      }
-      organizerRemoteId = organizerSync.data.id;
-      patchOrganizerRemoteId(organizer.id, organizerRemoteId);
-      if (organizer.email !== organizerSync.data.email) {
-        patchOrganizerEmail(organizer.id, organizerSync.data.email);
-      }
+      return {
+        ok: false as const,
+        reason: t('event_sync_org_missing'),
+      };
     }
 
-    let eventRemoteId = event.remoteId;
+    const eventRemoteId = cleanText(event.remoteId ?? '');
     if (!eventRemoteId) {
-      const eventSync = await insertEventInSupabase(event, organizerRemoteId);
-      if (!eventSync.ok) {
-        return {
-          ok: false as const,
-          reason: eventSync.reason,
-        };
-      }
-      eventRemoteId = eventSync.data.id;
-      patchEventRemoteId(event.id, eventRemoteId);
+      return {
+        ok: false as const,
+        reason: t('event_sync_org_missing'),
+      };
     }
 
     const syncResult = await upsertRegistrationInSupabase({
@@ -2280,6 +2278,11 @@ function App() {
       return;
     }
 
+    if (!IS_DEMO_CHANNEL && !cleanText(event.remoteId ?? '')) {
+      showAppAlert(t('sync_not_completed_title'), t('event_sync_org_missing'));
+      return;
+    }
+
     await showRegistrationCountdown(event);
 
     try {
@@ -2322,6 +2325,14 @@ function App() {
       setAppData(nextData);
 
       const syncResult = await syncRegistrationRecord(nextData, registration);
+      if (!syncResult.ok && !IS_DEMO_CHANNEL) {
+        setAppData(sourceData);
+        showAppAlert(
+          t('sync_not_completed_title'),
+          t('sync_not_completed_message', { reason: syncResult.reason })
+        );
+        return;
+      }
 
       const emailResult = await sendConfirmationEmail({
         participantEmail: registration.email,
@@ -2405,6 +2416,11 @@ function App() {
     const organizer = sourceData.organizers.find((entry) => entry.id === event.organizerId);
     if (!organizer || !organizerCanUsePaidSection(organizer, ORGANIZER_TEST_MODE)) {
       Alert.alert(t('payment_not_available_title'), t('payment_not_available_message'));
+      return;
+    }
+
+    if (!IS_DEMO_CHANNEL && !cleanText(event.remoteId ?? '')) {
+      showAppAlert(t('sync_not_completed_title'), t('event_sync_org_missing'));
       return;
     }
 
@@ -2500,6 +2516,10 @@ function App() {
           t('sync_not_completed_title'),
           t('sync_not_completed_message', { reason: syncResult.reason })
         );
+        if (!IS_DEMO_CHANNEL) {
+          setAppData(sourceData);
+          return;
+        }
       }
       setScreen({ name: 'participantPayment', registrationId });
     } finally {
@@ -3219,7 +3239,9 @@ function App() {
       case 'participantSearch':
         return (
           <ParticipantSearchScreen
-            events={appData.events}
+            events={appData.events.filter(
+              (event) => IS_DEMO_CHANNEL || Boolean(cleanText(event.remoteId ?? ''))
+            )}
             onBack={() => {
               setScreen({ name: 'role' });
             }}

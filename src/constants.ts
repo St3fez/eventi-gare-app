@@ -96,6 +96,7 @@ export const createDefaultData = (): AppData => {
   const now = new Date().toISOString();
   const futureStart = plusDaysIso(5);
   const futureEnd = plusDaysIso(25);
+  const seedDemoCatalog = IS_DEMO_CHANNEL || DEMO_ALL_OPEN;
   const sponsorSlots: AppData['sponsorSlots'] = DEMO_ALL_OPEN
     ? [
         {
@@ -133,7 +134,8 @@ export const createDefaultData = (): AppData => {
     : [];
 
   return {
-    organizers: [
+    organizers: seedDemoCatalog
+      ? [
       {
         id: organizerId,
         email: 'organizzatore.demo@eventigare.app',
@@ -178,8 +180,10 @@ export const createDefaultData = (): AppData => {
         createdAt: now,
         updatedAt: now,
       },
-    ],
-    events: [
+    ]
+      : [],
+    events: seedDemoCatalog
+      ? [
       {
         id: 'evt_free_demo',
         organizerId,
@@ -254,7 +258,8 @@ export const createDefaultData = (): AppData => {
         active: true,
         createdAt: now,
       },
-    ],
+    ]
+      : [],
     registrations: [],
     paymentIntents: [],
     sponsorSlots,
