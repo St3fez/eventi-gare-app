@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Linking,
@@ -293,6 +293,12 @@ type AuthNotice = {
   message: string;
 };
 
+type PostRegistrationAlert = {
+  title: string;
+  message: string;
+  nextScreen: ScreenState;
+};
+
 function App() {
   const { width } = useWindowDimensions();
   const isDesktopLayout = width >= 1024;
@@ -310,6 +316,8 @@ function App() {
     null
   );
   const [authNotice, setAuthNotice] = useState<AuthNotice | null>(null);
+  const [postRegistrationAlert, setPostRegistrationAlert] =
+    useState<PostRegistrationAlert | null>(null);
   const [handledSharedEventRef, setHandledSharedEventRef] = useState<string | null>(null);
   const t = useMemo(() => createTranslator(language), [language]);
   const appSubtitle = IS_DEMO_CHANNEL ? t('app_subtitle_demo') : t('app_subtitle');
@@ -449,9 +457,15 @@ function App() {
   useEffect(() => {
     if (screen.name !== 'organizerAuth') {
       setAuthNotice(null);
-      return;
     }
-    void refreshOrganizerSecurityState();
+    if (
+      screen.name === 'organizerAuth' ||
+      screen.name === 'organizerProfile' ||
+      screen.name === 'organizerCreate' ||
+      screen.name === 'organizerDashboard'
+    ) {
+      void refreshOrganizerSecurityState();
+    }
   }, [screen.name]);
 
   useEffect(() => {
@@ -483,12 +497,79 @@ function App() {
     };
   }, []);
 
+  const activeOrganizerUserId = ORGANIZER_SECURITY_ENFORCED
+    ? organizerSecurity?.userId ?? null
+    : null;
+  const activeOrganizerEmail = ORGANIZER_SECURITY_ENFORCED
+    ? cleanText(organizerSecurity?.email ?? '').toLowerCase()
+    : '';
+
+  const organizerMatchesSession = useCallback(
+    (organizer: OrganizerProfile): boolean => {
+      if (!ORGANIZER_SECURITY_ENFORCED) {
+        return true;
+      }
+      if (!activeOrganizerUserId) {
+        return false;
+      }
+      if (organizer.userId) {
+        return organizer.userId === activeOrganizerUserId;
+      }
+      if (activeOrganizerEmail) {
+        return organizer.email.toLowerCase() === activeOrganizerEmail;
+      }
+      return false;
+    },
+    [activeOrganizerEmail, activeOrganizerUserId]
+  );
+
+  const organizersForProfile = useMemo(() => {
+    if (!ORGANIZER_SECURITY_ENFORCED) {
+      return appData.organizers;
+    }
+    if (!activeOrganizerUserId && !activeOrganizerEmail) {
+      return [];
+    }
+    return appData.organizers.filter(organizerMatchesSession);
+  }, [activeOrganizerEmail, activeOrganizerUserId, appData.organizers, organizerMatchesSession]);
+
+  useEffect(() => {
+    if (!ORGANIZER_SECURITY_ENFORCED) {
+      return;
+    }
+    if (!activeOrganizerUserId || !activeOrganizerEmail) {
+      return;
+    }
+    const hasLegacy = appData.organizers.some(
+      (organizer) =>
+        !organizer.userId && organizer.email.toLowerCase() === activeOrganizerEmail
+    );
+    if (!hasLegacy) {
+      return;
+    }
+    setAppData((current) => ({
+      ...current,
+      organizers: current.organizers.map((organizer) =>
+        !organizer.userId && organizer.email.toLowerCase() === activeOrganizerEmail
+          ? { ...organizer, userId: activeOrganizerUserId }
+          : organizer
+      ),
+    }));
+  }, [activeOrganizerEmail, activeOrganizerUserId, appData.organizers]);
+
   const organizerForScreen = useMemo(() => {
     if (screen.name !== 'organizerCreate' && screen.name !== 'organizerDashboard') {
       return undefined;
     }
-    return appData.organizers.find((organizer) => organizer.id === screen.organizerId);
-  }, [appData.organizers, screen]);
+    const organizer = appData.organizers.find((entry) => entry.id === screen.organizerId);
+    if (!organizer) {
+      return undefined;
+    }
+    if (!organizerMatchesSession(organizer)) {
+      return undefined;
+    }
+    return organizer;
+  }, [appData.organizers, organizerMatchesSession, screen]);
 
   const editingEventForScreen = useMemo(() => {
     if (screen.name !== 'organizerCreate' || !screen.eventId) {
@@ -645,6 +726,9 @@ function App() {
     });
 
   const showRegistrationCountdown = async (event: EventItem) => {
+    if (!ADMOB_ENABLED || Platform.OS === 'web') {
+      return;
+    }
     const slot = appData.sponsorSlots.find(
       (entry) => entry.eventId === event.id && isSponsorSlotVisible(entry)
     );
@@ -934,6 +1018,7 @@ function App() {
     const email = cleanText(
       security.ok && security.data.securityReady ? security.data.email : payload.email
     ).toLowerCase();
+    const ownerUserId = security.ok ? security.data.userId : undefined;
     if (!email.includes('@')) {
       Alert.alert(t('invalid_email_title'), t('invalid_email_message'));
       return;
@@ -949,6 +1034,7 @@ function App() {
 
     const organizer: OrganizerProfile = {
       id: randomId('org'),
+      userId: ownerUserId,
       email,
       organizationName: cleanText(payload.organizationName ?? ''),
       organizationRole: payload.organizationRole,
@@ -2103,17 +2189,16 @@ function App() {
           ? `\n${t('group_participants_line', { count: registration.groupParticipantsCount })}`
           : '';
 
-      showAppAlert(
-        t('registration_completed_title'),
-        `${t('registration_completed_message', {
+      setPostRegistrationAlert({
+        title: t('registration_completed_title'),
+        message: `${t('registration_completed_message', {
           code: registration.registrationCode,
           number: numberLine,
           email: emailText,
           sync: syncText,
-        })}${groupLine}`
-      );
-
-      setScreen({ name: 'participantSearch' });
+        })}${groupLine}`,
+        nextScreen: { name: 'participantSearch' },
+      });
     } finally {
       setProcessingInterstitial(null);
     }
@@ -2825,7 +2910,7 @@ function App() {
         if (!ORGANIZER_SECURITY_ENFORCED) {
           return (
             <OrganizerProfileScreen
-              organizers={appData.organizers}
+              organizers={organizersForProfile}
               onBack={() => setScreen({ name: 'role' })}
               onCreate={createOrganizer}
               onUseExisting={(organizerId) => setScreen({ name: 'organizerDashboard', organizerId })}
@@ -2865,7 +2950,7 @@ function App() {
       case 'organizerProfile':
         return (
           <OrganizerProfileScreen
-            organizers={appData.organizers}
+            organizers={organizersForProfile}
             onBack={() => setScreen({ name: 'role' })}
             onCreate={createOrganizer}
             onUseExisting={(organizerId) => setScreen({ name: 'organizerDashboard', organizerId })}
@@ -3041,7 +3126,20 @@ function App() {
       </LinearGradient>
 
       <LegalModal visible={showLegalModal} onClose={() => setShowLegalModal(false)} t={t} />
-      <FreeInterstitialModal data={freeInterstitial} onClose={() => setFreeInterstitial(null)} t={t} />
+      <FreeInterstitialModal
+        data={freeInterstitial}
+        onClose={() => {
+          setFreeInterstitial(null);
+          if (!postRegistrationAlert) {
+            return;
+          }
+          const { title, message, nextScreen } = postRegistrationAlert;
+          setPostRegistrationAlert(null);
+          showAppAlert(title, message);
+          setScreen(nextScreen);
+        }}
+        t={t}
+      />
       <ProcessingInterstitialModal
         visible={Boolean(processingInterstitial)}
         secondsRemaining={processingInterstitial?.secondsRemaining ?? 0}

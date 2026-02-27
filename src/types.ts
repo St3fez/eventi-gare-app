@@ -88,6 +88,7 @@ export type OrganizerVerificationChecklist = {
 export type OrganizerProfile = {
   id: string;
   remoteId?: string;
+  userId?: string;
   email: string;
   organizationName?: string;
   organizationRole: OrganizerRole;

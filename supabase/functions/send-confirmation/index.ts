@@ -6,10 +6,16 @@
 // - RESEND_API_KEY
 // - EMAIL_FROM (es. no-reply@yourdomain.com)
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
 const json = (payload: Record<string, unknown>, status = 200): Response =>
   new Response(JSON.stringify(payload), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...corsHeaders },
   });
 
 type ConfirmationPayload = {
@@ -42,6 +48,9 @@ const buildHtml = (p: Required<Pick<ConfirmationPayload, 'participantName' | 'ev
 };
 
 Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
   if (req.method !== 'POST') {
     return json({ error: 'Method not allowed' }, 405);
   }

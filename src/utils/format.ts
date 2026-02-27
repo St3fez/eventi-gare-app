@@ -159,6 +159,7 @@ const normalizeOrganizer = (value: Partial<OrganizerProfile>): OrganizerProfile 
   return {
     id: value.id ?? randomId('org_legacy'),
     remoteId: value.remoteId,
+    userId: value.userId,
     email: value.email ?? '',
     organizationName: value.organizationName ?? '',
     organizationRole: value.organizationRole ?? 'altro',
