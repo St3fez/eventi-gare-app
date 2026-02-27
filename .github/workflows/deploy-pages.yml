@@ -63,7 +63,7 @@ jobs:
           touch web-build/.nojekyll
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: web-build
 
