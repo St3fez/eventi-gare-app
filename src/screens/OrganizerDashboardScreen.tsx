@@ -67,6 +67,7 @@ type Props = {
   onExportEvent: (eventId: string) => Promise<void>;
   onExportEventPdf: (eventId: string) => Promise<void>;
   onConfirmCashPayment: (registrationId: string) => Promise<void>;
+  appPublicUrl: string | null;
   getEventPublicUrl: (event: EventItem) => string | null;
   onUpdateCompliance: (payload: {
     organizerId: string;
@@ -120,6 +121,8 @@ type QrCodeHandle = {
   toDataURL: (callback: (base64: string) => void) => void;
 };
 
+const officialWebQrImage = require('../../assets/official-web-qr.png');
+
 export function OrganizerDashboardScreen({
   organizer,
   isAdmin,
@@ -140,6 +143,7 @@ export function OrganizerDashboardScreen({
   onExportEvent,
   onExportEventPdf,
   onConfirmCashPayment,
+  appPublicUrl,
   getEventPublicUrl,
   onUpdateCompliance,
   onSendComplianceEmail,
@@ -398,10 +402,48 @@ export function OrganizerDashboardScreen({
   };
 
   const registrationStatusLabel = (status: RegistrationRecord['registrationStatus']) => {
-    if (status === 'pending_cash') {
-      return t('registration_status_pending_cash');
+    switch (status) {
+      case 'pending_payment':
+        return t('registration_status_pending_payment');
+      case 'pending_cash':
+        return t('registration_status_pending_cash');
+      case 'paid':
+        return t('registration_status_paid');
+      case 'payment_failed':
+        return t('registration_status_payment_failed');
+      case 'cancelled':
+        return t('registration_status_cancelled');
+      case 'refunded':
+        return t('registration_status_refunded');
+      default:
+        return status;
     }
-    return status;
+  };
+  const paymentStatusLabel = (
+    status: RegistrationRecord['paymentStatus']
+  ): string => {
+    switch (status) {
+      case 'not_required':
+        return t('payment_status_not_required');
+      case 'pending':
+        return t('payment_status_pending');
+      case 'requires_action':
+        return t('payment_status_requires_action');
+      case 'authorized':
+        return t('payment_status_authorized');
+      case 'captured':
+        return t('payment_status_captured');
+      case 'failed':
+        return t('payment_status_failed');
+      case 'expired':
+        return t('payment_status_expired');
+      case 'refunded':
+        return t('payment_status_refunded');
+      case 'cancelled':
+        return t('payment_status_cancelled');
+      default:
+        return status;
+    }
   };
 
   const normalizeExternalUrl = (input: string): string => {
@@ -936,6 +978,14 @@ export function OrganizerDashboardScreen({
                 <Text style={styles.helperText}>
                   {t('event_public_tools_intro')}
                 </Text>
+                <Text style={styles.fieldLabel}>{t('official_app_qr_title')}</Text>
+                <Text style={styles.listSubText}>{appPublicUrl ?? t('event_public_url_missing')}</Text>
+                {appPublicUrl ? (
+                  <View style={styles.registrationCard}>
+                    <Image source={officialWebQrImage} style={styles.qrCodePreviewImage} />
+                  </View>
+                ) : null}
+                <Text style={styles.fieldLabel}>{t('selected_event_qr_title')}</Text>
                 <Text style={styles.listSubText}>
                   {selectedEventPublicUrl ?? t('event_public_url_missing')}
                 </Text>
@@ -1365,14 +1415,14 @@ export function OrganizerDashboardScreen({
             />
             <Text style={styles.fieldLabel}>{t('registration_filter_status')}</Text>
             <View style={styles.methodRow}>
-              {[
+              {[ 
                 ['all', t('registration_filter_all')],
-                ['pending_payment', 'pending_payment'],
+                ['pending_payment', t('registration_status_pending_payment')],
                 ['pending_cash', t('registration_status_pending_cash')],
-                ['paid', 'paid'],
-                ['payment_failed', 'payment_failed'],
-                ['cancelled', 'cancelled'],
-                ['refunded', 'refunded'],
+                ['paid', t('registration_status_paid')],
+                ['payment_failed', t('registration_status_payment_failed')],
+                ['cancelled', t('registration_status_cancelled')],
+                ['refunded', t('registration_status_refunded')],
               ].map(([status, label]) => (
                 <Pressable
                   key={status}
@@ -1469,7 +1519,7 @@ export function OrganizerDashboardScreen({
                     <Text style={styles.listSubText}>
                       {t('registration_payment_state', {
                         reg: registrationStatusLabel(entry.registrationStatus),
-                        pay: entry.paymentStatus,
+                        pay: paymentStatusLabel(entry.paymentStatus),
                       })}
                     </Text>
                     {!simpleListView ? (

@@ -33,6 +33,24 @@ export function ParticipantPaymentScreen({
     ? formatDate(event.cashPaymentDeadline)
     : formatDate(event.registrationCloseDate);
   const cashInstructions = cleanText(event.cashPaymentInstructions ?? '');
+  const registrationStatusLabel = useMemo(() => {
+    switch (registration.registrationStatus) {
+      case 'pending_payment':
+        return t('registration_status_pending_payment');
+      case 'pending_cash':
+        return t('registration_status_pending_cash');
+      case 'paid':
+        return t('registration_status_paid');
+      case 'payment_failed':
+        return t('registration_status_payment_failed');
+      case 'cancelled':
+        return t('registration_status_cancelled');
+      case 'refunded':
+        return t('registration_status_refunded');
+      default:
+        return registration.registrationStatus;
+    }
+  }, [registration.registrationStatus, t]);
 
   const sessionLabel = useMemo(() => {
     if (!registration.paymentSessionExpiresAt) {
@@ -80,7 +98,7 @@ export function ParticipantPaymentScreen({
           {t('registration_code_label', { value: registration.registrationCode })}
         </Text>
         <Text style={styles.listSubText}>
-          {t('registration_status_label', { value: registration.registrationStatus })}
+          {t('registration_status_label', { value: registrationStatusLabel })}
         </Text>
         <Text style={styles.listSubText}>{t('payment_session_expiry', { value: sessionLabel })}</Text>
         <Text style={styles.helperText}>

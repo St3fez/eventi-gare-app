@@ -34,7 +34,7 @@ import { FreeInterstitialModal } from './src/components/FreeInterstitialModal';
 import { LegalModal } from './src/components/LegalModal';
 import { ProcessingInterstitialModal } from './src/components/ProcessingInterstitialModal';
 import { AppLanguage, createTranslator } from './src/i18n';
-import { sendConfirmationEmail } from './src/services/email';
+import { sendConfirmationEmail, sendNotificationEmail } from './src/services/email';
 import { exportEventRegistrationsCsv } from './src/services/exportCsv';
 import { exportEventRegistrationsPdf } from './src/services/exportPdf';
 import {
@@ -103,6 +103,7 @@ import {
   AppData,
   EventPaymentChannel,
   EventItem,
+  EmailResult,
   FreeInterstitial,
   GroupParticipant,
   OrganizerProfile,
@@ -283,11 +284,11 @@ const purgeExpiredRegistrationsByPolicy = (source: AppData): AppData => {
 };
 
 const getEventPublicBaseUrl = (): string | null => {
-  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.origin) {
-    return window.location.origin.replace(/\/+$/, '');
-  }
   if (cleanText(EVENT_WEB_BASE_URL ?? '')) {
     return cleanText(EVENT_WEB_BASE_URL ?? '').replace(/\/+$/, '');
+  }
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin.replace(/\/+$/, '');
   }
   return null;
 };
@@ -998,6 +999,10 @@ type PostRegistrationAlert = {
   nextScreen: ScreenState;
 };
 
+type ParticipantPostAuthTarget =
+  | { name: 'participantRegister'; eventId: string; registrationId?: string }
+  | { name: 'participantPayment'; registrationId: string };
+
 function App() {
   const { width } = useWindowDimensions();
   const isDesktopLayout = width >= 1024;
@@ -1025,6 +1030,8 @@ function App() {
   const [authNotice, setAuthNotice] = useState<AuthNotice | null>(null);
   const [postRegistrationAlert, setPostRegistrationAlert] =
     useState<PostRegistrationAlert | null>(null);
+  const [participantPostAuthTarget, setParticipantPostAuthTarget] =
+    useState<ParticipantPostAuthTarget | null>(null);
   const [handledSharedEventRef, setHandledSharedEventRef] = useState<string | null>(null);
   const [publicEventRemoteIds, setPublicEventRemoteIds] = useState<string[]>([]);
   const t = useMemo(() => createTranslator(language), [language]);
@@ -1466,6 +1473,9 @@ function App() {
   const activeOrganizerEmail = ORGANIZER_SECURITY_ENFORCED
     ? cleanText(organizerSecurity?.email ?? '').toLowerCase()
     : '';
+  const activeParticipantEmail = PARTICIPANT_SECURITY_ENFORCED
+    ? cleanText(organizerSecurity?.email ?? '').toLowerCase()
+    : '';
 
   const grantPlatformAdmin = useCallback(
     async (email: string, canManageAdmins: boolean): Promise<void> => {
@@ -1672,6 +1682,27 @@ function App() {
     () => new Set(publicEventRemoteIds),
     [publicEventRemoteIds]
   );
+  const participantEditableEventIds = useMemo(() => {
+    if (!activeParticipantEmail) {
+      return [];
+    }
+    const editableStatuses = new Set<RegistrationRecord['registrationStatus']>([
+      'pending_payment',
+      'pending_cash',
+      'paid',
+    ]);
+    return Array.from(
+      new Set(
+        appData.registrations
+          .filter(
+            (entry) =>
+              cleanText(entry.email).toLowerCase() === activeParticipantEmail &&
+              editableStatuses.has(entry.registrationStatus)
+          )
+          .map((entry) => entry.eventId)
+      )
+    );
+  }, [activeParticipantEmail, appData.registrations]);
 
   const shouldShowMonetizationBanner = screen.name !== 'role';
 
@@ -1964,6 +1995,137 @@ function App() {
     return true;
   };
 
+  const emailResultLabel = (result: EmailResult): string => {
+    if (!result.sent) {
+      return t('email_failed', {
+        detail: result.detail ?? `HTTP ${result.statusCode ?? 'N/D'}`,
+      });
+    }
+    return result.mode === 'simulated' ? t('email_simulated') : t('email_sent');
+  };
+
+  const dualEmailSummary = (participant: EmailResult, organizer?: EmailResult): string =>
+    t('participant_organizer_email_summary', {
+      participant: emailResultLabel(participant),
+      organizer: organizer ? emailResultLabel(organizer) : t('organizer_email_missing'),
+    });
+
+  const notifyRegistrationActionByEmail = async (params: {
+    event: EventItem;
+    organizerEmail?: string;
+    registration: RegistrationRecord;
+    action: 'updated' | 'cancelled';
+  }): Promise<string> => {
+    const actionTitle =
+      params.action === 'updated' ? t('registration_updated_title') : t('registration_cancelled_title');
+    const participantSubject = `${actionTitle} - ${params.event.name}`;
+    const participantText = [
+      actionTitle,
+      '',
+      `Evento: ${params.event.name}`,
+      `Codice iscrizione: ${params.registration.registrationCode}`,
+      `Partecipante: ${params.registration.fullName}`,
+      `Stato iscrizione: ${params.registration.registrationStatus}`,
+      '',
+      'Questa email conferma l aggiornamento richiesto.',
+    ].join('\n');
+
+    const participantResult = await sendNotificationEmail({
+      toEmail: params.registration.email,
+      recipientName: params.registration.fullName,
+      subject: participantSubject,
+      text: participantText,
+      eventName: params.event.name,
+      registrationCode: params.registration.registrationCode,
+    });
+
+    const organizerEmail = cleanText(params.organizerEmail ?? '').toLowerCase();
+    if (!organizerEmail) {
+      return dualEmailSummary(participantResult);
+    }
+
+    const organizerText = [
+      actionTitle,
+      '',
+      `Evento: ${params.event.name}`,
+      `Codice iscrizione: ${params.registration.registrationCode}`,
+      `Partecipante: ${params.registration.fullName} <${params.registration.email}>`,
+      `Stato iscrizione: ${params.registration.registrationStatus}`,
+      '',
+      'Notifica inviata dal modulo partecipante.',
+    ].join('\n');
+
+    const organizerResult = await sendNotificationEmail({
+      toEmail: organizerEmail,
+      recipientName: 'Organizzatore',
+      subject: participantSubject,
+      text: organizerText,
+      eventName: params.event.name,
+      registrationCode: params.registration.registrationCode,
+    });
+
+    return dualEmailSummary(participantResult, organizerResult);
+  };
+
+  const notifyParticipantMessageByEmail = async (params: {
+    event: EventItem;
+    organizerEmail?: string;
+    participantName: string;
+    participantEmail: string;
+    message: string;
+  }): Promise<string> => {
+    const normalizedMessage = cleanText(params.message);
+    if (!normalizedMessage) {
+      return t('participant_message_missing_message');
+    }
+
+    const organizerEmail = cleanText(params.organizerEmail ?? '').toLowerCase();
+    if (!organizerEmail) {
+      return t('organizer_email_missing');
+    }
+
+    const messageCode = buildRegistrationCode(params.event.name);
+    const organizerSubject = `${t('participant_message_email_subject')} - ${params.event.name}`;
+    const organizerText = [
+      t('participant_message_email_subject'),
+      '',
+      `Evento: ${params.event.name}`,
+      `Partecipante: ${params.participantName} <${params.participantEmail}>`,
+      'Messaggio:',
+      normalizedMessage,
+    ].join('\n');
+
+    const organizerResult = await sendNotificationEmail({
+      toEmail: organizerEmail,
+      recipientName: 'Organizzatore',
+      subject: organizerSubject,
+      text: organizerText,
+      eventName: params.event.name,
+      registrationCode: messageCode,
+    });
+
+    const participantSubject = `${t('participant_message_sent_title')} - ${params.event.name}`;
+    const participantText = [
+      t('participant_message_sent_title'),
+      '',
+      `Evento: ${params.event.name}`,
+      `Messaggio inviato a: ${organizerEmail}`,
+      '',
+      normalizedMessage,
+    ].join('\n');
+
+    const participantResult = await sendNotificationEmail({
+      toEmail: cleanText(params.participantEmail).toLowerCase(),
+      recipientName: params.participantName,
+      subject: participantSubject,
+      text: participantText,
+      eventName: params.event.name,
+      registrationCode: messageCode,
+    });
+
+    return dualEmailSummary(participantResult, organizerResult);
+  };
+
   const refreshParticipantSecurityState = async (showMissingAlert = false): Promise<boolean> => {
     if (!PARTICIPANT_SECURITY_ENFORCED) {
       return true;
@@ -1989,10 +2151,7 @@ function App() {
     return status.data.securityReady;
   };
 
-  const ensureParticipantAuthForEvent = async (
-    event: EventItem,
-    _draft: RegistrationDraft
-  ): Promise<boolean> => {
+  const ensureParticipantAuthForEvent = async (event: EventItem): Promise<boolean> => {
     if (ORGANIZER_TEST_MODE) {
       return true;
     }
@@ -3593,7 +3752,6 @@ function App() {
       Alert.alert(t('event_not_found_title'), t('event_not_found_message'));
       return;
     }
-
     const eventRegistrations = sourceData.registrations.filter((entry) => entry.eventId === event.id);
     const eventPaymentIntents = sourceData.paymentIntents.filter((entry) => entry.eventId === event.id);
 
@@ -3641,6 +3799,7 @@ function App() {
       Alert.alert(t('event_not_found_title'), t('event_not_found_message'));
       return;
     }
+    const organizer = sourceData.organizers.find((entry) => entry.id === event.organizerId);
 
     if (!isRegistrationWindowOpen(event)) {
       Alert.alert(
@@ -3653,8 +3812,13 @@ function App() {
       return;
     }
 
-    const participantAuthAllowed = await ensureParticipantAuthForEvent(event, draft);
+    const participantAuthAllowed = await ensureParticipantAuthForEvent(event);
     if (!participantAuthAllowed) {
+      setParticipantPostAuthTarget({
+        name: 'participantRegister',
+        eventId,
+        registrationId: screen.name === 'participantRegister' ? screen.registrationId : undefined,
+      });
       return;
     }
 
@@ -3784,6 +3948,14 @@ function App() {
         : emailResult.mode === 'simulated'
           ? t('email_simulated')
           : t('email_sent');
+      const updateEmailSummary = existingFreeRegistration
+        ? await notifyRegistrationActionByEmail({
+            event,
+            organizerEmail: organizer?.email,
+            registration,
+            action: 'updated',
+          })
+        : undefined;
       const syncText = syncResult.ok
         ? t('sync_ok_registration')
         : t('sync_local_registration', { reason: syncResult.reason });
@@ -3802,7 +3974,7 @@ function App() {
         message: `${t('registration_completed_message', {
           code: registration.registrationCode,
           number: numberLine,
-          email: emailText,
+          email: updateEmailSummary ?? emailText,
           sync: syncText,
         })}${groupLine}`,
         nextScreen: { name: 'participantSearch' },
@@ -3835,8 +4007,13 @@ function App() {
       return;
     }
 
-    const participantAuthAllowed = await ensureParticipantAuthForEvent(event, draft);
+    const participantAuthAllowed = await ensureParticipantAuthForEvent(event);
     if (!participantAuthAllowed) {
+      setParticipantPostAuthTarget({
+        name: 'participantRegister',
+        eventId,
+        registrationId: screen.name === 'participantRegister' ? screen.registrationId : undefined,
+      });
       return;
     }
 
@@ -3853,20 +4030,22 @@ function App() {
 
     const normalizedEmail = cleanText(draft.email).toLowerCase();
     const draftGroupParticipants = normalizeDraftGroupParticipants(draft);
-    const editingRegistrationId =
-      screen.name === 'participantRegister' ? screen.registrationId : undefined;
-    const pendingFromEdit = editingRegistrationId
+    const editingRegistrationId = screen.name === 'participantRegister' ? screen.registrationId : undefined;
+    const editingRegistration = editingRegistrationId
       ? sourceData.registrations.find(
-          (entry) =>
-            entry.id === editingRegistrationId &&
-            entry.eventId === eventId &&
-            (entry.registrationStatus === 'pending_payment' ||
-              entry.registrationStatus === 'pending_cash') &&
-            !isPaymentSessionExpired(entry.paymentSessionExpiresAt)
+          (entry) => entry.id === editingRegistrationId && entry.eventId === eventId
         )
       : undefined;
+    const pendingFromEdit =
+      editingRegistration &&
+      (editingRegistration.registrationStatus === 'pending_payment' ||
+        editingRegistration.registrationStatus === 'pending_cash')
+        ? editingRegistration
+        : undefined;
+    const paidFromEdit =
+      editingRegistration?.registrationStatus === 'paid' ? editingRegistration : undefined;
 
-    if (editingRegistrationId && !pendingFromEdit) {
+    if (editingRegistrationId && !pendingFromEdit && !paidFromEdit) {
       Alert.alert(t('session_not_found_title'), t('session_not_found_message'));
       setScreen({ name: 'participantSearch' });
       return;
@@ -3884,7 +4063,8 @@ function App() {
       );
     const existingPaidByEmail = pendingFromEdit
       ? undefined
-      : sourceData.registrations
+      : paidFromEdit ??
+        sourceData.registrations
           .filter(
             (entry) =>
               entry.eventId === eventId &&
@@ -3934,13 +4114,19 @@ function App() {
 
       setAppData(nextData);
       const syncResult = await syncRegistrationRecord(nextData, updatedPaidRegistration);
+      const emailSummary = await notifyRegistrationActionByEmail({
+        event,
+        organizerEmail: organizer?.email,
+        registration: updatedPaidRegistration,
+        action: 'updated',
+      });
       Alert.alert(
         t('registration_updated_title'),
-        t('registration_updated_message', {
+        `${t('registration_updated_message', {
           sync: syncResult.ok
             ? t('sync_state_ok')
             : t('sync_state_fail', { reason: syncResult.reason }),
-        })
+        })}\n${emailSummary}`
       );
       setScreen({ name: 'participantSearch' });
       return;
@@ -4050,6 +4236,22 @@ function App() {
           setAppData(sourceData);
           return;
         }
+      }
+      if (existingPending) {
+        const emailSummary = await notifyRegistrationActionByEmail({
+          event,
+          organizerEmail: organizer?.email,
+          registration,
+          action: 'updated',
+        });
+        Alert.alert(
+          t('registration_updated_title'),
+          `${t('registration_updated_message', {
+            sync: syncResult.ok
+              ? t('sync_state_ok')
+              : t('sync_state_fail', { reason: syncResult.reason }),
+          })}\n${emailSummary}`
+        );
       }
       setScreen({ name: 'participantPayment', registrationId: registration.id });
     } finally {
@@ -4464,12 +4666,24 @@ function App() {
 
     if (
       registration.registrationStatus !== 'pending_payment' &&
-      registration.registrationStatus !== 'pending_cash'
+      registration.registrationStatus !== 'pending_cash' &&
+      registration.registrationStatus !== 'paid'
     ) {
       Alert.alert(t('invalid_state_title'), t('invalid_state_message', { status: registration.registrationStatus }));
       return;
     }
 
+    const event = sourceData.events.find((entry) => entry.id === registration.eventId);
+    if (!event) {
+      Alert.alert(t('event_not_found_title'), t('event_not_found_message'));
+      return;
+    }
+    const organizer = sourceData.organizers.find((entry) => entry.id === event.organizerId);
+
+    const keepCapturedPayment = registration.paymentStatus === 'captured';
+    const nextPaymentStatus = keepCapturedPayment
+      ? registration.paymentStatus
+      : ('cancelled' as RegistrationRecord['paymentStatus']);
     const now = new Date().toISOString();
 
     const nextData: AppData = {
@@ -4479,7 +4693,7 @@ function App() {
           ? {
               ...entry,
               registrationStatus: 'cancelled',
-              paymentStatus: 'cancelled',
+              paymentStatus: nextPaymentStatus,
               paymentFailedReason: t('registration_cancelled_title'),
               updatedAt: now,
             }
@@ -4489,7 +4703,10 @@ function App() {
         entry.registrationId === registrationId
           ? {
               ...entry,
-              status: 'cancelled',
+              status:
+                entry.status === 'captured' || entry.status === 'refunded'
+                  ? entry.status
+                  : 'cancelled',
               failureReason: t('registration_cancelled_title'),
               updatedAt: now,
             }
@@ -4502,16 +4719,64 @@ function App() {
     const syncResult = updatedRegistration
       ? await syncRegistrationRecord(nextData, updatedRegistration)
       : { ok: false as const, reason: t('update_error_message') };
+    const emailSummary = updatedRegistration
+      ? await notifyRegistrationActionByEmail({
+          event,
+          organizerEmail: organizer?.email,
+          registration: updatedRegistration,
+          action: 'cancelled',
+        })
+      : t('organizer_email_missing');
 
     Alert.alert(
       t('registration_cancelled_title'),
-      t('registration_cancelled_message', {
+      `${t('registration_cancelled_message', {
         sync: syncResult.ok
           ? t('cancellation_sync_ok')
           : t('sync_state_fail', { reason: syncResult.reason }),
-      })
+      })}\n${emailSummary}`
     );
     setScreen({ name: 'participantSearch' });
+  };
+
+  const sendParticipantMessageToOrganizer = async (
+    eventId: string,
+    draft: RegistrationDraft
+  ): Promise<void> => {
+    const message = cleanText(draft.participantMessage);
+    if (!message) {
+      Alert.alert(t('missing_data_title'), t('participant_message_missing_message'));
+      return;
+    }
+
+    const sourceData = withExpiredSessionsHandled(appData);
+    const event = sourceData.events.find((entry) => entry.id === eventId);
+    if (!event) {
+      Alert.alert(t('event_not_found_title'), t('event_not_found_message'));
+      return;
+    }
+    const participantAuthAllowed = await ensureParticipantAuthForEvent(event);
+    if (!participantAuthAllowed) {
+      setParticipantPostAuthTarget({
+        name: 'participantRegister',
+        eventId,
+        registrationId: screen.name === 'participantRegister' ? screen.registrationId : undefined,
+      });
+      return;
+    }
+    const organizer = sourceData.organizers.find((entry) => entry.id === event.organizerId);
+    const summary = await notifyParticipantMessageByEmail({
+      event,
+      organizerEmail: organizer?.email,
+      participantName: cleanText(draft.fullName),
+      participantEmail: cleanText(draft.email).toLowerCase(),
+      message,
+    });
+
+    Alert.alert(
+      t('participant_message_sent_title'),
+      t('participant_message_sent_message', { sync: summary })
+    );
   };
 
   const confirmCashRegistrationByOrganizer = async (registrationId: string) => {
@@ -4611,6 +4876,74 @@ function App() {
     );
   };
 
+  const openParticipantEventFromSearch = async (eventId: string) => {
+    const sourceData = withExpiredSessionsHandled(appData);
+    const event = sourceData.events.find((entry) => entry.id === eventId);
+    if (!event) {
+      Alert.alert(t('event_not_found_title'), t('event_not_found_message'));
+      return;
+    }
+
+    if (!activeParticipantEmail) {
+      const participantAuthAllowed = await ensureParticipantAuthForEvent(event);
+      if (!participantAuthAllowed) {
+        setParticipantPostAuthTarget({ name: 'participantRegister', eventId });
+        return;
+      }
+      setParticipantPostAuthTarget(null);
+      setScreen({ name: 'participantRegister', eventId });
+      return;
+    }
+
+    const getPriority = (entry: RegistrationRecord): number => {
+      if (
+        (entry.registrationStatus === 'pending_payment' ||
+          entry.registrationStatus === 'pending_cash') &&
+        !isPaymentSessionExpired(entry.paymentSessionExpiresAt)
+      ) {
+        return 3;
+      }
+      if (entry.registrationStatus === 'paid') {
+        return 2;
+      }
+      return 1;
+    };
+
+    const candidate = sourceData.registrations
+      .filter(
+        (entry) =>
+          entry.eventId === eventId &&
+          cleanText(entry.email).toLowerCase() === activeParticipantEmail &&
+          (entry.registrationStatus === 'pending_payment' ||
+            entry.registrationStatus === 'pending_cash' ||
+            entry.registrationStatus === 'paid')
+      )
+      .sort((first, second) => {
+        const priorityDiff = getPriority(second) - getPriority(first);
+        if (priorityDiff !== 0) {
+          return priorityDiff;
+        }
+        return second.updatedAt.localeCompare(first.updatedAt);
+      })[0];
+
+    const target: ParticipantPostAuthTarget = candidate
+      ? {
+          name: 'participantRegister',
+          eventId: candidate.eventId,
+          registrationId: candidate.id,
+        }
+      : { name: 'participantRegister', eventId };
+
+    const participantAuthAllowed = await ensureParticipantAuthForEvent(event);
+    if (!participantAuthAllowed) {
+      setParticipantPostAuthTarget(target);
+      return;
+    }
+
+    setParticipantPostAuthTarget(null);
+    setScreen(target);
+  };
+
   const renderScreen = () => {
     switch (screen.name) {
       case 'role':
@@ -4626,10 +4959,7 @@ function App() {
               setScreen({ name: 'organizerAuth' });
             }}
             onParticipant={() => {
-              if (PARTICIPANT_SECURITY_ENFORCED) {
-                setScreen({ name: 'participantAuth' });
-                return;
-              }
+              setParticipantPostAuthTarget(null);
               setScreen({ name: 'participantSearch' });
             }}
             onOpenLegal={() => setShowLegalModal(true)}
@@ -4745,6 +5075,7 @@ function App() {
             onExportEvent={exportEventCsv}
             onExportEventPdf={exportEventPdf}
             onConfirmCashPayment={confirmCashRegistrationByOrganizer}
+            appPublicUrl={buildPublicAppUrl()}
             getEventPublicUrl={buildPublicEventUrl}
             onUpdateCompliance={updateOrganizerCompliance}
             onSendComplianceEmail={sendOrganizerComplianceToAdmin}
@@ -4774,7 +5105,10 @@ function App() {
           <ParticipantAuthScreen
             status={organizerSecurity}
             notice={authNotice}
-            onBack={() => setScreen({ name: 'role' })}
+            onBack={() => {
+              setParticipantPostAuthTarget(null);
+              setScreen({ name: 'role' });
+            }}
             onEmailMagicLinkRequest={async (email) => {
               await requestParticipantMagicLink(email);
             }}
@@ -4787,6 +5121,20 @@ function App() {
             onContinue={async () => {
               const securityReady = await refreshParticipantSecurityState(true);
               if (securityReady) {
+                if (participantPostAuthTarget) {
+                  if (
+                    participantPostAuthTarget.name === 'participantRegister' &&
+                    !participantPostAuthTarget.registrationId
+                  ) {
+                    const pendingEventId = participantPostAuthTarget.eventId;
+                    setParticipantPostAuthTarget(null);
+                    await openParticipantEventFromSearch(pendingEventId);
+                    return;
+                  }
+                  setScreen(participantPostAuthTarget);
+                  setParticipantPostAuthTarget(null);
+                  return;
+                }
                 setScreen({ name: 'participantSearch' });
               }
             }}
@@ -4806,7 +5154,10 @@ function App() {
             onBack={() => {
               setScreen({ name: 'role' });
             }}
-            onSelectEvent={(eventId) => setScreen({ name: 'participantRegister', eventId })}
+            onSelectEvent={(eventId) => {
+              void openParticipantEventFromSearch(eventId);
+            }}
+            editableEventIds={participantEditableEventIds}
             getEventPublicUrl={buildPublicEventUrl}
             appPublicUrl={buildPublicAppUrl()}
             sponsorSlots={appData.sponsorSlots}
@@ -4823,6 +5174,16 @@ function App() {
             onBack={() => setScreen({ name: 'participantSearch' })}
             onCompleteFree={(draft) => completeFreeRegistration(participantEventForRegister.id, draft)}
             onProceedPayment={(draft) => openPaidRegistration(participantEventForRegister.id, draft)}
+            onCancelRegistration={
+              participantRegistrationForEdit
+                ? async () => {
+                    await cancelPendingRegistration(participantRegistrationForEdit.id);
+                  }
+                : undefined
+            }
+            onSendMessageToOrganizer={async (draft) => {
+              await sendParticipantMessageToOrganizer(participantEventForRegister.id, draft);
+            }}
             t={t}
           />
         ) : (

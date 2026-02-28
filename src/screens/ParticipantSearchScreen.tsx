@@ -19,10 +19,13 @@ import { styles } from '../styles';
 import { EventItem, SponsorSlot } from '../types';
 import { cleanText, formatEventSchedule, isImageDataUrl, toMoney } from '../utils/format';
 
+const officialWebQrImage = require('../../assets/official-web-qr.png');
+
 type Props = {
   events: EventItem[];
   onBack: () => void;
   onSelectEvent: (eventId: string) => void;
+  editableEventIds?: string[];
   getEventPublicUrl: (event: EventItem) => string | null;
   appPublicUrl: string | null;
   sponsorSlots: SponsorSlot[];
@@ -33,6 +36,7 @@ export function ParticipantSearchScreen({
   events,
   onBack,
   onSelectEvent,
+  editableEventIds = [],
   getEventPublicUrl,
   appPublicUrl,
   sponsorSlots,
@@ -47,6 +51,7 @@ export function ParticipantSearchScreen({
   const [suggestedEventLocation, setSuggestedEventLocation] = useState('');
   const [organizerEmailContact, setOrganizerEmailContact] = useState('');
   const [organizerWhatsappContact, setOrganizerWhatsappContact] = useState('');
+  const editableEventIdSet = useMemo(() => new Set(editableEventIds), [editableEventIds]);
 
   const filtered = useMemo(() => {
     return events
@@ -213,6 +218,14 @@ export function ParticipantSearchScreen({
                   ? t('suggest_event_link_preview', { link: appPublicUrl })
                   : t('suggest_event_missing_link')}
               </Text>
+              {appPublicUrl ? (
+                <>
+                  <Text style={styles.fieldLabel}>{t('official_app_qr_title')}</Text>
+                  <View style={styles.registrationCard}>
+                    <Image source={officialWebQrImage} style={styles.qrCodePreviewImage} />
+                  </View>
+                </>
+              ) : null}
               <Text style={styles.helperText}>{t('suggest_event_channel_hint')}</Text>
               <TextField
                 label={t('suggest_event_name_label')}
@@ -278,6 +291,23 @@ export function ParticipantSearchScreen({
                     {event.isFree
                       ? t('free_event_label')
                       : t('entry_fee_label', { fee: toMoney(event.feeAmount) })}
+                  </Text>
+                  <Text style={styles.listSubText}>
+                    {t('participant_auth_required_line', {
+                      mode:
+                        event.participantAuthMode === 'email'
+                          ? t('participant_auth_mode_email')
+                          : event.participantAuthMode === 'social_verified'
+                            ? t('participant_auth_mode_social')
+                            : event.participantAuthMode === 'flexible'
+                              ? t('participant_auth_mode_flexible')
+                              : t('participant_auth_mode_anonymous'),
+                    })}
+                  </Text>
+                  <Text style={styles.listSubText}>
+                    {event.participantPhoneRequired
+                      ? t('participant_phone_required_enabled')
+                      : t('participant_phone_required_disabled')}
                   </Text>
                   {event.isFree && cleanText(event.localSponsor ?? '') ? (
                     isImageDataUrl(event.localSponsor ?? '') ? (
@@ -352,7 +382,9 @@ export function ParticipantSearchScreen({
                     );
                   })()}
                   <Pressable style={styles.primaryButtonCompact} onPress={() => onSelectEvent(event.id)}>
-                    <Text style={styles.primaryButtonText}>{t('subscribe')}</Text>
+                    <Text style={styles.primaryButtonText}>
+                      {editableEventIdSet.has(event.id) ? t('update_registration_data') : t('subscribe')}
+                    </Text>
                   </Pressable>
                 </View>
               ))

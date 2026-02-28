@@ -13,6 +13,7 @@
     "build:web:demo": "powershell -ExecutionPolicy Bypass -File ./scripts/build-web-release.ps1 -Channel demo",
     "build:play:aab:prod": "powershell -ExecutionPolicy Bypass -File ./scripts/build-play-aab.ps1 -Channel prod",
     "build:play:aab:demo": "powershell -ExecutionPolicy Bypass -File ./scripts/build-play-aab.ps1 -Channel demo",
+    "stripe:live:secrets": "powershell -ExecutionPolicy Bypass -File ./scripts/set-stripe-live-secrets.ps1",
     "deploy:netlify": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-netlify-prod.ps1",
     "deploy:netlify:demo": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-netlify-prod.ps1 -Channel demo",
     "deploy:netlify:skip-build": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-netlify-prod.ps1 -SkipBuild",

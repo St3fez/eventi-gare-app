@@ -34,6 +34,9 @@ type ConfirmationPayload = {
   amount?: number;
   registrationCode?: string;
   assignedNumber?: number;
+  customSubject?: string;
+  customText?: string;
+  customHtml?: string;
 };
 
 type SmtpConfig = {
@@ -220,6 +223,11 @@ const buildText = (
   return lines.join('\n');
 };
 
+const textToHtml = (text: string): string => {
+  const escaped = escapeHtml(text);
+  return `<div style="font-family:Arial,sans-serif;white-space:pre-wrap;line-height:1.5;color:#0b2a45;">${escaped}</div>`;
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -235,7 +243,22 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Invalid JSON body' }, 400);
   }
 
-  if (!payload.participantEmail || !payload.registrationCode || !payload.eventName) {
+  if (!payload.participantEmail) {
+    return json(
+      {
+        error: 'Missing required fields',
+        required: ['participantEmail'],
+      },
+      400
+    );
+  }
+
+  const customSubject = (payload.customSubject ?? '').trim();
+  const customText = (payload.customText ?? '').trim();
+  const customHtml = (payload.customHtml ?? '').trim();
+  const hasCustomTemplate = Boolean(customSubject && (customText || customHtml));
+
+  if (!hasCustomTemplate && (!payload.registrationCode || !payload.eventName)) {
     return json(
       {
         error: 'Missing required fields',
@@ -254,21 +277,27 @@ Deno.serve(async (req: Request) => {
   const smtpConfigured = Boolean(smtpConfig);
   const resendConfigured = Boolean(resendApiKey && emailFrom);
 
-  const subject = `Conferma iscrizione - ${payload.eventName}`;
-  const html = buildHtml({
-    participantName,
-    eventName: payload.eventName,
-    registrationCode: payload.registrationCode,
-    amount: payload.amount,
-    assignedNumber: payload.assignedNumber,
-  });
-  const text = buildText({
-    participantName,
-    eventName: payload.eventName,
-    registrationCode: payload.registrationCode,
-    amount: payload.amount,
-    assignedNumber: payload.assignedNumber,
-  });
+  const subject = hasCustomTemplate
+    ? customSubject
+    : `Conferma iscrizione - ${payload.eventName}`;
+  const html = hasCustomTemplate
+    ? customHtml || textToHtml(customText)
+    : buildHtml({
+        participantName,
+        eventName: payload.eventName!,
+        registrationCode: payload.registrationCode!,
+        amount: payload.amount,
+        assignedNumber: payload.assignedNumber,
+      });
+  const text = hasCustomTemplate
+    ? customText || customSubject
+    : buildText({
+        participantName,
+        eventName: payload.eventName!,
+        registrationCode: payload.registrationCode!,
+        amount: payload.amount,
+        assignedNumber: payload.assignedNumber,
+      });
 
   const sendWithResend = async (): Promise<Response> => {
     if (!resendApiKey || !emailFrom) {

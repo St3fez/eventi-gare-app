@@ -311,7 +311,7 @@ EXPO_PUBLIC_STRIPE_CONNECT_SYNC_URL=https://<project-ref>.functions.supabase.co/
 EXPO_PUBLIC_PARTICIPANT_CHECKOUT_URL=https://<project-ref>.functions.supabase.co/participant-checkout
 EXPO_PUBLIC_ORGANIZER_COMPLIANCE_WEBHOOK_URL=https://<project-ref>.functions.supabase.co/send-organizer-compliance
 EXPO_PUBLIC_ADMIN_CONTACT_EMAIL=profstefanoferrari@gmail.com
-EXPO_PUBLIC_PRIVACY_POLICY_URL=https://eventi-gare-app.netlify.app/privacy-policy
+EXPO_PUBLIC_PRIVACY_POLICY_URL=https://st3fez.github.io/eventi-gare-app/privacy-policy
 ```
 
 ## 4) Test rapido webhook in locale (opzionale)

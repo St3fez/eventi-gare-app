@@ -14,6 +14,8 @@ type Props = {
   onBack: () => void;
   onCompleteFree: (draft: RegistrationDraft) => Promise<void>;
   onProceedPayment: (draft: RegistrationDraft) => Promise<void>;
+  onCancelRegistration?: () => Promise<void>;
+  onSendMessageToOrganizer?: (draft: RegistrationDraft) => Promise<void>;
   t: Translator;
 };
 
@@ -24,6 +26,8 @@ export function ParticipantRegistrationScreen({
   onBack,
   onCompleteFree,
   onProceedPayment,
+  onCancelRegistration,
+  onSendMessageToOrganizer,
   t,
 }: Props) {
   const { width } = useWindowDimensions();
@@ -54,6 +58,19 @@ export function ParticipantRegistrationScreen({
     }
     return parsed;
   }, [groupParticipantsCount]);
+
+  const participantAuthModeLabel = useMemo(() => {
+    if (event.participantAuthMode === 'email') {
+      return t('participant_auth_mode_email');
+    }
+    if (event.participantAuthMode === 'social_verified') {
+      return t('participant_auth_mode_social');
+    }
+    if (event.participantAuthMode === 'flexible') {
+      return t('participant_auth_mode_flexible');
+    }
+    return t('participant_auth_mode_anonymous');
+  }, [event.participantAuthMode, t]);
 
   useEffect(() => {
     if (initialDraft) {
@@ -102,16 +119,16 @@ export function ParticipantRegistrationScreen({
     });
   }, [fullName, parsedGroupCount]);
 
-  const submit = () => {
+  const buildDraft = (): RegistrationDraft | null => {
     if (!cleanText(fullName) || !cleanText(email)) {
       Alert.alert(t('missing_data_title'), t('missing_registration_data_message'));
-      return;
+      return null;
     }
 
     const parsedGroupCountInput = Number.parseInt(groupParticipantsCount, 10);
     if (!Number.isFinite(parsedGroupCountInput) || parsedGroupCountInput <= 0) {
       Alert.alert(t('missing_data_title'), t('group_participants_invalid'));
-      return;
+      return null;
     }
 
     const normalizedGroupParticipants = groupParticipants
@@ -127,10 +144,10 @@ export function ParticipantRegistrationScreen({
       normalizedGroupParticipants.slice(1).some((value) => !cleanText(value))
     ) {
       Alert.alert(t('missing_data_title'), t('group_participants_names_required'));
-      return;
+      return null;
     }
 
-    const draft: RegistrationDraft = {
+    return {
       fullName,
       email,
       phone,
@@ -142,6 +159,13 @@ export function ParticipantRegistrationScreen({
       privacyConsent,
       retentionConsent,
     };
+  };
+
+  const submit = () => {
+    const draft = buildDraft();
+    if (!draft) {
+      return;
+    }
 
     if (event.isFree) {
       void onCompleteFree(draft);
@@ -149,6 +173,21 @@ export function ParticipantRegistrationScreen({
     }
 
     void onProceedPayment(draft);
+  };
+
+  const sendMessageToOrganizer = () => {
+    if (!onSendMessageToOrganizer) {
+      return;
+    }
+    if (!cleanText(participantMessage)) {
+      Alert.alert(t('missing_data_title'), t('participant_message_missing_message'));
+      return;
+    }
+    const draft = buildDraft();
+    if (!draft) {
+      return;
+    }
+    void onSendMessageToOrganizer(draft);
   };
 
   return (
@@ -173,7 +212,12 @@ export function ParticipantRegistrationScreen({
               })}
             </Text>
             <Text style={styles.listSubText}>
-              {t('participant_no_auth_line')}
+              {t('participant_auth_required_line', { mode: participantAuthModeLabel })}
+            </Text>
+            <Text style={styles.listSubText}>
+              {event.participantPhoneRequired
+                ? t('participant_phone_required_enabled')
+                : t('participant_phone_required_disabled')}
             </Text>
             {!event.isFree ? (
               <Text style={styles.helperText}>{t('paid_pending_helper')}</Text>
@@ -272,6 +316,16 @@ export function ParticipantRegistrationScreen({
                     : t('open_payment_session')}
               </Text>
             </Pressable>
+            {onSendMessageToOrganizer ? (
+              <Pressable style={styles.secondaryButton} onPress={sendMessageToOrganizer}>
+                <Text style={styles.secondaryButtonText}>{t('participant_message_send_button')}</Text>
+              </Pressable>
+            ) : null}
+            {isEditing && onCancelRegistration ? (
+              <Pressable style={styles.secondaryButton} onPress={() => void onCancelRegistration()}>
+                <Text style={styles.secondaryButtonText}>{t('cancel_registration_action')}</Text>
+              </Pressable>
+            ) : null}
             <Pressable style={styles.secondaryButton} onPress={onBack}>
               <Text style={styles.secondaryButtonText}>{t('back_search')}</Text>
             </Pressable>

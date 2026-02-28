@@ -20,6 +20,18 @@ POST JSON:
 }
 ```
 
+Template custom (opzionale):
+```json
+{
+  "participantEmail": "utente@example.com",
+  "participantName": "Mario Rossi",
+  "eventName": "Trail delle Colline",
+  "registrationCode": "TRA-ABCDE",
+  "customSubject": "Aggiornamento iscrizione - Trail delle Colline",
+  "customText": "La tua iscrizione e stata aggiornata con successo."
+}
+```
+
 ## Secrets consigliati (invio reale via SMTP)
 - `SMTP_HOST`
 - `SMTP_PORT` (default `587`)
