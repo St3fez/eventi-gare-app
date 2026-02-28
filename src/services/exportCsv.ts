@@ -22,6 +22,8 @@ export const exportEventRegistrationsCsv = async (
     'Citta',
     'DataNascita',
     'PartecipantiGruppo',
+    'NomiPartecipantiGruppo',
+    'MessaggioPartecipante',
     'NumeroAssegnato',
     'Codice',
     'StatoIscrizione',
@@ -42,6 +44,19 @@ export const exportEventRegistrationsCsv = async (
 
   const rows = registrations.map((entry) => {
     const intent = entry.paymentIntentId ? paymentIntentById.get(entry.paymentIntentId) : undefined;
+    const groupParticipants = entry.groupParticipants
+      .map((participant) => {
+        const name = participant.fullName.trim();
+        if (!name) {
+          return '';
+        }
+        if (typeof participant.assignedNumber === 'number') {
+          return `${name} (#${participant.assignedNumber})`;
+        }
+        return name;
+      })
+      .filter(Boolean)
+      .join(' | ');
     return [
       event.name,
       entry.fullName,
@@ -50,6 +65,8 @@ export const exportEventRegistrationsCsv = async (
       entry.city ?? '',
       entry.birthDate ?? '',
       entry.groupParticipantsCount ?? 1,
+      groupParticipants,
+      entry.participantMessage ?? '',
       entry.assignedNumber ?? '',
       entry.registrationCode,
       entry.registrationStatus,

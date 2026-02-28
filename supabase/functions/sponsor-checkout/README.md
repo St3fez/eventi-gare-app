@@ -17,7 +17,7 @@ Optional secrets:
 
 ## Deploy
 ```bash
-supabase functions deploy sponsor-checkout
+supabase functions deploy sponsor-checkout --no-verify-jwt
 ```
 
 ## Notes

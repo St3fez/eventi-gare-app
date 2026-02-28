@@ -1,6 +1,7 @@
 import {
   AppData,
   EventItem,
+  GroupParticipant,
   OrganizerProfile,
   OrganizerVerificationChecklist,
   PaymentIntentRecord,
@@ -327,6 +328,57 @@ const normalizeRegistration = (value: Partial<RegistrationRecord>): Registration
     return 'pending' as const;
   })();
 
+  const normalizedGroupCount =
+    Number.isFinite(value.groupParticipantsCount) && (value.groupParticipantsCount ?? 0) > 0
+      ? Number(value.groupParticipantsCount)
+      : 1;
+
+  const parsedGroupParticipants = Array.isArray((value as { groupParticipants?: unknown[] }).groupParticipants)
+    ? (value as { groupParticipants?: unknown[] }).groupParticipants ?? []
+    : [];
+  const normalizedGroupParticipants: GroupParticipant[] = [];
+  for (const entry of parsedGroupParticipants) {
+    if (!entry || typeof entry !== 'object') {
+      continue;
+    }
+    const fullName = cleanText(String((entry as { fullName?: string }).fullName ?? ''));
+    if (!fullName) {
+      continue;
+    }
+    const assignedRaw = (entry as { assignedNumber?: unknown }).assignedNumber;
+    const assignedNumber =
+      typeof assignedRaw === 'number' && Number.isFinite(assignedRaw)
+        ? assignedRaw
+        : undefined;
+    normalizedGroupParticipants.push({
+      fullName,
+      assignedNumber,
+    });
+    if (normalizedGroupParticipants.length >= normalizedGroupCount) {
+      break;
+    }
+  }
+
+  if (!normalizedGroupParticipants.length) {
+    normalizedGroupParticipants.push({
+      fullName: cleanText(value.fullName ?? ''),
+      assignedNumber: value.assignedNumber,
+    });
+  }
+
+  while (normalizedGroupParticipants.length < normalizedGroupCount) {
+    normalizedGroupParticipants.push({
+      fullName: '',
+    });
+  }
+
+  if (cleanText(value.fullName ?? '')) {
+    normalizedGroupParticipants[0] = {
+      ...normalizedGroupParticipants[0],
+      fullName: cleanText(value.fullName ?? ''),
+    };
+  }
+
   return {
     id: value.id ?? randomId('reg_legacy'),
     remoteId: value.remoteId,
@@ -339,10 +391,9 @@ const normalizeRegistration = (value: Partial<RegistrationRecord>): Registration
     birthDate: value.birthDate ?? '',
     privacyConsent: value.privacyConsent ?? false,
     retentionConsent: value.retentionConsent ?? false,
-    groupParticipantsCount:
-      Number.isFinite(value.groupParticipantsCount) && (value.groupParticipantsCount ?? 0) > 0
-        ? Number(value.groupParticipantsCount)
-        : 1,
+    groupParticipantsCount: normalizedGroupCount,
+    participantMessage: cleanText((value as { participantMessage?: string }).participantMessage ?? ''),
+    groupParticipants: normalizedGroupParticipants,
     assignedNumber: value.assignedNumber,
     registrationCode: value.registrationCode ?? randomId('code').slice(-8).toUpperCase(),
     registrationStatus: mappedStatus,

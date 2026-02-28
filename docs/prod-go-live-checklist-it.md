@@ -24,13 +24,13 @@ Se esce almeno un `FAIL`, non fare deploy.
 In Supabase Dashboard:
 
 1. Deploy funzione `stripe-webhook` (public webhook, verify JWT disattivato).
-2. Deploy funzione `sponsor-checkout` (verify JWT attivo).
-3. Deploy funzione `sponsor-module-checkout` (verify JWT attivo).
-4. Deploy funzione `stripe-connect` (verify JWT attivo).
-5. Deploy funzione `stripe-connect-sync` (verify JWT attivo).
-6. Deploy funzione `participant-checkout` (verify JWT attivo).
-7. Deploy funzione `send-confirmation`.
-8. Deploy funzione `send-organizer-compliance`.
+2. Deploy funzione `sponsor-checkout` (`--no-verify-jwt`, verifica bearer token interna).
+3. Deploy funzione `sponsor-module-checkout` (`--no-verify-jwt`, verifica bearer token interna).
+4. Deploy funzione `stripe-connect` (`--no-verify-jwt`, verifica bearer token interna).
+5. Deploy funzione `stripe-connect-sync` (`--no-verify-jwt`, verifica bearer token interna).
+6. Deploy funzione `participant-checkout` (`--no-verify-jwt`, verifica bearer token interna).
+7. Deploy funzione `send-confirmation` (`--no-verify-jwt`).
+8. Deploy funzione `send-organizer-compliance` (`--no-verify-jwt`, verifica bearer token interna).
 
 Secrets minimi:
 - `STRIPE_SECRET_KEY`
@@ -92,12 +92,16 @@ Nota: nel codice i testi legali sono etichettati come base tecnica.
 ## 6) Ads e sponsor
 
 Stato attuale progetto:
-- Banner/interstitial sono interni e basati su sponsor/contenuti locali.
-- Non e presente un SDK ads esterno (AdMob o simili).
+- Banner/interstitial sponsor locali sono supportati.
+- SDK AdMob presente: `react-native-google-mobile-ads`.
 
 Implicazione:
 - In Play Console la dichiarazione Ads resta `Yes` se mostri contenuti sponsorizzati/pubblicitari.
-- Se vuoi rete ads esterna, va integrato un SDK dedicato prima del rilascio.
+- Se abiliti AdMob (`EXPO_PUBLIC_ADMOB_ENABLED=true`) devi valorizzare:
+  - `ADMOB_ANDROID_APP_ID`
+  - `ADMOB_IOS_APP_ID`
+  - unit id banner/interstitial Android/iOS
+  altrimenti il preflight fallisce.
 
 ## 7) Deploy web definitivo (solo dopo tutti i check OK)
 

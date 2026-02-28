@@ -338,6 +338,43 @@ export const updateEventInSupabase = async (
   };
 };
 
+export const deleteEventInSupabase = async (
+  eventRemoteId: string
+): Promise<SyncResult<{ id: string }>> => {
+  if (!supabase) {
+    return fail('Supabase non configurato.');
+  }
+
+  const auth = await ensureSupabaseUser({
+    allowAnonymous: false,
+  });
+  if (!auth.ok) {
+    return fail(auth.reason);
+  }
+
+  const { data, error } = await supabase
+    .from('events')
+    .delete()
+    .eq('id', eventRemoteId)
+    .select('id')
+    .maybeSingle<{ id: string }>();
+
+  if (error) {
+    return fail(`Eliminazione evento fallita: ${error.message}`);
+  }
+
+  if (!data?.id) {
+    return fail('Evento non trovato su Supabase o permessi insufficienti.');
+  }
+
+  return {
+    ok: true,
+    data: {
+      id: data.id,
+    },
+  };
+};
+
 export const upsertRegistrationInSupabase = async (params: {
   registration: RegistrationRecord;
   organizerRemoteId: string;
@@ -357,41 +394,67 @@ export const upsertRegistrationInSupabase = async (params: {
       ? null
       : params.registration.paymentStatus;
 
-  const { data, error } = await supabase
+  const basePayload = {
+    event_id: params.eventRemoteId,
+    organizer_id: params.organizerRemoteId,
+    participant_user_id: auth.data.userId,
+    full_name: params.registration.fullName,
+    participant_email: cleanText(params.registration.email).toLowerCase(),
+    phone: nullableText(params.registration.phone),
+    city: nullableText(params.registration.city),
+    birth_date: nullableDate(params.registration.birthDate),
+    privacy_consent: params.registration.privacyConsent,
+    retention_consent: params.registration.retentionConsent,
+    group_participants_count: params.registration.groupParticipantsCount,
+    assigned_number: params.registration.assignedNumber ?? null,
+    registration_code: params.registration.registrationCode,
+    registration_status: params.registration.registrationStatus,
+    payment_intent_id: null,
+    payment_status: paymentStatus,
+    payment_amount: params.registration.paymentAmount,
+    payment_method: nullableText(params.registration.paymentMethod),
+    payment_reference: nullableText(params.registration.paymentReference),
+    payment_session_expires_at: params.registration.paymentSessionExpiresAt ?? null,
+    payment_captured_at: params.registration.paymentCapturedAt ?? null,
+    payment_failed_reason: nullableText(params.registration.paymentFailedReason),
+    refunded_at: params.registration.refundedAt ?? null,
+    commission_amount: params.registration.commissionAmount,
+  };
+
+  const extendedPayload = {
+    ...basePayload,
+    participant_message_to_organizer: nullableText(params.registration.participantMessage),
+    group_participants: (params.registration.groupParticipants ?? [])
+      .map((participant) => ({
+        full_name: cleanText(participant.fullName),
+        assigned_number:
+          typeof participant.assignedNumber === 'number' ? participant.assignedNumber : null,
+      }))
+      .filter((participant) => Boolean(participant.full_name)),
+  };
+
+  let { data, error } = await supabase
     .from('registrations')
-    .upsert(
-      {
-        event_id: params.eventRemoteId,
-        organizer_id: params.organizerRemoteId,
-        participant_user_id: auth.data.userId,
-        full_name: params.registration.fullName,
-        participant_email: cleanText(params.registration.email).toLowerCase(),
-        phone: nullableText(params.registration.phone),
-        city: nullableText(params.registration.city),
-        birth_date: nullableDate(params.registration.birthDate),
-        privacy_consent: params.registration.privacyConsent,
-        retention_consent: params.registration.retentionConsent,
-        group_participants_count: params.registration.groupParticipantsCount,
-        assigned_number: params.registration.assignedNumber ?? null,
-        registration_code: params.registration.registrationCode,
-        registration_status: params.registration.registrationStatus,
-        payment_intent_id: null,
-        payment_status: paymentStatus,
-        payment_amount: params.registration.paymentAmount,
-        payment_method: nullableText(params.registration.paymentMethod),
-        payment_reference: nullableText(params.registration.paymentReference),
-        payment_session_expires_at: params.registration.paymentSessionExpiresAt ?? null,
-        payment_captured_at: params.registration.paymentCapturedAt ?? null,
-        payment_failed_reason: nullableText(params.registration.paymentFailedReason),
-        refunded_at: params.registration.refundedAt ?? null,
-        commission_amount: params.registration.commissionAmount,
-      },
-      {
-        onConflict: 'registration_code',
-      }
-    )
+    .upsert(extendedPayload, {
+      onConflict: 'registration_code',
+    })
     .select('id')
     .single();
+
+  if (
+    error &&
+    /participant_message_to_organizer|group_participants/i.test(error.message)
+  ) {
+    const fallback = await supabase
+      .from('registrations')
+      .upsert(basePayload, {
+        onConflict: 'registration_code',
+      })
+      .select('id')
+      .single();
+    data = fallback.data;
+    error = fallback.error;
+  }
 
   if (error || !data?.id) {
     return fail(`Sync iscrizione fallita: ${error?.message ?? 'id mancante'}`);

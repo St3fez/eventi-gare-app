@@ -3,7 +3,6 @@ import {
   Alert,
   Image,
   Linking,
-  Platform,
   Pressable,
   ScrollView,
   Share,
@@ -46,7 +45,8 @@ export function ParticipantSearchScreen({
   const [activeOnly, setActiveOnly] = useState(true);
   const [suggestedEventName, setSuggestedEventName] = useState('');
   const [suggestedEventLocation, setSuggestedEventLocation] = useState('');
-  const [organizerContact, setOrganizerContact] = useState('');
+  const [organizerEmailContact, setOrganizerEmailContact] = useState('');
+  const [organizerWhatsappContact, setOrganizerWhatsappContact] = useState('');
 
   const filtered = useMemo(() => {
     return events
@@ -114,61 +114,68 @@ export function ParticipantSearchScreen({
     });
   };
 
-  const suggestEventToOrganizer = async () => {
-    const contact = cleanText(organizerContact);
-    if (!contact) {
-      Alert.alert(t('missing_data_title'), t('suggest_event_invalid_contact'));
-      return;
-    }
+  const buildSuggestionPayload = () => {
     if (!appPublicUrl) {
       Alert.alert(t('missing_data_title'), t('suggest_event_missing_link'));
-      return;
+      return null;
     }
 
     const eventName = cleanText(suggestedEventName) || t('suggest_event_generic_name');
     const eventLocation = cleanText(suggestedEventLocation) || t('suggest_event_generic_location');
     const subject = t('suggest_event_subject');
-    const body = t('suggest_event_body', {
+    const body = t('suggest_webapp_body', {
       event: eventName,
       location: eventLocation,
       link: appPublicUrl,
     });
+    return {
+      subject,
+      body,
+    };
+  };
 
-    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact);
-    if (isEmail) {
-      const mailtoUrl = `mailto:${contact}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(
-        body
-      )}`;
-      const canOpen = await Linking.canOpenURL(mailtoUrl);
-      if (canOpen) {
-        await Linking.openURL(mailtoUrl);
-        Alert.alert(t('suggest_event_sent_title'), t('suggest_event_sent_message'));
-        return;
-      }
+  const suggestEventViaEmail = async () => {
+    const payload = buildSuggestionPayload();
+    if (!payload) {
+      return;
+    }
+
+    const contact = cleanText(organizerEmailContact).toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)) {
+      Alert.alert(t('missing_data_title'), t('suggest_event_invalid_email'));
+      return;
+    }
+
+    const mailtoUrl = `mailto:${contact}?subject=${encodeURIComponent(
+      payload.subject
+    )}&body=${encodeURIComponent(payload.body)}`;
+    const canOpen = await Linking.canOpenURL(mailtoUrl);
+    if (!canOpen) {
       Alert.alert(t('suggest_event_sent_title'), t('suggest_event_open_fail'));
       return;
     }
 
-    const phone = contact.replace(/[^\d+]/g, '');
-    if (!phone) {
-      Alert.alert(t('missing_data_title'), t('suggest_event_invalid_contact'));
+    await Linking.openURL(mailtoUrl);
+    Alert.alert(t('suggest_event_sent_title'), t('suggest_event_sent_message'));
+  };
+
+  const suggestEventViaWhatsapp = async () => {
+    const payload = buildSuggestionPayload();
+    if (!payload) {
       return;
     }
 
-    const whatsappPhone = phone.replace(/[^\d]/g, '');
-    const waUrl = `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(body)}`;
+    const contact = cleanText(organizerWhatsappContact);
+    const whatsappPhone = contact.replace(/[^\d]/g, '');
+    if (whatsappPhone.length < 8) {
+      Alert.alert(t('missing_data_title'), t('suggest_event_invalid_whatsapp'));
+      return;
+    }
+
+    const waUrl = `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(payload.body)}`;
     const canOpenWa = await Linking.canOpenURL(waUrl);
     if (canOpenWa) {
       await Linking.openURL(waUrl);
-      Alert.alert(t('suggest_event_sent_title'), t('suggest_event_sent_message'));
-      return;
-    }
-
-    const separator = Platform.OS === 'ios' ? '&' : '?';
-    const smsUrl = `sms:${phone}${separator}body=${encodeURIComponent(body)}`;
-    const canOpenSms = await Linking.canOpenURL(smsUrl);
-    if (canOpenSms) {
-      await Linking.openURL(smsUrl);
       Alert.alert(t('suggest_event_sent_title'), t('suggest_event_sent_message'));
       return;
     }
@@ -182,6 +189,7 @@ export function ParticipantSearchScreen({
         <View style={[styles.screenSplitColumn, isDesktopLayout ? styles.screenSplitColumnSide : undefined]}>
           <SectionCard title={t('participant_search')} delayMs={0}>
             <Text style={styles.cardParagraph}>{t('participant_search_intro')}</Text>
+            <Text style={styles.helperText}>{t('search_results_count', { count: filtered.length })}</Text>
             <TextField
               label={t('search_name')}
               value={nameQuery}
@@ -196,27 +204,55 @@ export function ParticipantSearchScreen({
             />
             <SwitchRow label={t('active_search_only')} value={activeOnly} onValueChange={setActiveOnly} />
 
-            <Text style={styles.fieldLabel}>{t('suggest_event_title')}</Text>
-            <Text style={styles.helperText}>{t('suggest_event_intro')}</Text>
-            <TextField
-              label={t('suggest_event_name_label')}
-              value={suggestedEventName}
-              onChangeText={setSuggestedEventName}
-            />
-            <TextField
-              label={t('suggest_event_location_label')}
-              value={suggestedEventLocation}
-              onChangeText={setSuggestedEventLocation}
-            />
-            <TextField
-              label={t('suggest_event_contact_label')}
-              value={organizerContact}
-              onChangeText={setOrganizerContact}
-              placeholder={t('suggest_event_contact_placeholder')}
-            />
-            <Pressable style={styles.secondaryButton} onPress={() => void suggestEventToOrganizer()}>
-              <Text style={styles.secondaryButtonText}>{t('suggest_event_send_button')}</Text>
-            </Pressable>
+            <View style={styles.sectionDivider} />
+            <View style={styles.registrationCard}>
+              <Text style={styles.fieldLabel}>{t('suggest_event_title')}</Text>
+              <Text style={styles.helperText}>{t('suggest_event_intro')}</Text>
+              <Text style={styles.helperText}>
+                {appPublicUrl
+                  ? t('suggest_event_link_preview', { link: appPublicUrl })
+                  : t('suggest_event_missing_link')}
+              </Text>
+              <Text style={styles.helperText}>{t('suggest_event_channel_hint')}</Text>
+              <TextField
+                label={t('suggest_event_name_label')}
+                value={suggestedEventName}
+                onChangeText={setSuggestedEventName}
+              />
+              <TextField
+                label={t('suggest_event_location_label')}
+                value={suggestedEventLocation}
+                onChangeText={setSuggestedEventLocation}
+              />
+              <TextField
+                label={t('suggest_event_email_label')}
+                value={organizerEmailContact}
+                onChangeText={setOrganizerEmailContact}
+                placeholder={t('suggest_event_email_placeholder')}
+                keyboardType='email-address'
+              />
+              <TextField
+                label={t('suggest_event_whatsapp_label')}
+                value={organizerWhatsappContact}
+                onChangeText={setOrganizerWhatsappContact}
+                placeholder={t('suggest_event_whatsapp_placeholder')}
+                keyboardType='phone-pad'
+              />
+              <View style={styles.suggestionButtonRow}>
+                <Pressable
+                  style={[styles.secondaryButton, styles.suggestionButton]}
+                  onPress={() => void suggestEventViaEmail()}
+                >
+                  <Text style={styles.secondaryButtonText}>{t('suggest_event_send_email_button')}</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.secondaryButton, styles.suggestionButton]}
+                  onPress={() => void suggestEventViaWhatsapp()}
+                >
+                  <Text style={styles.secondaryButtonText}>{t('suggest_event_send_whatsapp_button')}</Text>
+                </Pressable>
+              </View>
+            </View>
 
             <Pressable style={styles.secondaryButton} onPress={onBack}>
               <Text style={styles.secondaryButtonText}>{t('back_home')}</Text>

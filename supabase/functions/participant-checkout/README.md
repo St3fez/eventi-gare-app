@@ -16,7 +16,7 @@ Optional secrets:
 
 ## Deploy
 ```bash
-supabase functions deploy participant-checkout
+supabase functions deploy participant-checkout --no-verify-jwt
 ```
 
 ## Notes

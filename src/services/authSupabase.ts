@@ -35,10 +35,12 @@ export const requestEmailOtp = async (email: string, shouldCreateUser = true) =>
       throw new Error(`Impossibile uscire dalla sessione anonima: ${signOut.error.message}`);
     }
   }
+  const redirectTo = getRedirectTo();
   return client.auth.signInWithOtp({
     email,
     options: {
       shouldCreateUser,
+      emailRedirectTo: redirectTo,
     },
   });
 };

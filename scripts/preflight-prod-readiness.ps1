@@ -206,6 +206,30 @@ if ($admobEnabled -eq 'true') {
   if ($admobTestMode -eq 'true') {
     Add-Warning 'AdMob test mode attivo: verifica ID produzione prima del go-live.'
   }
+  $admobAppIdRequired = @(
+    'ADMOB_ANDROID_APP_ID',
+    'ADMOB_IOS_APP_ID'
+  )
+
+  foreach ($key in $admobAppIdRequired) {
+    $value = $envMap[$key]
+    if ([string]::IsNullOrWhiteSpace($value)) {
+      Add-Check -Name "ENV $key" -Passed:$false -Detail 'Mancante (AdMob attivo)'
+      continue
+    }
+
+    if ($value -notmatch '^ca-app-pub-[0-9]{16}~[0-9]{10}$') {
+      Add-Check -Name "ENV $key" -Passed:$false -Detail 'Formato App ID AdMob non valido'
+      continue
+    }
+
+    if ($value -match '^ca-app-pub-3940256099942544~') {
+      Add-Warning "AdMob in test mode: $key usa App ID di test."
+    }
+
+    Add-Check -Name "ENV $key" -Passed:$true -Detail 'OK'
+  }
+
   $admobRequired = @(
     'EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID_ANDROID',
     'EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID_IOS',

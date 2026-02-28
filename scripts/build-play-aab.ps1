@@ -1,5 +1,6 @@
 param(
   [switch]$Clean,
+  [switch]$SkipPrebuild,
   [ValidateSet('prod', 'demo')]
   [string]$Channel = 'prod'
 )
@@ -21,6 +22,19 @@ if ($Channel -eq 'demo') {
   $env:EXPO_PUBLIC_ORGANIZER_TEST_MODE = 'false'
   $env:EXPO_PUBLIC_ORGANIZER_SECURITY_ENFORCED = 'true'
   $env:EXPO_PUBLIC_DEMO_ALL_OPEN = 'false'
+}
+
+if (-not $SkipPrebuild) {
+  Push-Location $projectRoot
+  try {
+    npx expo prebuild --platform android --non-interactive --no-install
+    if ($LASTEXITCODE -ne 0) {
+      throw "expo prebuild failed with exit code $LASTEXITCODE"
+    }
+  }
+  finally {
+    Pop-Location
+  }
 }
 
 Push-Location $androidDir

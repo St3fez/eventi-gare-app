@@ -6,6 +6,7 @@ import {
   ORGANIZER_COMPLIANCE_WEBHOOK_URL,
 } from '../constants';
 import { EmailResult, OrganizerComplianceAttachment } from '../types';
+import { supabase } from './supabaseClient';
 
 const uint8ToBase64 = (bytes: Uint8Array): string => {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -58,7 +59,33 @@ export const sendOrganizerComplianceEmail = async (payload: {
     };
   }
 
+  if (!supabase) {
+    return {
+      sent: false,
+      mode: 'webhook',
+      detail: 'Supabase non configurato.',
+    };
+  }
+
   try {
+    const sessionResult = await supabase.auth.getSession();
+    if (sessionResult.error) {
+      return {
+        sent: false,
+        mode: 'webhook',
+        detail: `Sessione utente non disponibile: ${sessionResult.error.message}`,
+      };
+    }
+
+    const accessToken = sessionResult.data.session?.access_token;
+    if (!accessToken) {
+      return {
+        sent: false,
+        mode: 'webhook',
+        detail: 'Sessione utente mancante. Effettua login e riprova.',
+      };
+    }
+
     const attachmentsPayload = await Promise.all(
       payload.attachments.map(async (entry) => ({
         kind: entry.kind,
@@ -70,7 +97,10 @@ export const sendOrganizerComplianceEmail = async (payload: {
 
     const response = await fetch(ORGANIZER_COMPLIANCE_WEBHOOK_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
         adminEmail: ADMIN_CONTACT_EMAIL,
         ...payload,

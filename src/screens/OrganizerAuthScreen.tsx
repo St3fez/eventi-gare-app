@@ -16,8 +16,7 @@ type Props = {
   status: OrganizerSecurityStatus | null;
   notice?: AuthNotice | null;
   onBack: () => void;
-  onEmailOtpRequest: (email: string) => Promise<void>;
-  onEmailOtpVerify: (email: string, token: string) => Promise<void>;
+  onEmailMagicLinkRequest: (email: string) => Promise<void>;
   onGoogleSignIn: () => Promise<void>;
   onContinue: () => void | Promise<void>;
   t: Translator;
@@ -27,14 +26,12 @@ export function OrganizerAuthScreen({
   status,
   notice,
   onBack,
-  onEmailOtpRequest,
-  onEmailOtpVerify,
+  onEmailMagicLinkRequest,
   onGoogleSignIn,
   onContinue,
   t,
 }: Props) {
   const [email, setEmail] = useState(status?.email ?? '');
-  const [otp, setOtp] = useState('');
 
   const socialReady = Boolean(status?.socialProvider);
   const emailReady = Boolean(status?.providers?.includes('email'));
@@ -94,31 +91,15 @@ export function OrganizerAuthScreen({
           onChangeText={setEmail}
           keyboardType='email-address'
         />
-        <TextField
-          label={t('organizer_security_otp_label')}
-          value={otp}
-          onChangeText={setOtp}
-          keyboardType='decimal-pad'
-        />
         <Text style={styles.helperText}>{t('organizer_security_otp_hint')}</Text>
-        <View style={styles.inlineActionRow}>
-          <Pressable
-            style={styles.inlineActionButton}
-            onPress={() => void onEmailOtpRequest(email)}
-          >
-            <Text style={styles.inlineActionButtonText}>
-              {t('organizer_security_otp_send')}
-            </Text>
-          </Pressable>
-          <Pressable
-            style={styles.inlineActionButton}
-            onPress={() => void onEmailOtpVerify(email, otp)}
-          >
-            <Text style={styles.inlineActionButtonText}>
-              {t('organizer_security_otp_verify')}
-            </Text>
-          </Pressable>
-        </View>
+        <Pressable
+          style={styles.inlineActionButton}
+          onPress={() => void onEmailMagicLinkRequest(email)}
+        >
+          <Text style={styles.inlineActionButtonText}>
+            {t('organizer_security_otp_send')}
+          </Text>
+        </Pressable>
 
         <Pressable
           style={securityReady ? styles.primaryButton : styles.secondaryButton}

@@ -29,6 +29,7 @@ import { AppLanguage, Translator } from '../i18n';
 import { organizerCanUsePaidSection, verificationStatusLabel } from '../services/fraud';
 import { styles } from '../styles';
 import {
+  AdminUser,
   EventItem,
   OrganizerComplianceAttachment,
   OrganizerRole,
@@ -48,6 +49,9 @@ import {
 
 type Props = {
   organizer: OrganizerProfile;
+  isAdmin: boolean;
+  canManageAdmins: boolean;
+  adminUsers: AdminUser[];
   events: EventItem[];
   registrations: RegistrationRecord[];
   paymentIntents: PaymentIntentRecord[];
@@ -59,6 +63,7 @@ type Props = {
   onToggleEventRegistrations: (eventId: string) => Promise<void>;
   onCloseEvent: (eventId: string) => Promise<void>;
   onReopenEvent: (eventId: string) => Promise<void>;
+  onDeleteEventPermanently: (eventId: string) => Promise<void>;
   onExportEvent: (eventId: string) => Promise<void>;
   onExportEventPdf: (eventId: string) => Promise<void>;
   onConfirmCashPayment: (registrationId: string) => Promise<void>;
@@ -104,6 +109,9 @@ type Props = {
     packageDays: number;
     amount: number;
   }) => Promise<void>;
+  onRefreshAdminUsers: () => Promise<void>;
+  onGrantAdmin: (email: string, canManageAdmins: boolean) => Promise<void>;
+  onRevokeAdmin: (email: string) => Promise<void>;
   t: Translator;
   language: AppLanguage;
 };
@@ -114,6 +122,9 @@ type QrCodeHandle = {
 
 export function OrganizerDashboardScreen({
   organizer,
+  isAdmin,
+  canManageAdmins,
+  adminUsers,
   events,
   registrations,
   paymentIntents,
@@ -125,6 +136,7 @@ export function OrganizerDashboardScreen({
   onToggleEventRegistrations,
   onCloseEvent,
   onReopenEvent,
+  onDeleteEventPermanently,
   onExportEvent,
   onExportEventPdf,
   onConfirmCashPayment,
@@ -136,6 +148,9 @@ export function OrganizerDashboardScreen({
   onSyncStripeConnect,
   onActivateSponsorModule,
   onCreateSponsorCheckout,
+  onRefreshAdminUsers,
+  onGrantAdmin,
+  onRevokeAdmin,
   t,
   language,
 }: Props) {
@@ -190,6 +205,8 @@ export function OrganizerDashboardScreen({
   const [registrationStatusFilter, setRegistrationStatusFilter] = useState<
     'all' | 'pending_payment' | 'pending_cash' | 'paid' | 'payment_failed' | 'cancelled' | 'refunded'
   >('all');
+  const [adminEmailInput, setAdminEmailInput] = useState('');
+  const [adminCanManageInput, setAdminCanManageInput] = useState(false);
   const [simpleListView, setSimpleListView] = useState(true);
   const qrRef = useRef<QrCodeHandle | null>(null);
 
@@ -249,10 +266,15 @@ export function OrganizerDashboardScreen({
         if (!query) {
           return true;
         }
+        const groupNames = entry.groupParticipants
+          .map((participant) => participant.fullName.toLowerCase())
+          .join(' ');
         return (
           entry.fullName.toLowerCase().includes(query) ||
           entry.email.toLowerCase().includes(query) ||
-          entry.registrationCode.toLowerCase().includes(query)
+          entry.registrationCode.toLowerCase().includes(query) ||
+          cleanText(entry.participantMessage ?? '').toLowerCase().includes(query) ||
+          groupNames.includes(query)
         );
       })
       .sort((first, second) => second.createdAt.localeCompare(first.createdAt));
@@ -280,6 +302,32 @@ export function OrganizerDashboardScreen({
     () => new Map(events.map((event) => [event.id, event])),
     [events]
   );
+
+  const confirmDeleteEventPermanently = (eventId: string, eventName: string) => {
+    const message = t('event_delete_forever_confirm_message', { name: eventName });
+    const submitDelete = () => {
+      void onDeleteEventPermanently(eventId);
+    };
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.confirm === 'function') {
+      if (window.confirm(message)) {
+        submitDelete();
+      }
+      return;
+    }
+
+    Alert.alert(t('event_delete_forever_confirm_title'), message, [
+      {
+        text: t('close'),
+        style: 'cancel',
+      },
+      {
+        text: t('event_delete_forever'),
+        style: 'destructive',
+        onPress: submitDelete,
+      },
+    ]);
+  };
 
   const roundMoney = (value: number): number => Number.parseFloat(value.toFixed(2));
 
@@ -843,6 +891,16 @@ export function OrganizerDashboardScreen({
                         >
                           <Text style={styles.inlineActionButtonText}>{t('reopen_event')}</Text>
                         </Pressable>
+                        {isAdmin ? (
+                          <Pressable
+                            style={styles.inlineActionButton}
+                            onPress={() => confirmDeleteEventPermanently(event.id, event.name)}
+                          >
+                            <Text style={styles.inlineActionButtonText}>
+                              {t('event_delete_forever')}
+                            </Text>
+                          </Pressable>
+                        ) : null}
                         <Pressable
                           style={styles.inlineActionButton}
                           onPress={() => {
@@ -1070,6 +1128,74 @@ export function OrganizerDashboardScreen({
               </Text>
             </Pressable>
           </SectionCard>
+
+          {isAdmin ? (
+            <SectionCard title={t('admin_access_section')} delayMs={165}>
+              <Text style={styles.cardParagraph}>{t('admin_access_intro')}</Text>
+              <Text style={styles.helperText}>
+                {t('admin_access_role_line', {
+                  role: canManageAdmins ? t('admin_role_super') : t('admin_role_basic'),
+                })}
+              </Text>
+              <Pressable
+                style={styles.secondaryButton}
+                onPress={() => {
+                  void onRefreshAdminUsers();
+                }}
+              >
+                <Text style={styles.secondaryButtonText}>{t('admin_refresh_list')}</Text>
+              </Pressable>
+              {adminUsers.length === 0 ? (
+                <Text style={styles.helperText}>{t('admin_list_empty')}</Text>
+              ) : (
+                adminUsers.map((entry) => (
+                  <View key={entry.email} style={styles.registrationCard}>
+                    <Text style={styles.listTitle}>{entry.email}</Text>
+                    <Text style={styles.listSubText}>
+                      {t('admin_access_entry_line', {
+                        status: entry.active ? t('admin_status_active') : t('admin_status_inactive'),
+                        role: entry.canManageAdmins ? t('admin_role_super') : t('admin_role_basic'),
+                      })}
+                    </Text>
+                    {canManageAdmins && entry.active ? (
+                      <Pressable
+                        style={styles.inlineActionButton}
+                        onPress={() => {
+                          void onRevokeAdmin(entry.email);
+                        }}
+                      >
+                        <Text style={styles.inlineActionButtonText}>{t('admin_revoke_button')}</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ))
+              )}
+
+              {canManageAdmins ? (
+                <>
+                  <TextField
+                    label={t('admin_email_label')}
+                    value={adminEmailInput}
+                    onChangeText={setAdminEmailInput}
+                    keyboardType='email-address'
+                  />
+                  <SwitchRow
+                    label={t('admin_can_manage_toggle')}
+                    value={adminCanManageInput}
+                    onValueChange={setAdminCanManageInput}
+                  />
+                  <Pressable
+                    style={styles.primaryButton}
+                    onPress={() => {
+                      void onGrantAdmin(adminEmailInput, adminCanManageInput);
+                    }}
+                  >
+                    <Text style={styles.primaryButtonText}>{t('admin_grant_button')}</Text>
+                  </Pressable>
+                </>
+              ) : null}
+            </SectionCard>
+          ) : null}
 
           <SectionCard title={t('sponsor_paid_section')} delayMs={180}>
             <Text style={styles.cardParagraph}>{t('sponsor_paid_intro')}</Text>
@@ -1300,6 +1426,19 @@ export function OrganizerDashboardScreen({
                   typeof entry.assignedNumber === 'number'
                     ? t('number_suffix', { number: entry.assignedNumber })
                     : '';
+                const groupParticipantsLine = entry.groupParticipants
+                  .map((participant) => {
+                    const name = cleanText(participant.fullName);
+                    if (!name) {
+                      return '';
+                    }
+                    if (typeof participant.assignedNumber === 'number') {
+                      return `${name} (#${participant.assignedNumber})`;
+                    }
+                    return name;
+                  })
+                  .filter(Boolean)
+                  .join(' | ');
                 return (
                   <View key={entry.id} style={styles.registrationCard}>
                     <Text style={styles.listTitle}>{entry.fullName}</Text>
@@ -1307,6 +1446,18 @@ export function OrganizerDashboardScreen({
                     {entry.groupParticipantsCount > 1 ? (
                       <Text style={styles.listSubText}>
                         {t('group_participants_line', { count: entry.groupParticipantsCount })}
+                      </Text>
+                    ) : null}
+                    {groupParticipantsLine ? (
+                      <Text style={styles.listSubText}>
+                        {t('group_participants_names_line', { value: groupParticipantsLine })}
+                      </Text>
+                    ) : null}
+                    {cleanText(entry.participantMessage ?? '') ? (
+                      <Text style={styles.listSubText}>
+                        {t('participant_message_line', {
+                          value: cleanText(entry.participantMessage ?? ''),
+                        })}
                       </Text>
                     ) : null}
                     <Text style={styles.listSubText}>

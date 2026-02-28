@@ -111,6 +111,9 @@ Secrets consigliati per invio reale via SMTP:
 - `SMTP_USER`
 - `SMTP_PASS`
 - `SMTP_FROM`
+- `SMTP_SECURE` (`true/false`, opzionale)
+- `SMTP_REQUIRE_TLS` (`true/false`, opzionale)
+- `SMTP_TLS_REJECT_UNAUTHORIZED` (`true/false`, opzionale)
 
 Fallback opzionale via Resend:
 - `RESEND_API_KEY`
@@ -277,6 +280,9 @@ Secrets richiesti (SMTP):
 - `SMTP_USER`
 - `SMTP_PASS`
 - `SMTP_FROM`
+- `SMTP_SECURE` (`true/false`, opzionale)
+- `SMTP_REQUIRE_TLS` (`true/false`, opzionale)
+- `SMTP_TLS_REJECT_UNAUTHORIZED` (`true/false`, opzionale)
 
 Se i secret SMTP non sono configurati la function risponde in modalita simulata.
 
@@ -344,6 +350,9 @@ Per aggiornare solo policy/trigger (senza rilanciare tutto lo schema):
 
 Questa patch:
 - rende idempotenti le policy (`drop policy if exists` + `create policy`)
+- aggiunge tabella `admin_users` con seed super-admin `profstefanoferrari@gmail.com`
+- aggiunge bypass RLS per admin su organizer/eventi/registrazioni/payment_intents/sponsor_slots
+- aggiunge gestione admin delegabili (`can_manage_admins`)
 - aggiunge selezione eventi anche per organizzatore proprietario
 - blocca la modifica client dei campi antifrode organizer (`verification_status`, `payout_enabled`, ecc.)
 - rafforza l'insert registrazioni (consensi obbligatori + coerenza evento/organizer).

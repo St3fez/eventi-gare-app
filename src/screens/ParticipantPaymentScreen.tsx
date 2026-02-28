@@ -11,6 +11,7 @@ type Props = {
   event: EventItem;
   registration: RegistrationRecord;
   onBack: () => void;
+  onEditRegistration: () => void;
   onConfirm: (payment: PaymentInput) => Promise<void>;
   onCancel: () => void;
   t: Translator;
@@ -20,6 +21,7 @@ export function ParticipantPaymentScreen({
   event,
   registration,
   onBack,
+  onEditRegistration,
   onConfirm,
   onCancel,
   t,
@@ -134,6 +136,9 @@ export function ParticipantPaymentScreen({
         </Pressable>
         <Pressable style={styles.secondaryButton} onPress={onBack}>
           <Text style={styles.secondaryButtonText}>{t('back_event_detail')}</Text>
+        </Pressable>
+        <Pressable style={styles.secondaryButton} onPress={onEditRegistration}>
+          <Text style={styles.secondaryButtonText}>{t('edit_pending_registration')}</Text>
         </Pressable>
         <Pressable style={styles.secondaryButton} onPress={onCancel}>
           <Text style={styles.secondaryButtonText}>{t('cancel_pending_registration')}</Text>

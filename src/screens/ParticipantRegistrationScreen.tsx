@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 
 import { CheckboxRow, SectionCard, TextField } from '../components/Common';
@@ -9,6 +9,8 @@ import { cleanText, formatDate, formatEventSchedule, toMoney } from '../utils/fo
 
 type Props = {
   event: EventItem;
+  initialDraft?: RegistrationDraft;
+  isEditing?: boolean;
   onBack: () => void;
   onCompleteFree: (draft: RegistrationDraft) => Promise<void>;
   onProceedPayment: (draft: RegistrationDraft) => Promise<void>;
@@ -17,6 +19,8 @@ type Props = {
 
 export function ParticipantRegistrationScreen({
   event,
+  initialDraft,
+  isEditing = false,
   onBack,
   onCompleteFree,
   onProceedPayment,
@@ -24,14 +28,79 @@ export function ParticipantRegistrationScreen({
 }: Props) {
   const { width } = useWindowDimensions();
   const isDesktopLayout = width >= 1080;
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [city, setCity] = useState('');
-  const [birthDate, setBirthDate] = useState('');
-  const [groupParticipantsCount, setGroupParticipantsCount] = useState('1');
-  const [privacyConsent, setPrivacyConsent] = useState(false);
-  const [retentionConsent, setRetentionConsent] = useState(false);
+  const [fullName, setFullName] = useState(initialDraft?.fullName ?? '');
+  const [email, setEmail] = useState(initialDraft?.email ?? '');
+  const [phone, setPhone] = useState(initialDraft?.phone ?? '');
+  const [city, setCity] = useState(initialDraft?.city ?? '');
+  const [birthDate, setBirthDate] = useState(initialDraft?.birthDate ?? '');
+  const [groupParticipantsCount, setGroupParticipantsCount] = useState(
+    String(Math.max(1, initialDraft?.groupParticipantsCount ?? 1))
+  );
+  const [participantMessage, setParticipantMessage] = useState(
+    initialDraft?.participantMessage ?? ''
+  );
+  const [groupParticipants, setGroupParticipants] = useState<string[]>(
+    initialDraft?.groupParticipants?.length
+      ? initialDraft.groupParticipants
+      : [initialDraft?.fullName ?? '']
+  );
+  const [privacyConsent, setPrivacyConsent] = useState(initialDraft?.privacyConsent ?? false);
+  const [retentionConsent, setRetentionConsent] = useState(initialDraft?.retentionConsent ?? false);
+
+  const parsedGroupCount = useMemo(() => {
+    const parsed = Number.parseInt(groupParticipantsCount, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return 1;
+    }
+    return parsed;
+  }, [groupParticipantsCount]);
+
+  useEffect(() => {
+    if (initialDraft) {
+      setFullName(initialDraft.fullName ?? '');
+      setEmail(initialDraft.email ?? '');
+      setPhone(initialDraft.phone ?? '');
+      setCity(initialDraft.city ?? '');
+      setBirthDate(initialDraft.birthDate ?? '');
+      setGroupParticipantsCount(String(Math.max(1, initialDraft.groupParticipantsCount ?? 1)));
+      setParticipantMessage(initialDraft.participantMessage ?? '');
+      setGroupParticipants(
+        initialDraft.groupParticipants?.length
+          ? initialDraft.groupParticipants
+          : [initialDraft.fullName ?? '']
+      );
+      setPrivacyConsent(initialDraft.privacyConsent ?? false);
+      setRetentionConsent(initialDraft.retentionConsent ?? false);
+      return;
+    }
+    setFullName('');
+    setEmail('');
+    setPhone('');
+    setCity('');
+    setBirthDate('');
+    setGroupParticipantsCount('1');
+    setParticipantMessage('');
+    setGroupParticipants(['']);
+    setPrivacyConsent(false);
+    setRetentionConsent(false);
+  }, [event.id, initialDraft]);
+
+  useEffect(() => {
+    setGroupParticipants((current) => {
+      const next = [...current];
+      while (next.length < parsedGroupCount) {
+        next.push('');
+      }
+      if (next.length > parsedGroupCount) {
+        next.length = parsedGroupCount;
+      }
+      next[0] = fullName;
+      const isSameLength = next.length === current.length;
+      const isSameValues =
+        isSameLength && next.every((value, index) => value === current[index]);
+      return isSameValues ? current : next;
+    });
+  }, [fullName, parsedGroupCount]);
 
   const submit = () => {
     if (!cleanText(fullName) || !cleanText(email)) {
@@ -39,9 +108,25 @@ export function ParticipantRegistrationScreen({
       return;
     }
 
-    const parsedGroupCount = Number.parseInt(groupParticipantsCount, 10);
-    if (!Number.isFinite(parsedGroupCount) || parsedGroupCount <= 0) {
+    const parsedGroupCountInput = Number.parseInt(groupParticipantsCount, 10);
+    if (!Number.isFinite(parsedGroupCountInput) || parsedGroupCountInput <= 0) {
       Alert.alert(t('missing_data_title'), t('group_participants_invalid'));
+      return;
+    }
+
+    const normalizedGroupParticipants = groupParticipants
+      .slice(0, parsedGroupCountInput)
+      .map((value) => cleanText(value));
+    normalizedGroupParticipants[0] = cleanText(fullName);
+    while (normalizedGroupParticipants.length < parsedGroupCountInput) {
+      normalizedGroupParticipants.push('');
+    }
+
+    if (
+      parsedGroupCountInput > 1 &&
+      normalizedGroupParticipants.slice(1).some((value) => !cleanText(value))
+    ) {
+      Alert.alert(t('missing_data_title'), t('group_participants_names_required'));
       return;
     }
 
@@ -51,7 +136,9 @@ export function ParticipantRegistrationScreen({
       phone,
       city,
       birthDate,
-      groupParticipantsCount: parsedGroupCount,
+      groupParticipantsCount: parsedGroupCountInput,
+      participantMessage,
+      groupParticipants: normalizedGroupParticipants,
       privacyConsent,
       retentionConsent,
     };
@@ -108,18 +195,57 @@ export function ParticipantRegistrationScreen({
               keyboardType='decimal-pad'
             />
             <Text style={styles.helperText}>{t('group_participants_count_helper')}</Text>
+            {parsedGroupCount > 1 ? (
+              <>
+                <Text style={styles.fieldLabel}>{t('group_participants_names_label')}</Text>
+                {Array.from({ length: parsedGroupCount - 1 }).map((_, index) => {
+                  const participantIndex = index + 2;
+                  const currentValue = groupParticipants[participantIndex - 1] ?? '';
+                  return (
+                    <TextField
+                      key={`group_participant_${participantIndex}`}
+                      label={t('group_participant_name_label', { index: participantIndex })}
+                      value={currentValue}
+                      onChangeText={(value) => {
+                        setGroupParticipants((current) => {
+                          const next = [...current];
+                          while (next.length < parsedGroupCount) {
+                            next.push('');
+                          }
+                          next[participantIndex - 1] = value;
+                          return next;
+                        });
+                      }}
+                    />
+                  );
+                })}
+                <Text style={styles.helperText}>{t('group_participants_names_helper')}</Text>
+              </>
+            ) : null}
             <TextField
               label={t('birthdate_optional')}
               value={birthDate}
               onChangeText={setBirthDate}
               placeholder={t('birthdate_placeholder')}
             />
+            <TextField
+              label={t('participant_message_to_organizer_label')}
+              value={participantMessage}
+              onChangeText={setParticipantMessage}
+              placeholder={t('participant_message_to_organizer_placeholder')}
+              multiline
+            />
             {!event.isFree ? (
               <Text style={styles.helperText}>
                 {t('group_total_amount_line', {
                   value: toMoney(
                     event.feeAmount *
-                      Math.max(1, Number.isFinite(Number.parseInt(groupParticipantsCount, 10)) ? Number.parseInt(groupParticipantsCount, 10) : 1)
+                      Math.max(
+                        1,
+                        Number.isFinite(Number.parseInt(groupParticipantsCount, 10))
+                          ? Number.parseInt(groupParticipantsCount, 10)
+                          : 1
+                      )
                   ),
                 })}
               </Text>
@@ -139,7 +265,11 @@ export function ParticipantRegistrationScreen({
 
             <Pressable style={styles.primaryButton} onPress={submit}>
               <Text style={styles.primaryButtonText}>
-                {event.isFree ? t('confirm_free_registration') : t('open_payment_session')}
+                {isEditing
+                  ? t('update_registration_data')
+                  : event.isFree
+                    ? t('confirm_free_registration')
+                    : t('open_payment_session')}
               </Text>
             </Pressable>
             <Pressable style={styles.secondaryButton} onPress={onBack}>

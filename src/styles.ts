@@ -196,6 +196,11 @@ export const styles = StyleSheet.create({
     lineHeight: 17,
     flexShrink: 1,
   },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: 'rgba(146, 201, 228, 0.35)',
+    marginVertical: 2,
+  },
   noticeCard: {
     borderRadius: 12,
     borderWidth: 1,
@@ -362,6 +367,15 @@ export const styles = StyleSheet.create({
     gap: 8,
     marginTop: 8,
     flexWrap: 'wrap',
+  },
+  suggestionButtonRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  suggestionButton: {
+    flexGrow: 1,
+    minWidth: 170,
   },
   inlineActionButton: {
     backgroundColor: '#1C86AB',

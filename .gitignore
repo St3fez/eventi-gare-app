@@ -7,7 +7,6 @@ node_modules/
 .expo/
 dist/
 web-build/
-expo-env.d.ts
 expo-web-tunnel.log
 expo-web-tunnel.err.log
 

@@ -145,6 +145,19 @@ export const exportEventRegistrationsPdf = async (
 
   registrations.forEach((entry, index) => {
     const intent = entry.paymentIntentId ? paymentIntentById.get(entry.paymentIntentId) : undefined;
+    const groupParticipants = entry.groupParticipants
+      .map((participant) => {
+        const name = participant.fullName.trim();
+        if (!name) {
+          return '';
+        }
+        if (typeof participant.assignedNumber === 'number') {
+          return `${name} (#${participant.assignedNumber})`;
+        }
+        return name;
+      })
+      .filter(Boolean)
+      .join(' | ');
     const header = `${index + 1}. ${entry.fullName} - ${entry.email}`;
     const payment = `Stato iscrizione: ${entry.registrationStatus} | Stato pagamento: ${
       entry.paymentStatus
@@ -159,10 +172,14 @@ export const exportEventRegistrationsPdf = async (
       intent?.status || '-'
     } | Errore: ${entry.paymentFailedReason || intent?.failureReason || '-'}`;
     const dates = `Creato: ${entry.createdAt} | Aggiornato: ${entry.updatedAt}`;
+    const groupLine = `Nomi gruppo: ${groupParticipants || '-'}`;
+    const participantMessage = `Messaggio partecipante: ${entry.participantMessage || '-'}`;
 
     drawWrapped(header, 10.8, true);
     drawWrapped(payment);
     drawWrapped(details);
+    drawWrapped(groupLine);
+    drawWrapped(participantMessage);
     drawWrapped(refs);
     drawWrapped(intentLine);
     drawWrapped(dates);

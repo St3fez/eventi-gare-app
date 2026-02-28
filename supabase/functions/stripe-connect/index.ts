@@ -232,75 +232,85 @@ Deno.serve(async (req: Request) => {
     apiVersion: '2024-06-20',
   });
 
-  let accountId = organizer.stripe_connect_account_id;
-  if (!accountId) {
-    const account = await stripe.accounts.create({
-      type: 'express',
-      country: defaultCountry,
-      email: organizer.email,
-      capabilities: {
-        card_payments: { requested: true },
-        transfers: { requested: true },
-      },
-      metadata: {
-        organizer_id: organizer.id,
-        user_id: userId,
-      },
+  try {
+    let accountId = organizer.stripe_connect_account_id;
+    if (!accountId) {
+      const account = await stripe.accounts.create({
+        type: 'express',
+        country: defaultCountry,
+        email: organizer.email,
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true },
+        },
+        metadata: {
+          organizer_id: organizer.id,
+          user_id: userId,
+        },
+      });
+      accountId = account.id;
+    }
+
+    const account = await stripe.accounts.retrieve(accountId);
+    const chargesEnabled = Boolean(account.charges_enabled);
+    const payoutsEnabled = Boolean(account.payouts_enabled);
+    const detailsSubmitted = Boolean(account.details_submitted);
+    const nowIso = new Date().toISOString();
+
+    const updateResult = await supabaseAdmin
+      .from('organizers')
+      .update({
+        stripe_connect_account_id: accountId,
+        stripe_connect_charges_enabled: chargesEnabled,
+        stripe_connect_payouts_enabled: payoutsEnabled,
+        stripe_connect_details_submitted: detailsSubmitted,
+        stripe_connect_last_sync_at: nowIso,
+        payout_enabled: chargesEnabled && payoutsEnabled,
+      })
+      .eq('id', organizer.id);
+
+    if (updateResult.error) {
+      return json(
+        {
+          error: 'Organizer update failed',
+          detail: updateResult.error.message,
+        },
+        500
+      );
+    }
+
+    const returnUrl = normalizeRedirectUrl(payload.returnUrl, defaultReturnUrl, allowedOrigins);
+    const refreshUrl = normalizeRedirectUrl(payload.refreshUrl, defaultRefreshUrl, allowedOrigins);
+
+    const link = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: refreshUrl,
+      return_url: returnUrl,
+      type: 'account_onboarding',
     });
-    accountId = account.id;
-  }
 
-  const account = await stripe.accounts.retrieve(accountId);
-  const chargesEnabled = Boolean(account.charges_enabled);
-  const payoutsEnabled = Boolean(account.payouts_enabled);
-  const detailsSubmitted = Boolean(account.details_submitted);
-  const nowIso = new Date().toISOString();
+    const requirements = Array.isArray(account.requirements?.currently_due)
+      ? account.requirements?.currently_due
+      : [];
 
-  const updateResult = await supabaseAdmin
-    .from('organizers')
-    .update({
-      stripe_connect_account_id: accountId,
-      stripe_connect_charges_enabled: chargesEnabled,
-      stripe_connect_payouts_enabled: payoutsEnabled,
-      stripe_connect_details_submitted: detailsSubmitted,
-      stripe_connect_last_sync_at: nowIso,
-      payout_enabled: chargesEnabled && payoutsEnabled,
-    })
-    .eq('id', organizer.id);
-
-  if (updateResult.error) {
+    return json({
+      ok: true,
+      state: chargesEnabled && payoutsEnabled ? 'ready' : 'onboarding',
+      organizerId: organizer.id,
+      accountId,
+      chargesEnabled,
+      payoutsEnabled,
+      detailsSubmitted,
+      requirements,
+      onboardingUrl: link.url,
+    });
+  } catch (error) {
     return json(
       {
-        error: 'Organizer update failed',
-        detail: updateResult.error.message,
+        error: 'Stripe Connect request failed',
+        detail: error instanceof Error ? error.message : String(error),
       },
-      500
+      502
     );
   }
-
-  const returnUrl = normalizeRedirectUrl(payload.returnUrl, defaultReturnUrl, allowedOrigins);
-  const refreshUrl = normalizeRedirectUrl(payload.refreshUrl, defaultRefreshUrl, allowedOrigins);
-
-  const link = await stripe.accountLinks.create({
-    account: accountId,
-    refresh_url: refreshUrl,
-    return_url: returnUrl,
-    type: 'account_onboarding',
-  });
-
-  const requirements = Array.isArray(account.requirements?.currently_due)
-    ? account.requirements?.currently_due
-    : [];
-
-  return json({
-    ok: true,
-    state: chargesEnabled && payoutsEnabled ? 'ready' : 'onboarding',
-    organizerId: organizer.id,
-    accountId,
-    chargesEnabled,
-    payoutsEnabled,
-    detailsSubmitted,
-    requirements,
-    onboardingUrl: link.url,
-  });
 });

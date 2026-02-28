@@ -26,6 +26,9 @@ POST JSON:
 - `SMTP_USER`
 - `SMTP_PASS`
 - `SMTP_FROM`
+- `SMTP_SECURE` (`true/false`, opzionale)
+- `SMTP_REQUIRE_TLS` (`true/false`, opzionale)
+- `SMTP_TLS_REJECT_UNAUTHORIZED` (`true/false`, opzionale)
 
 ## Fallback opzionale (Resend)
 - `RESEND_API_KEY`

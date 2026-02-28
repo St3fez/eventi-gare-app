@@ -5,6 +5,7 @@ Edge Function per invio email documentazione organizer a:
 
 ## Metodo
 - `POST` JSON
+- Richiede `Authorization: Bearer <access_token>` (utente Supabase autenticato)
 
 ## Payload minimo
 ```json
@@ -44,5 +45,14 @@ Edge Function per invio email documentazione organizer a:
 - `SMTP_USER`
 - `SMTP_PASS`
 - `SMTP_FROM`
+- `SMTP_SECURE` (`true/false`, opzionale)
+- `SMTP_REQUIRE_TLS` (`true/false`, opzionale)
+- `SMTP_TLS_REJECT_UNAUTHORIZED` (`true/false`, opzionale)
 
 Se i secret SMTP non sono configurati, la funzione risponde in modalita `simulated`.
+
+## Deploy consigliato
+La funzione valida comunque il bearer token internamente.
+```bash
+supabase functions deploy send-organizer-compliance --no-verify-jwt
+```

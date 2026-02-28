@@ -1,5 +1,5 @@
--- Eventi Slash Gare - RLS policy patch (safe to run multiple times)
--- Run this file in Supabase SQL Editor on the target project.
+-- Admin RBAC and policy bypass for platform administrators.
+-- Safe to run on existing production database.
 
 create table if not exists public.admin_users (
   email text primary key,
@@ -53,7 +53,7 @@ as $$
 $$;
 
 insert into public.admin_users (email, can_manage_admins, active, created_by)
-values ('profstefanoferrari@gmail.com', true, true, 'policies_patch')
+values ('profstefanoferrari@gmail.com', true, true, 'migration')
 on conflict (email) do update
 set
   can_manage_admins = excluded.can_manage_admins,
@@ -69,26 +69,7 @@ end
 $$;
 
 alter table public.admin_users enable row level security;
-alter table public.organizers enable row level security;
-alter table public.events enable row level security;
-alter table public.registrations enable row level security;
-alter table public.payment_intents enable row level security;
-alter table public.webhook_events enable row level security;
-do $$
-begin
-  if to_regclass('public.sponsor_slots') is not null then
-    execute 'alter table public.sponsor_slots enable row level security';
-  end if;
-  if to_regclass('public.sponsor_webhook_events') is not null then
-    execute 'alter table public.sponsor_webhook_events enable row level security';
-  end if;
-  if to_regclass('public.sponsor_module_webhook_events') is not null then
-    execute 'alter table public.sponsor_module_webhook_events enable row level security';
-  end if;
-end
-$$;
 
--- Prevent organizer users from self-approving antifraud/KYC fields.
 create or replace function public.guard_organizer_sensitive_fields()
 returns trigger
 language plpgsql
@@ -112,12 +93,6 @@ begin
 end;
 $$;
 
-drop trigger if exists trg_guard_organizer_sensitive_fields on public.organizers;
-create trigger trg_guard_organizer_sensitive_fields
-before update on public.organizers
-for each row execute function public.guard_organizer_sensitive_fields();
-
--- Platform admins
 drop policy if exists admin_users_select_admin on public.admin_users;
 create policy admin_users_select_admin on public.admin_users
 for select to authenticated
@@ -139,7 +114,6 @@ create policy admin_users_delete_manage on public.admin_users
 for delete to authenticated
 using (public.can_manage_platform_admins());
 
--- Organizers
 drop policy if exists organizers_select_own on public.organizers;
 create policy organizers_select_own on public.organizers
 for select to authenticated
@@ -167,12 +141,6 @@ with check (
   user_id = auth.uid()
   or public.is_platform_admin()
 );
-
--- Events
-drop policy if exists events_select_public_active on public.events;
-create policy events_select_public_active on public.events
-for select to anon, authenticated
-using (active = true);
 
 drop policy if exists events_select_own_organizer on public.events;
 create policy events_select_own_organizer on public.events
@@ -210,7 +178,6 @@ using (
   or public.is_platform_admin()
 );
 
--- Registrations
 drop policy if exists registrations_select_own_participant_or_organizer on public.registrations;
 create policy registrations_select_own_participant_or_organizer on public.registrations
 for select to authenticated
@@ -261,7 +228,6 @@ with check (
   or public.is_platform_admin()
 );
 
--- Payment intents
 drop policy if exists payment_intents_select_own_participant_or_organizer on public.payment_intents;
 create policy payment_intents_select_own_participant_or_organizer on public.payment_intents
 for select to authenticated
@@ -276,17 +242,9 @@ using (
   )
 );
 
--- Sponsor slots (only if sponsor module exists)
 do $$
 begin
   if to_regclass('public.sponsor_slots') is not null then
-    execute 'drop policy if exists sponsor_slots_select_public_active on public.sponsor_slots';
-    execute $sql$
-      create policy sponsor_slots_select_public_active on public.sponsor_slots
-      for select to anon, authenticated
-      using (active = true and ends_at > now())
-    $sql$;
-
     execute 'drop policy if exists sponsor_slots_select_own_organizer on public.sponsor_slots';
     execute $sql$
       create policy sponsor_slots_select_own_organizer on public.sponsor_slots
@@ -300,51 +258,5 @@ begin
 end
 $$;
 
--- No direct client writes on payment_intents/webhook_events (service role only).
 revoke all on public.admin_users from anon, authenticated;
 grant select, insert, update, delete on public.admin_users to authenticated;
-
-revoke all on public.payment_intents from anon, authenticated;
-grant select on public.payment_intents to authenticated;
-revoke all on public.webhook_events from anon, authenticated;
-do $$
-begin
-  if to_regclass('public.sponsor_slots') is not null then
-    execute 'revoke all on public.sponsor_slots from anon, authenticated';
-    execute 'grant select on public.sponsor_slots to anon, authenticated';
-  end if;
-  if to_regclass('public.sponsor_webhook_events') is not null then
-    execute 'revoke all on public.sponsor_webhook_events from anon, authenticated';
-  end if;
-  if to_regclass('public.sponsor_module_webhook_events') is not null then
-    execute 'revoke all on public.sponsor_module_webhook_events from anon, authenticated';
-  end if;
-end
-$$;
-
-do $$
-begin
-  if to_regprocedure('public.apply_payment_webhook(text, public.payment_provider, public.payment_webhook_type, uuid, text, text, text, jsonb)') is not null then
-    execute 'revoke execute on function public.apply_payment_webhook(text, public.payment_provider, public.payment_webhook_type, uuid, text, text, text, jsonb) from public, anon, authenticated';
-    execute 'grant execute on function public.apply_payment_webhook(text, public.payment_provider, public.payment_webhook_type, uuid, text, text, text, jsonb) to service_role';
-  end if;
-end
-$$;
-
-do $$
-begin
-  if to_regprocedure('public.apply_sponsor_webhook(text, text, uuid, text, text, text, text, text, jsonb)') is not null then
-    execute 'revoke execute on function public.apply_sponsor_webhook(text, text, uuid, text, text, text, text, text, jsonb) from public, anon, authenticated';
-    execute 'grant execute on function public.apply_sponsor_webhook(text, text, uuid, text, text, text, text, text, jsonb) to service_role';
-  end if;
-end
-$$;
-
-do $$
-begin
-  if to_regprocedure('public.apply_sponsor_module_webhook(text, text, uuid, jsonb)') is not null then
-    execute 'revoke execute on function public.apply_sponsor_module_webhook(text, text, uuid, jsonb) from public, anon, authenticated';
-    execute 'grant execute on function public.apply_sponsor_module_webhook(text, text, uuid, jsonb) to service_role';
-  end if;
-end
-$$;

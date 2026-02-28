@@ -49,8 +49,13 @@ import {
   OrganizerSecurityStatus,
   requestEmailOtp,
   startOrganizerOAuth,
-  verifyEmailOtp,
 } from './src/services/authSupabase';
+import {
+  getAdminAccessByEmail,
+  grantAdminUser,
+  listAdminUsers,
+  revokeAdminUser,
+} from './src/services/adminSupabase';
 import {
   applyPaymentWebhook,
   expirePendingPaymentSessions,
@@ -58,6 +63,7 @@ import {
 } from './src/services/paymentStateMachine';
 import { loadAppData, saveAppData } from './src/services/storage';
 import {
+  deleteEventInSupabase,
   ensureSupabaseUser,
   insertEventInSupabase,
   updateEventInSupabase,
@@ -85,10 +91,12 @@ import { ParticipantSearchScreen } from './src/screens/ParticipantSearchScreen';
 import { RoleSelectionScreen } from './src/screens/RoleSelectionScreen';
 import { styles } from './src/styles';
 import {
+  AdminUser,
   AppData,
   EventPaymentChannel,
   EventItem,
   FreeInterstitial,
+  GroupParticipant,
   OrganizerProfile,
   OrganizerComplianceAttachment,
   PaymentInput,
@@ -324,6 +332,14 @@ function App() {
   const [organizerSecurity, setOrganizerSecurity] = useState<OrganizerSecurityStatus | null>(
     null
   );
+  const [adminAccess, setAdminAccess] = useState<{
+    isAdmin: boolean;
+    canManageAdmins: boolean;
+  }>({
+    isAdmin: false,
+    canManageAdmins: false,
+  });
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [authNotice, setAuthNotice] = useState<AuthNotice | null>(null);
   const [postRegistrationAlert, setPostRegistrationAlert] =
     useState<PostRegistrationAlert | null>(null);
@@ -452,6 +468,66 @@ function App() {
     };
   }, [isReady]);
 
+  const refreshAdminAccess = useCallback(
+    async (email?: string) => {
+      const normalizedEmail = cleanText(email ?? '').toLowerCase();
+      if (!normalizedEmail) {
+        setAdminAccess({
+          isAdmin: false,
+          canManageAdmins: false,
+        });
+        setAdminUsers([]);
+        return;
+      }
+
+      const accessResult = await getAdminAccessByEmail(normalizedEmail);
+      if (!accessResult.ok) {
+        setAdminAccess({
+          isAdmin: false,
+          canManageAdmins: false,
+        });
+        setAdminUsers([]);
+        return;
+      }
+
+      setAdminAccess(accessResult.data);
+
+      if (!accessResult.data.isAdmin) {
+        setAdminUsers([]);
+        return;
+      }
+
+      const adminsResult = await listAdminUsers();
+      if (!adminsResult.ok) {
+        setAdminUsers([]);
+        return;
+      }
+
+      setAdminUsers(adminsResult.data);
+    },
+    []
+  );
+
+  const refreshAdminUsers = useCallback(
+    async (showAlert = false): Promise<boolean> => {
+      if (!adminAccess.isAdmin) {
+        return false;
+      }
+
+      const result = await listAdminUsers();
+      if (!result.ok) {
+        if (showAlert) {
+          Alert.alert(t('admin_action_title'), t('admin_action_error', { reason: result.reason }));
+        }
+        return false;
+      }
+
+      setAdminUsers(result.data);
+      return true;
+    },
+    [adminAccess.isAdmin, t]
+  );
+
   const refreshOrganizerSecurityState = async (showMissingAlert = false): Promise<boolean> => {
     if (!ORGANIZER_SECURITY_ENFORCED) {
       return true;
@@ -459,12 +535,18 @@ function App() {
 
     const status = await getOrganizerSecurityStatus();
     if (!status.ok) {
+      setAdminAccess({
+        isAdmin: false,
+        canManageAdmins: false,
+      });
+      setAdminUsers([]);
       if (showMissingAlert) {
         Alert.alert(t('organizer_security_required_title'), status.reason);
       }
       return false;
     }
     setOrganizerSecurity(status.data);
+    void refreshAdminAccess(status.data.email);
     if (showMissingAlert && !status.data.securityReady) {
       Alert.alert(t('organizer_security_required_title'), t('organizer_security_required_message'));
       return false;
@@ -585,8 +667,67 @@ function App() {
     ? cleanText(organizerSecurity?.email ?? '').toLowerCase()
     : '';
 
+  const grantPlatformAdmin = useCallback(
+    async (email: string, canManageAdmins: boolean): Promise<void> => {
+      if (!adminAccess.canManageAdmins) {
+        Alert.alert(t('admin_action_title'), t('admin_action_not_allowed'));
+        return;
+      }
+
+      const normalizedEmail = cleanText(email).toLowerCase();
+      const result = await grantAdminUser({
+        email: normalizedEmail,
+        canManageAdmins,
+      });
+      if (!result.ok) {
+        Alert.alert(t('admin_action_title'), t('admin_action_error', { reason: result.reason }));
+        return;
+      }
+
+      await refreshAdminUsers(false);
+      if (activeOrganizerEmail) {
+        await refreshAdminAccess(activeOrganizerEmail);
+      }
+
+      Alert.alert(t('admin_action_title'), t('admin_grant_success', { email: result.data.email }));
+    },
+    [activeOrganizerEmail, adminAccess.canManageAdmins, refreshAdminAccess, refreshAdminUsers, t]
+  );
+
+  const revokePlatformAdmin = useCallback(
+    async (email: string): Promise<void> => {
+      if (!adminAccess.canManageAdmins) {
+        Alert.alert(t('admin_action_title'), t('admin_action_not_allowed'));
+        return;
+      }
+
+      const normalizedEmail = cleanText(email).toLowerCase();
+      if (activeOrganizerEmail && normalizedEmail === activeOrganizerEmail) {
+        Alert.alert(t('admin_action_title'), t('admin_self_revoke_blocked'));
+        return;
+      }
+
+      const result = await revokeAdminUser(normalizedEmail);
+      if (!result.ok) {
+        Alert.alert(t('admin_action_title'), t('admin_action_error', { reason: result.reason }));
+        return;
+      }
+
+      await refreshAdminUsers(false);
+      if (activeOrganizerEmail) {
+        await refreshAdminAccess(activeOrganizerEmail);
+      }
+
+      Alert.alert(t('admin_action_title'), t('admin_revoke_success', { email: result.data.email }));
+    },
+    [activeOrganizerEmail, adminAccess.canManageAdmins, refreshAdminAccess, refreshAdminUsers, t]
+  );
+
   const organizerMatchesSession = useCallback(
     (organizer: OrganizerProfile): boolean => {
+      if (adminAccess.isAdmin) {
+        return true;
+      }
       if (!ORGANIZER_SECURITY_ENFORCED) {
         return true;
       }
@@ -604,7 +745,7 @@ function App() {
       }
       return false;
     },
-    [activeOrganizerEmail, activeOrganizerUserId]
+    [activeOrganizerEmail, activeOrganizerUserId, adminAccess.isAdmin]
   );
 
   const organizersForProfile = useMemo(() => {
@@ -670,6 +811,48 @@ function App() {
     }
     return appData.events.find((event) => event.id === screen.eventId);
   }, [appData.events, screen]);
+
+  const participantRegistrationForEdit = useMemo(() => {
+    if (screen.name !== 'participantRegister' || !screen.registrationId) {
+      return undefined;
+    }
+    return appData.registrations.find(
+      (entry) => entry.id === screen.registrationId && entry.eventId === screen.eventId
+    );
+  }, [appData.registrations, screen]);
+
+  const participantDraftForEdit = useMemo((): RegistrationDraft | undefined => {
+    if (!participantRegistrationForEdit) {
+      return undefined;
+    }
+    const groupCount = Math.max(1, participantRegistrationForEdit.groupParticipantsCount || 1);
+    const normalizedGroup = (Array.isArray(participantRegistrationForEdit.groupParticipants)
+      ? participantRegistrationForEdit.groupParticipants
+      : []
+    )
+      .slice(0, groupCount)
+      .map((entry) => cleanText(entry.fullName));
+    if (!normalizedGroup.length) {
+      normalizedGroup.push(cleanText(participantRegistrationForEdit.fullName));
+    }
+    normalizedGroup[0] =
+      cleanText(participantRegistrationForEdit.fullName) || normalizedGroup[0] || '';
+    while (normalizedGroup.length < groupCount) {
+      normalizedGroup.push('');
+    }
+    return {
+      fullName: participantRegistrationForEdit.fullName,
+      email: participantRegistrationForEdit.email,
+      phone: participantRegistrationForEdit.phone ?? '',
+      city: participantRegistrationForEdit.city ?? '',
+      birthDate: participantRegistrationForEdit.birthDate ?? '',
+      groupParticipantsCount: groupCount,
+      participantMessage: cleanText(participantRegistrationForEdit.participantMessage ?? ''),
+      groupParticipants: normalizedGroup,
+      privacyConsent: participantRegistrationForEdit.privacyConsent,
+      retentionConsent: participantRegistrationForEdit.retentionConsent,
+    };
+  }, [participantRegistrationForEdit]);
 
   const participantRegistrationForPayment = useMemo(() => {
     if (screen.name !== 'participantPayment') {
@@ -774,12 +957,198 @@ function App() {
     return next;
   };
 
-  const getNextAssignedNumber = (source: AppData, eventId: string): number => {
-    return (
-      source.registrations
-        .filter((entry) => entry.eventId === eventId && typeof entry.assignedNumber === 'number')
-        .reduce((max, entry) => Math.max(max, entry.assignedNumber ?? 0), 0) + 1
-    );
+  const normalizeDraftGroupParticipants = (draft: RegistrationDraft): GroupParticipant[] => {
+    const count = Math.max(1, draft.groupParticipantsCount || 1);
+    const leadName = cleanText(draft.fullName);
+    const sourceNames = Array.isArray(draft.groupParticipants) ? draft.groupParticipants : [];
+    const normalizedNames = sourceNames.slice(0, count).map((value) => cleanText(value));
+    if (!normalizedNames.length) {
+      normalizedNames.push(leadName);
+    }
+    normalizedNames[0] = leadName || normalizedNames[0] || '';
+    while (normalizedNames.length < count) {
+      normalizedNames.push('');
+    }
+    return normalizedNames.slice(0, count).map((fullName) => ({
+      fullName,
+    }));
+  };
+
+  const normalizeRegistrationGroupParticipants = (
+    registration: RegistrationRecord
+  ): GroupParticipant[] => {
+    const count = Math.max(1, registration.groupParticipantsCount || 1);
+    const leadName = cleanText(registration.fullName);
+    const source = Array.isArray(registration.groupParticipants) ? registration.groupParticipants : [];
+    const normalized: GroupParticipant[] = source
+      .slice(0, count)
+      .map((entry) => ({
+        fullName: cleanText(entry.fullName),
+        assignedNumber:
+          typeof entry.assignedNumber === 'number' ? entry.assignedNumber : undefined,
+      }));
+
+    if (!normalized.length) {
+      normalized.push({
+        fullName: leadName,
+        assignedNumber: registration.assignedNumber,
+      });
+    }
+
+    normalized[0] = {
+      ...normalized[0],
+      fullName: leadName || normalized[0].fullName || '',
+      assignedNumber:
+        typeof normalized[0].assignedNumber === 'number'
+          ? normalized[0].assignedNumber
+          : registration.assignedNumber,
+    };
+
+    while (normalized.length < count) {
+      normalized.push({
+        fullName: '',
+      });
+    }
+
+    return normalized.slice(0, count);
+  };
+
+  const getRegistrationAssignedNumbers = (registration: RegistrationRecord): number[] => {
+    const numbers: number[] = [];
+    if (typeof registration.assignedNumber === 'number') {
+      numbers.push(registration.assignedNumber);
+    }
+    for (const participant of registration.groupParticipants ?? []) {
+      if (typeof participant.assignedNumber === 'number') {
+        numbers.push(participant.assignedNumber);
+      }
+    }
+    return numbers;
+  };
+
+  const getNextAssignedNumber = (
+    source: AppData,
+    eventId: string,
+    excludeRegistrationId?: string
+  ): number => {
+    let maxAssigned = 0;
+    source.registrations.forEach((entry) => {
+      if (entry.eventId !== eventId) {
+        return;
+      }
+      if (excludeRegistrationId && entry.id === excludeRegistrationId) {
+        return;
+      }
+      getRegistrationAssignedNumbers(entry).forEach((assignedNumber) => {
+        maxAssigned = Math.max(maxAssigned, assignedNumber);
+      });
+    });
+    return maxAssigned + 1;
+  };
+
+  const withGroupAssignedNumbers = (
+    source: AppData,
+    event: EventItem,
+    registration: RegistrationRecord
+  ): RegistrationRecord => {
+    const participants = normalizeRegistrationGroupParticipants(registration);
+    if (!event.assignNumbers) {
+      return {
+        ...registration,
+        assignedNumber: undefined,
+        groupParticipants: participants.map((participant) => ({
+          fullName: participant.fullName,
+        })),
+      };
+    }
+
+    let nextNumber = getNextAssignedNumber(source, event.id, registration.id);
+    const numberedParticipants = participants.map((participant, index) => {
+      if (typeof participant.assignedNumber === 'number') {
+        nextNumber = Math.max(nextNumber, participant.assignedNumber + 1);
+        return participant;
+      }
+      if (index === 0 && typeof registration.assignedNumber === 'number') {
+        nextNumber = Math.max(nextNumber, registration.assignedNumber + 1);
+        return {
+          ...participant,
+          assignedNumber: registration.assignedNumber,
+        };
+      }
+      const assignedNumber = nextNumber;
+      nextNumber += 1;
+      return {
+        ...participant,
+        assignedNumber,
+      };
+    });
+
+    return {
+      ...registration,
+      assignedNumber: numberedParticipants[0]?.assignedNumber,
+      groupParticipants: numberedParticipants,
+    };
+  };
+
+  const getDraftParticipantNames = (draft: RegistrationDraft): string[] => {
+    return normalizeDraftGroupParticipants(draft)
+      .map((participant) => normalizeComparableText(participant.fullName))
+      .filter(Boolean);
+  };
+
+  const getRegistrationParticipantNames = (registration: RegistrationRecord): string[] => {
+    const normalized = normalizeRegistrationGroupParticipants(registration)
+      .map((participant) => normalizeComparableText(participant.fullName))
+      .filter(Boolean);
+    return Array.from(new Set(normalized));
+  };
+
+  const findDuplicateParticipantName = (params: {
+    source: AppData;
+    eventId: string;
+    draft: RegistrationDraft;
+    excludeRegistrationId?: string;
+  }): string | null => {
+    const draftNames = getDraftParticipantNames(params.draft);
+    if (!draftNames.length) {
+      return null;
+    }
+
+    const seenInDraft = new Set<string>();
+    for (const name of draftNames) {
+      if (seenInDraft.has(name)) {
+        return name;
+      }
+      seenInDraft.add(name);
+    }
+
+    const existingNames = new Set<string>();
+    params.source.registrations.forEach((entry) => {
+      if (entry.eventId !== params.eventId) {
+        return;
+      }
+      if (params.excludeRegistrationId && entry.id === params.excludeRegistrationId) {
+        return;
+      }
+      if (
+        entry.registrationStatus === 'cancelled' ||
+        entry.registrationStatus === 'payment_failed' ||
+        entry.registrationStatus === 'refunded'
+      ) {
+        return;
+      }
+      getRegistrationParticipantNames(entry).forEach((name) => {
+        existingNames.add(name);
+      });
+    });
+
+    for (const name of draftNames) {
+      if (existingNames.has(name)) {
+        return name;
+      }
+    }
+
+    return null;
   };
 
   const ensureDraftConsents = (draft: RegistrationDraft): boolean => {
@@ -867,7 +1236,7 @@ function App() {
     }
   };
 
-  const requestOrganizerEmailOtp = async (email: string) => {
+  const requestOrganizerMagicLink = async (email: string) => {
     const normalizedEmail = cleanText(email).toLowerCase();
     if (!normalizedEmail.includes('@')) {
       showAuthAlert(t('invalid_email_title'), t('invalid_email_message'));
@@ -879,7 +1248,7 @@ function App() {
       action = await requestEmailOtp(normalizedEmail, true);
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Errore imprevisto durante invio OTP.';
+        error instanceof Error ? error.message : 'Errore imprevisto durante invio Magic Link.';
       showAuthAlert(t('organizer_security_action_fail_title'), message);
       return;
     }
@@ -894,51 +1263,6 @@ function App() {
       t('organizer_security_otp_sent'),
       'success'
     );
-  };
-
-  const verifyOrganizerEmailOtp = async (email: string, token: string) => {
-    const normalizedEmail = cleanText(email).toLowerCase();
-    if (!normalizedEmail.includes('@')) {
-      showAuthAlert(t('invalid_email_title'), t('invalid_email_message'));
-      return;
-    }
-
-    const normalizedToken = cleanText(token);
-    if (!normalizedToken) {
-      showAuthAlert(t('missing_data_title'), t('organizer_security_otp_missing'));
-      return;
-    }
-
-    let action;
-    try {
-      action = await verifyEmailOtp(normalizedEmail, normalizedToken);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Errore imprevisto durante verifica OTP.';
-      showAuthAlert(t('organizer_security_action_fail_title'), message);
-      return;
-    }
-
-    if (action.error) {
-      showAuthAlert(t('organizer_security_action_fail_title'), action.error.message);
-      return;
-    }
-
-    const securityReady = await refreshOrganizerSecurityState();
-    showAuthAlert(
-      t('organizer_security_action_fail_title'),
-      t('organizer_security_otp_verified'),
-      'success'
-    );
-    if (securityReady) {
-      const latestSecurity = await getOrganizerSecurityStatus();
-      if (latestSecurity.ok) {
-        setOrganizerSecurity(latestSecurity.data);
-        openOrganizerWorkspace(latestSecurity.data);
-        return;
-      }
-      openOrganizerWorkspace();
-    }
   };
 
   const patchOrganizerRemoteId = (organizerId: string, remoteId: string) => {
@@ -2206,6 +2530,63 @@ function App() {
     });
   };
 
+  const deleteEventPermanently = async (eventId: string) => {
+    const sourceData = appData;
+    const targetEvent = sourceData.events.find((entry) => entry.id === eventId);
+    if (!targetEvent) {
+      Alert.alert(t('event_not_found_title'), t('event_not_found_message'));
+      return;
+    }
+
+    if (!adminAccess.isAdmin) {
+      showAppAlert(t('admin_action_title'), t('event_delete_forever_admin_only'));
+      return;
+    }
+
+    const registrationIds = new Set(
+      sourceData.registrations
+        .filter((entry) => entry.eventId === eventId)
+        .map((entry) => entry.id)
+    );
+    const eventRemoteId = cleanText(targetEvent.remoteId ?? '');
+
+    const nextData: AppData = {
+      ...sourceData,
+      events: sourceData.events.filter((entry) => entry.id !== eventId),
+      registrations: sourceData.registrations.filter((entry) => entry.eventId !== eventId),
+      paymentIntents: sourceData.paymentIntents.filter(
+        (entry) => entry.eventId !== eventId && !registrationIds.has(entry.registrationId)
+      ),
+      sponsorSlots: sourceData.sponsorSlots.filter((entry) => {
+        if (entry.eventId === eventId) {
+          return false;
+        }
+        if (eventRemoteId && entry.eventRemoteId === eventRemoteId) {
+          return false;
+        }
+        return true;
+      }),
+    };
+
+    setAppData(nextData);
+
+    if (eventRemoteId) {
+      const deleteResult = await deleteEventInSupabase(eventRemoteId);
+      if (!deleteResult.ok) {
+        setAppData(sourceData);
+        showAppAlert(
+          t('sync_not_completed_title'),
+          t('event_delete_forever_fail', {
+            reason: deleteResult.reason,
+          })
+        );
+        return;
+      }
+    }
+
+    showAppAlert(t('event_delete_forever_confirm_title'), t('event_delete_forever_success'));
+  };
+
   const exportEventCsv = async (eventId: string) => {
     const sourceData = withExpiredSessionsHandled(appData);
     const event = sourceData.events.find((entry) => entry.id === eventId);
@@ -2283,24 +2664,51 @@ function App() {
       return;
     }
 
+    const normalizedEmail = cleanText(draft.email).toLowerCase();
+    const existingFreeRegistration = sourceData.registrations.find(
+      (entry) =>
+        entry.eventId === eventId &&
+        entry.email === normalizedEmail &&
+        entry.paymentAmount === 0 &&
+        (entry.registrationStatus === 'paid' ||
+          entry.registrationStatus === 'pending_payment' ||
+          entry.registrationStatus === 'pending_cash')
+    );
+    const duplicateName = findDuplicateParticipantName({
+      source: sourceData,
+      eventId,
+      draft,
+      excludeRegistrationId: existingFreeRegistration?.id,
+    });
+    if (duplicateName) {
+      Alert.alert(
+        t('participant_already_registered_title'),
+        t('participant_already_registered_message')
+      );
+      return;
+    }
+
     await showRegistrationCountdown(event);
 
     try {
       const now = new Date().toISOString();
       const groupParticipantsCount = Math.max(1, draft.groupParticipantsCount || 1);
-      const registration: RegistrationRecord = {
+      const draftGroupParticipants = normalizeDraftGroupParticipants(draft);
+      const baseRegistration: RegistrationRecord = {
         id: randomId('reg'),
         eventId,
         organizerId: event.organizerId,
         fullName: cleanText(draft.fullName),
-        email: cleanText(draft.email).toLowerCase(),
+        email: normalizedEmail,
         phone: cleanText(draft.phone),
         city: cleanText(draft.city),
         birthDate: cleanText(draft.birthDate),
         privacyConsent: draft.privacyConsent,
         retentionConsent: draft.retentionConsent,
         groupParticipantsCount,
-        assignedNumber: event.assignNumbers ? getNextAssignedNumber(sourceData, eventId) : undefined,
+        participantMessage: cleanText(draft.participantMessage),
+        groupParticipants: draftGroupParticipants,
+        assignedNumber: undefined,
         registrationCode: buildRegistrationCode(event.name),
         registrationStatus: 'paid',
         paymentIntentId: undefined,
@@ -2317,9 +2725,29 @@ function App() {
         updatedAt: now,
       };
 
+      const registration = withGroupAssignedNumbers(
+        sourceData,
+        event,
+        existingFreeRegistration
+          ? {
+              ...existingFreeRegistration,
+              ...baseRegistration,
+              id: existingFreeRegistration.id,
+              remoteId: existingFreeRegistration.remoteId,
+              registrationCode: existingFreeRegistration.registrationCode,
+              paymentIntentId: existingFreeRegistration.paymentIntentId,
+              createdAt: existingFreeRegistration.createdAt,
+            }
+          : baseRegistration
+      );
+
       const nextData: AppData = {
         ...sourceData,
-        registrations: [registration, ...sourceData.registrations],
+        registrations: existingFreeRegistration
+          ? sourceData.registrations.map((entry) =>
+              entry.id === existingFreeRegistration.id ? registration : entry
+            )
+          : [registration, ...sourceData.registrations],
       };
 
       setAppData(nextData);
@@ -2425,21 +2853,97 @@ function App() {
     }
 
     const normalizedEmail = cleanText(draft.email).toLowerCase();
-    const existingPending = sourceData.registrations.find(
-      (entry) =>
-        entry.eventId === eventId &&
-        entry.email === normalizedEmail &&
-        (entry.registrationStatus === 'pending_payment' ||
-          entry.registrationStatus === 'pending_cash') &&
-        !isPaymentSessionExpired(entry.paymentSessionExpiresAt)
-    );
+    const draftGroupParticipants = normalizeDraftGroupParticipants(draft);
+    const editingRegistrationId =
+      screen.name === 'participantRegister' ? screen.registrationId : undefined;
+    const pendingFromEdit = editingRegistrationId
+      ? sourceData.registrations.find(
+          (entry) =>
+            entry.id === editingRegistrationId &&
+            entry.eventId === eventId &&
+            (entry.registrationStatus === 'pending_payment' ||
+              entry.registrationStatus === 'pending_cash') &&
+            !isPaymentSessionExpired(entry.paymentSessionExpiresAt)
+        )
+      : undefined;
 
-    if (existingPending) {
-      Alert.alert(
-        t('existing_pending_title'),
-        t('existing_pending_message')
+    if (editingRegistrationId && !pendingFromEdit) {
+      Alert.alert(t('session_not_found_title'), t('session_not_found_message'));
+      setScreen({ name: 'participantSearch' });
+      return;
+    }
+
+    const existingPending =
+      pendingFromEdit ??
+      sourceData.registrations.find(
+        (entry) =>
+          entry.eventId === eventId &&
+          entry.email === normalizedEmail &&
+          (entry.registrationStatus === 'pending_payment' ||
+            entry.registrationStatus === 'pending_cash') &&
+          !isPaymentSessionExpired(entry.paymentSessionExpiresAt)
       );
-      setScreen({ name: 'participantPayment', registrationId: existingPending.id });
+    const existingPaidByEmail = pendingFromEdit
+      ? undefined
+      : sourceData.registrations
+          .filter(
+            (entry) =>
+              entry.eventId === eventId &&
+              entry.email === normalizedEmail &&
+              entry.registrationStatus === 'paid'
+          )
+          .sort((first, second) => second.updatedAt.localeCompare(first.updatedAt))[0];
+
+    const duplicateName = findDuplicateParticipantName({
+      source: sourceData,
+      eventId,
+      draft,
+      excludeRegistrationId:
+        pendingFromEdit?.id ?? existingPending?.id ?? existingPaidByEmail?.id,
+    });
+    if (duplicateName) {
+      Alert.alert(
+        t('participant_already_registered_title'),
+        t('participant_already_registered_message')
+      );
+      return;
+    }
+
+    if (existingPaidByEmail) {
+      const now = new Date().toISOString();
+      const updatedPaidRegistration = withGroupAssignedNumbers(sourceData, event, {
+        ...existingPaidByEmail,
+        fullName: cleanText(draft.fullName),
+        email: normalizedEmail,
+        phone: cleanText(draft.phone),
+        city: cleanText(draft.city),
+        birthDate: cleanText(draft.birthDate),
+        privacyConsent: draft.privacyConsent,
+        retentionConsent: draft.retentionConsent,
+        groupParticipantsCount: Math.max(1, draft.groupParticipantsCount || 1),
+        participantMessage: cleanText(draft.participantMessage),
+        groupParticipants: draftGroupParticipants,
+        updatedAt: now,
+      });
+
+      const nextData: AppData = {
+        ...sourceData,
+        registrations: sourceData.registrations.map((entry) =>
+          entry.id === existingPaidByEmail.id ? updatedPaidRegistration : entry
+        ),
+      };
+
+      setAppData(nextData);
+      const syncResult = await syncRegistrationRecord(nextData, updatedPaidRegistration);
+      Alert.alert(
+        t('registration_updated_title'),
+        t('registration_updated_message', {
+          sync: syncResult.ok
+            ? t('sync_state_ok')
+            : t('sync_state_fail', { reason: syncResult.reason }),
+        })
+      );
+      setScreen({ name: 'participantSearch' });
       return;
     }
 
@@ -2448,16 +2952,20 @@ function App() {
     try {
       const now = new Date().toISOString();
       const groupParticipantsCount = Math.max(1, draft.groupParticipantsCount || 1);
-      const registrationId = randomId('reg');
-      const paymentIntentId = randomId('pi');
       const expiresAt = addMinutesIso(PAYMENT_SESSION_MINUTES);
       const paymentAmount = Number.parseFloat((event.feeAmount * groupParticipantsCount).toFixed(2));
       const commissionAmount = Number.parseFloat(
         (event.baseFeeAmount * groupParticipantsCount * COMMISSION_RATE).toFixed(2)
       );
+      const registrationId = existingPending?.id ?? randomId('reg');
+      const existingIntent = existingPending?.paymentIntentId
+        ? sourceData.paymentIntents.find((entry) => entry.id === existingPending.paymentIntentId)
+        : undefined;
+      const paymentIntentId = existingIntent?.id ?? randomId('pi');
 
       const registration: RegistrationRecord = {
         id: registrationId,
+        remoteId: existingPending?.remoteId,
         eventId,
         organizerId: event.organizerId,
         fullName: cleanText(draft.fullName),
@@ -2468,8 +2976,10 @@ function App() {
         privacyConsent: draft.privacyConsent,
         retentionConsent: draft.retentionConsent,
         groupParticipantsCount,
+        participantMessage: cleanText(draft.participantMessage),
+        groupParticipants: draftGroupParticipants,
         assignedNumber: undefined,
-        registrationCode: buildRegistrationCode(event.name),
+        registrationCode: existingPending?.registrationCode ?? buildRegistrationCode(event.name),
         registrationStatus: 'pending_payment',
         paymentIntentId,
         paymentStatus: 'pending',
@@ -2481,32 +2991,53 @@ function App() {
         paymentFailedReason: undefined,
         refundedAt: undefined,
         commissionAmount,
-        createdAt: now,
+        createdAt: existingPending?.createdAt ?? now,
         updatedAt: now,
       };
 
-      const paymentIntent: PaymentIntentRecord = {
-        id: paymentIntentId,
-        registrationId,
-        eventId,
-        organizerId: event.organizerId,
-        provider: 'stripe',
-        currency: 'EUR',
-        amount: paymentAmount,
-        status: 'pending',
-        idempotencyKey: randomId('idem'),
-        providerPaymentIntentId: undefined,
-        webhookEventId: undefined,
-        failureReason: undefined,
-        expiresAt,
-        createdAt: now,
-        updatedAt: now,
-      };
+      const paymentIntent: PaymentIntentRecord = existingIntent
+        ? {
+            ...existingIntent,
+            registrationId,
+            eventId,
+            organizerId: event.organizerId,
+            provider: 'stripe',
+            amount: paymentAmount,
+            status: 'pending',
+            failureReason: undefined,
+            expiresAt,
+            updatedAt: now,
+          }
+        : {
+            id: paymentIntentId,
+            registrationId,
+            eventId,
+            organizerId: event.organizerId,
+            provider: 'stripe',
+            currency: 'EUR',
+            amount: paymentAmount,
+            status: 'pending',
+            idempotencyKey: randomId('idem'),
+            providerPaymentIntentId: undefined,
+            webhookEventId: undefined,
+            failureReason: undefined,
+            expiresAt,
+            createdAt: now,
+            updatedAt: now,
+          };
 
       const nextData: AppData = {
         ...sourceData,
-        registrations: [registration, ...sourceData.registrations],
-        paymentIntents: [paymentIntent, ...sourceData.paymentIntents],
+        registrations: existingPending
+          ? sourceData.registrations.map((entry) =>
+              entry.id === existingPending.id ? registration : entry
+            )
+          : [registration, ...sourceData.registrations],
+        paymentIntents: existingIntent
+          ? sourceData.paymentIntents.map((entry) =>
+              entry.id === existingIntent.id ? paymentIntent : entry
+            )
+          : [paymentIntent, ...sourceData.paymentIntents],
       };
 
       setAppData(nextData);
@@ -2521,7 +3052,7 @@ function App() {
           return;
         }
       }
-      setScreen({ name: 'participantPayment', registrationId });
+      setScreen({ name: 'participantPayment', registrationId: registration.id });
     } finally {
       setProcessingInterstitial(null);
     }
@@ -2662,7 +3193,7 @@ function App() {
 
       const remote = checkout.data;
       const now = new Date().toISOString();
-      const updatedRegistration: RegistrationRecord = {
+      const baseUpdatedRegistration: RegistrationRecord = {
         ...registration,
         remoteId: remote.remoteRegistrationId,
         registrationStatus: remote.registrationStatus,
@@ -2681,29 +3212,33 @@ function App() {
         refundedAt: remote.refundedAt ?? registration.refundedAt,
         updatedAt: now,
       };
+      const updatedRegistration =
+        remote.registrationStatus === 'paid'
+          ? withGroupAssignedNumbers(sourceData, event, baseUpdatedRegistration)
+          : baseUpdatedRegistration;
 
-      setAppData((current) => {
-        return {
-          ...current,
-          registrations: current.registrations.map((entry) =>
-            entry.id === registrationId ? { ...entry, ...updatedRegistration } : entry
-          ),
-          paymentIntents: current.paymentIntents.map((entry) =>
-            entry.id === paymentIntent.id
-              ? {
-                  ...entry,
-                  provider: 'stripe',
-                  status: remote.paymentStatus,
-                  providerPaymentIntentId:
-                    remote.providerPaymentIntentId ?? entry.providerPaymentIntentId,
-                  failureReason: remote.paymentFailedReason ?? undefined,
-                  expiresAt: remote.sessionExpiresAt ?? entry.expiresAt,
-                  updatedAt: now,
-                }
-              : entry
-          ),
-        };
-      });
+      const nextData: AppData = {
+        ...sourceData,
+        registrations: sourceData.registrations.map((entry) =>
+          entry.id === registrationId ? { ...entry, ...updatedRegistration } : entry
+        ),
+        paymentIntents: sourceData.paymentIntents.map((entry) =>
+          entry.id === paymentIntent.id
+            ? {
+                ...entry,
+                provider: 'stripe',
+                status: remote.paymentStatus,
+                providerPaymentIntentId:
+                  remote.providerPaymentIntentId ?? entry.providerPaymentIntentId,
+                failureReason: remote.paymentFailedReason ?? undefined,
+                expiresAt: remote.sessionExpiresAt ?? entry.expiresAt,
+                updatedAt: now,
+              }
+            : entry
+        ),
+      };
+
+      setAppData(nextData);
 
       if (remote.state === 'checkout') {
         if (!remote.checkoutUrl) {
@@ -2748,6 +3283,8 @@ function App() {
         return;
       }
 
+      const paidSync = await syncRegistrationRecord(nextData, updatedRegistration);
+
       const emailResult = await sendConfirmationEmail({
         participantEmail: updatedRegistration.email,
         participantName: updatedRegistration.fullName,
@@ -2775,7 +3312,9 @@ function App() {
               ? t('number_assigned_line', { number: updatedRegistration.assignedNumber })
               : '',
           email: emailText,
-          sync: t('sync_state_ok'),
+          sync: paidSync.ok
+            ? t('sync_state_ok')
+            : t('sync_state_fail', { reason: paidSync.reason }),
         })}${
           updatedRegistration.groupParticipantsCount > 1
             ? `\n${t('group_participants_line', {
@@ -2809,12 +3348,12 @@ function App() {
         };
 
     const applied = applyPaymentWebhook(sourceData, webhookPayload, {
-      assignNumber: (_, eventId) => {
+      assignNumber: (registrationIdToAssign, eventId) => {
         const lookupEvent = sourceData.events.find((entry) => entry.id === eventId);
         if (!lookupEvent || !lookupEvent.assignNumbers) {
           return undefined;
         }
-        return getNextAssignedNumber(sourceData, eventId);
+        return getNextAssignedNumber(sourceData, eventId, registrationIdToAssign);
       },
     });
 
@@ -2824,13 +3363,14 @@ function App() {
     }
 
     const now = new Date().toISOString();
+    const refreshedEvent = sourceData.events.find((entry) => entry.id === registration.eventId);
     const enrichedData: AppData = {
       ...applied.nextData,
       registrations: applied.nextData.registrations.map((entry) => {
         if (entry.id !== registrationId) {
           return entry;
         }
-        return {
+        const updatedEntry: RegistrationRecord = {
           ...entry,
           paymentMethod: payment.method,
           paymentReference:
@@ -2839,6 +3379,10 @@ function App() {
             `STRIPE-${Date.now().toString().slice(-8)}`,
           updatedAt: now,
         };
+        if (updatedEntry.registrationStatus === 'paid' && refreshedEvent) {
+          return withGroupAssignedNumbers(applied.nextData, refreshedEvent, updatedEntry);
+        }
+        return updatedEntry;
       }),
     };
 
@@ -2992,25 +3536,21 @@ function App() {
     }
 
     const now = new Date().toISOString();
-    const assignedNumber =
-      event.assignNumbers && typeof registration.assignedNumber !== 'number'
-        ? getNextAssignedNumber(sourceData, event.id)
-        : registration.assignedNumber;
+    const paidRegistration = withGroupAssignedNumbers(sourceData, event, {
+      ...registration,
+      registrationStatus: 'paid',
+      paymentStatus: 'captured',
+      paymentMethod: 'cash',
+      paymentCapturedAt: now,
+      paymentFailedReason: undefined,
+      updatedAt: now,
+    });
 
     const nextData: AppData = {
       ...sourceData,
       registrations: sourceData.registrations.map((entry) =>
         entry.id === registrationId
-          ? {
-              ...entry,
-              registrationStatus: 'paid',
-              paymentStatus: 'captured',
-              paymentMethod: 'cash',
-              assignedNumber,
-              paymentCapturedAt: now,
-              paymentFailedReason: undefined,
-              updatedAt: now,
-            }
+          ? paidRegistration
           : entry
       ),
       paymentIntents: sourceData.paymentIntents.map((entry) =>
@@ -3034,13 +3574,13 @@ function App() {
       : { ok: false as const, reason: t('update_error_message') };
 
     const emailResult = await sendConfirmationEmail({
-      participantEmail: registration.email,
-      participantName: registration.fullName,
+      participantEmail: paidRegistration.email,
+      participantName: paidRegistration.fullName,
       eventName: event.name,
-      amount: registration.paymentAmount,
-      registrationCode: registration.registrationCode,
-      assignedNumber,
-      groupParticipantsCount: registration.groupParticipantsCount,
+      amount: paidRegistration.paymentAmount,
+      registrationCode: paidRegistration.registrationCode,
+      assignedNumber: paidRegistration.assignedNumber,
+      groupParticipantsCount: paidRegistration.groupParticipantsCount,
     });
 
     const emailText = !emailResult.sent
@@ -3057,16 +3597,16 @@ function App() {
     Alert.alert(
       t('cash_payment_confirmed_title'),
       `${t('cash_payment_confirmed_message', {
-        code: registration.registrationCode,
+        code: paidRegistration.registrationCode,
         number:
-          typeof assignedNumber === 'number'
-            ? t('number_assigned_line', { number: assignedNumber })
+          typeof paidRegistration.assignedNumber === 'number'
+            ? t('number_assigned_line', { number: paidRegistration.assignedNumber })
             : '',
         email: emailText,
         sync: syncText,
       })}${
-        registration.groupParticipantsCount > 1
-          ? `\n${t('group_participants_line', { count: registration.groupParticipantsCount })}`
+        paidRegistration.groupParticipantsCount > 1
+          ? `\n${t('group_participants_line', { count: paidRegistration.groupParticipantsCount })}`
           : ''
       }`
     );
@@ -3130,11 +3670,8 @@ function App() {
             status={organizerSecurity}
             notice={authNotice}
             onBack={() => setScreen({ name: 'role' })}
-            onEmailOtpRequest={async (email) => {
-              await requestOrganizerEmailOtp(email);
-            }}
-            onEmailOtpVerify={async (email, token) => {
-              await verifyOrganizerEmailOtp(email, token);
+            onEmailMagicLinkRequest={async (email) => {
+              await requestOrganizerMagicLink(email);
             }}
             onGoogleSignIn={async () => {
               await signInOrganizerWithOAuth('google');
@@ -3188,6 +3725,9 @@ function App() {
         return organizerForScreen ? (
           <OrganizerDashboardScreen
             organizer={organizerForScreen}
+            isAdmin={adminAccess.isAdmin}
+            canManageAdmins={adminAccess.canManageAdmins}
+            adminUsers={adminUsers}
             events={appData.events.filter((event) => event.organizerId === organizerForScreen.id)}
             registrations={appData.registrations}
             paymentIntents={appData.paymentIntents}
@@ -3203,6 +3743,7 @@ function App() {
             onToggleEventRegistrations={toggleEventRegistrations}
             onCloseEvent={closeEventCompletely}
             onReopenEvent={reopenEventForNewSeason}
+            onDeleteEventPermanently={deleteEventPermanently}
             onExportEvent={exportEventCsv}
             onExportEventPdf={exportEventPdf}
             onConfirmCashPayment={confirmCashRegistrationByOrganizer}
@@ -3214,6 +3755,11 @@ function App() {
             onSyncStripeConnect={syncStripeConnectForOrganizer}
             onActivateSponsorModule={activateSponsorModuleForOrganizer}
             onCreateSponsorCheckout={createSponsorCheckoutForEvent}
+            onRefreshAdminUsers={async () => {
+              await refreshAdminUsers(true);
+            }}
+            onGrantAdmin={grantPlatformAdmin}
+            onRevokeAdmin={revokePlatformAdmin}
             t={t}
             language={language}
           />
@@ -3257,6 +3803,8 @@ function App() {
         return participantEventForRegister ? (
           <ParticipantRegistrationScreen
             event={participantEventForRegister}
+            initialDraft={participantDraftForEdit}
+            isEditing={Boolean(participantRegistrationForEdit)}
             onBack={() => setScreen({ name: 'participantSearch' })}
             onCompleteFree={(draft) => completeFreeRegistration(participantEventForRegister.id, draft)}
             onProceedPayment={(draft) => openPaidRegistration(participantEventForRegister.id, draft)}
@@ -3275,7 +3823,20 @@ function App() {
           <ParticipantPaymentScreen
             event={participantEventForPayment}
             registration={participantRegistrationForPayment}
-            onBack={() => setScreen({ name: 'participantRegister', eventId: participantEventForPayment.id })}
+            onBack={() =>
+              setScreen({
+                name: 'participantRegister',
+                eventId: participantEventForPayment.id,
+                registrationId: participantRegistrationForPayment.id,
+              })
+            }
+            onEditRegistration={() =>
+              setScreen({
+                name: 'participantRegister',
+                eventId: participantEventForPayment.id,
+                registrationId: participantRegistrationForPayment.id,
+              })
+            }
             onConfirm={(payment) => confirmPaidRegistration(participantRegistrationForPayment.id, payment)}
             onCancel={() => cancelPendingRegistration(participantRegistrationForPayment.id)}
             t={t}

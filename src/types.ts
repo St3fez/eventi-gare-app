@@ -24,6 +24,11 @@ export type RegistrationStatus =
   | 'payment_failed'
   | 'refunded';
 
+export type GroupParticipant = {
+  fullName: string;
+  assignedNumber?: number;
+};
+
 export type SponsorSlotStatus =
   | 'pending_payment'
   | 'active'
@@ -74,7 +79,7 @@ export type ScreenState =
   | { name: 'organizerDashboard'; organizerId: string }
   | { name: 'participantAuth' }
   | { name: 'participantSearch' }
-  | { name: 'participantRegister'; eventId: string }
+  | { name: 'participantRegister'; eventId: string; registrationId?: string }
   | { name: 'participantPayment'; registrationId: string };
 
 export type OrganizerVerificationChecklist = {
@@ -116,6 +121,14 @@ export type OrganizerProfile = {
   riskScore: number;
   riskFlags: string[];
   verificationChecklist: OrganizerVerificationChecklist;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminUser = {
+  email: string;
+  canManageAdmins: boolean;
+  active: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -172,6 +185,8 @@ export type RegistrationRecord = {
   privacyConsent: boolean;
   retentionConsent: boolean;
   groupParticipantsCount: number;
+  participantMessage?: string;
+  groupParticipants: GroupParticipant[];
   assignedNumber?: number;
   registrationCode: string;
   registrationStatus: RegistrationStatus;
@@ -272,6 +287,8 @@ export type RegistrationDraft = {
   city: string;
   birthDate: string;
   groupParticipantsCount: number;
+  participantMessage: string;
+  groupParticipants: string[];
   privacyConsent: boolean;
   retentionConsent: boolean;
 };

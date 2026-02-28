@@ -58,6 +58,9 @@ Build AAB release per Play Console (test chiuso):
 ./scripts/build-play-aab.ps1
 ```
 
+Lo script esegue `expo prebuild --platform android` prima del bundle per sincronizzare
+config native (incluso AdMob). Usa `-SkipPrebuild` solo se hai gia sincronizzato il progetto.
+
 Build separato per canale:
 ```powershell
 # PRODUZIONE (sicura)
@@ -109,10 +112,21 @@ Variabile:
 - `EXPO_PUBLIC_ORGANIZER_TEST_MODE` (`true/false`)
 - `EXPO_PUBLIC_ORGANIZER_SECURITY_ENFORCED` (`true/false`)
 - `EXPO_PUBLIC_DEMO_ALL_OPEN` (`true/false`)
+- `EXPO_PUBLIC_ADMOB_ENABLED` (`true/false`)
+- `EXPO_PUBLIC_ADMOB_TEST_MODE` (`true/false`)
+- `ADMOB_ANDROID_APP_ID` (App ID AdMob Android, formato `ca-app-pub-...~...`)
+- `ADMOB_IOS_APP_ID` (App ID AdMob iOS, formato `ca-app-pub-...~...`)
+- `EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID_ANDROID`
+- `EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID_IOS`
+- `EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID_ANDROID`
+- `EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID_IOS`
 
 Template consigliati:
 - `.env.prod.example`
 - `.env.demo.example`
+
+Per build native Android/iOS, AdMob viene configurato via `app.config.js` con plugin
+`react-native-google-mobile-ads` usando gli App ID sopra.
 
 Se non configurato, l'app usa modalita simulata (conferma comunque il completamento iscrizione).
 

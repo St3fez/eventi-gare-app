@@ -15,7 +15,7 @@ Optional secrets:
 
 ## Deploy
 ```bash
-supabase functions deploy stripe-connect-sync
+supabase functions deploy stripe-connect-sync --no-verify-jwt
 ```
 
 ## Notes
