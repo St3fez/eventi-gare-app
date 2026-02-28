@@ -1936,17 +1936,41 @@ function App() {
 
       if (sameSessionOwner) {
         const nowIso = new Date().toISOString();
+        const nextOrganizationRole = payload.organizationRole ?? existingOrganizerByEmail.organizationRole;
+        const nextOrganizationRoleLabel =
+          nextOrganizationRole === 'altro'
+            ? cleanText(payload.organizationRoleLabel ?? existingOrganizerByEmail.organizationRoleLabel ?? '')
+            : '';
         const organizerForSync: OrganizerProfile = {
           ...existingOrganizerByEmail,
           userId: ownerUserId ?? existingOrganizerByEmail.userId,
           email,
+          organizationName: cleanText(payload.organizationName ?? existingOrganizerByEmail.organizationName ?? ''),
+          organizationRole: nextOrganizationRole,
+          organizationRoleLabel: nextOrganizationRoleLabel,
+          legalRepresentative: cleanText(
+            payload.legalRepresentative ?? existingOrganizerByEmail.legalRepresentative ?? ''
+          ),
+          officialPhone: cleanText(payload.officialPhone ?? existingOrganizerByEmail.officialPhone ?? ''),
+          fiscalData: cleanText(payload.fiscalData ?? existingOrganizerByEmail.fiscalData ?? ''),
+          bankAccount: cleanText(payload.bankAccount ?? existingOrganizerByEmail.bankAccount ?? ''),
           updatedAt: nowIso,
         };
 
         const shouldSyncExisting =
           !organizerForSync.remoteId ||
           organizerForSync.email !== existingOrganizerByEmail.email ||
-          organizerForSync.userId !== existingOrganizerByEmail.userId;
+          organizerForSync.userId !== existingOrganizerByEmail.userId ||
+          organizerForSync.organizationName !==
+            cleanText(existingOrganizerByEmail.organizationName ?? '') ||
+          organizerForSync.organizationRole !== existingOrganizerByEmail.organizationRole ||
+          organizerForSync.organizationRoleLabel !==
+            cleanText(existingOrganizerByEmail.organizationRoleLabel ?? '') ||
+          organizerForSync.legalRepresentative !==
+            cleanText(existingOrganizerByEmail.legalRepresentative ?? '') ||
+          organizerForSync.officialPhone !== cleanText(existingOrganizerByEmail.officialPhone ?? '') ||
+          organizerForSync.fiscalData !== cleanText(existingOrganizerByEmail.fiscalData ?? '') ||
+          organizerForSync.bankAccount !== cleanText(existingOrganizerByEmail.bankAccount ?? '');
 
         if (shouldSyncExisting) {
           const organizerSync = await upsertOrganizerInSupabase(organizerForSync);
@@ -1961,20 +1985,19 @@ function App() {
               entry.id === existingOrganizerByEmail.id
                 ? {
                     ...entry,
-                    userId: organizerForSync.userId,
+                    ...organizerForSync,
                     email: organizerSync.data.email,
                     remoteId: organizerSync.data.id,
-                    updatedAt: nowIso,
                   }
                 : entry
             ),
           }));
-        } else if (ownerUserId && !existingOrganizerByEmail.userId) {
+        } else {
           setAppData((current) => ({
             ...current,
             organizers: current.organizers.map((entry) =>
               entry.id === existingOrganizerByEmail.id
-                ? { ...entry, userId: ownerUserId, updatedAt: nowIso }
+                ? { ...entry, ...organizerForSync }
                 : entry
             ),
           }));
