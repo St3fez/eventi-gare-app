@@ -308,6 +308,8 @@ const addYearsIso = (isoDate: string, years: number): string => {
   return parsed.toISOString().slice(0, 10);
 };
 
+const STRICT_SUPABASE_MODE = !IS_DEMO_CHANNEL;
+
 const normalizeOrganizerRoleFromCatalog = (
   value: string | null | undefined,
   fallback: OrganizerProfile['organizationRole']
@@ -363,7 +365,8 @@ const mergeOrganizerCatalogFromSupabase = (
   catalog: {
     organizers: OrganizerCatalogOrganizerRow[];
     events: OrganizerCatalogEventRow[];
-  }
+  },
+  strictMode = false
 ): AppData => {
   const nextOrganizers = [...source.organizers];
   const organizerIndexByRemoteId = new Map<string, number>();
@@ -653,10 +656,61 @@ const mergeOrganizerCatalogFromSupabase = (
     }
   }
 
+  if (!strictMode) {
+    return {
+      ...source,
+      organizers: nextOrganizers,
+      events: nextEvents,
+    };
+  }
+
+  const catalogOrganizerRemoteIds = new Set(
+    catalog.organizers.map((entry) => cleanText(entry.id)).filter(Boolean)
+  );
+  const catalogEventRemoteIds = new Set(
+    catalog.events.map((entry) => cleanText(entry.id)).filter(Boolean)
+  );
+
+  const strictOrganizers = nextOrganizers.filter((organizer) => {
+    const remoteId = cleanText(organizer.remoteId ?? '');
+    return Boolean(remoteId) && catalogOrganizerRemoteIds.has(remoteId);
+  });
+  const strictOrganizerIds = new Set(strictOrganizers.map((entry) => entry.id));
+
+  const strictEvents = nextEvents.filter((event) => {
+    const remoteId = cleanText(event.remoteId ?? '');
+    return (
+      Boolean(remoteId) &&
+      catalogEventRemoteIds.has(remoteId) &&
+      strictOrganizerIds.has(event.organizerId)
+    );
+  });
+  const strictEventIds = new Set(strictEvents.map((entry) => entry.id));
+
+  const strictRegistrations = source.registrations.filter((entry) =>
+    strictEventIds.has(entry.eventId)
+  );
+  const strictRegistrationIds = new Set(strictRegistrations.map((entry) => entry.id));
+
+  const strictPaymentIntents = source.paymentIntents.filter(
+    (entry) => strictEventIds.has(entry.eventId) && strictRegistrationIds.has(entry.registrationId)
+  );
+
+  const strictSponsorSlots = source.sponsorSlots.filter((slot) => {
+    if (strictEventIds.has(slot.eventId)) {
+      return true;
+    }
+    const remoteEventId = cleanText(slot.eventRemoteId ?? '');
+    return Boolean(remoteEventId) && catalogEventRemoteIds.has(remoteEventId);
+  });
+
   return {
     ...source,
-    organizers: nextOrganizers,
-    events: nextEvents,
+    organizers: strictOrganizers,
+    events: strictEvents,
+    registrations: strictRegistrations,
+    paymentIntents: strictPaymentIntents,
+    sponsorSlots: strictSponsorSlots,
   };
 };
 
@@ -840,7 +894,9 @@ function App() {
         return;
       }
 
-      setAppData((current) => mergeOrganizerCatalogFromSupabase(current, catalogResult.data));
+      setAppData((current) =>
+        mergeOrganizerCatalogFromSupabase(current, catalogResult.data, STRICT_SUPABASE_MODE)
+      );
     };
 
     void refreshCatalog();
@@ -2220,6 +2276,14 @@ function App() {
     setAppData(nextData);
 
     const syncResult = await syncEventRecord(nextData, event);
+    if (!syncResult.ok && STRICT_SUPABASE_MODE) {
+      setAppData(appData);
+      Alert.alert(
+        t('sync_not_completed_title'),
+        t('sync_not_completed_message', { reason: syncResult.reason })
+      );
+      return;
+    }
     const syncNote = syncResult.ok
       ? t('event_sync_ok')
       : t('event_sync_fail', { reason: syncResult.reason });
@@ -2837,6 +2901,9 @@ function App() {
     setAppData(nextData);
     const syncResult = await syncEventRecord(nextData, updatedEvent);
     if (!syncResult.ok) {
+      if (STRICT_SUPABASE_MODE) {
+        setAppData(sourceData);
+      }
       Alert.alert(t('sync_not_completed_title'), syncResult.reason);
     }
   };
@@ -2860,6 +2927,9 @@ function App() {
     setAppData(nextData);
     const syncResult = await syncEventRecord(nextData, updatedEvent);
     if (!syncResult.ok) {
+      if (STRICT_SUPABASE_MODE) {
+        setAppData(sourceData);
+      }
       Alert.alert(t('sync_not_completed_title'), syncResult.reason);
     }
   };
@@ -2887,6 +2957,9 @@ function App() {
     setAppData(nextData);
     const syncResult = await syncEventRecord(nextData, updatedEvent);
     if (!syncResult.ok) {
+      if (STRICT_SUPABASE_MODE) {
+        setAppData(sourceData);
+      }
       Alert.alert(t('sync_not_completed_title'), syncResult.reason);
       return;
     }
@@ -2941,6 +3014,9 @@ function App() {
 
     const syncResult = await syncEventRecord(nextData, updatedEvent);
     if (!syncResult.ok) {
+      if (STRICT_SUPABASE_MODE) {
+        setAppData(sourceData);
+      }
       Alert.alert(t('sync_not_completed_title'), syncResult.reason);
       return;
     }
