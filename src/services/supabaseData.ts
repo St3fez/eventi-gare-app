@@ -152,6 +152,48 @@ const EVENT_CATALOG_SELECT_EXTENDED =
 const EVENT_CATALOG_SELECT_LEGACY =
   'id,organizer_id,name,location,event_date,is_free,fee_amount,privacy_text,logo_url,local_sponsor,assign_numbers,active,created_at,updated_at';
 
+const REGISTRATION_SELECT_EXTENDED =
+  'id,event_id,organizer_id,full_name,participant_email,phone,city,birth_date,privacy_consent,retention_consent,group_participants_count,group_participants,participant_message_to_organizer,assigned_number,registration_code,registration_status,payment_status,payment_amount,payment_method,payment_reference,payment_session_expires_at,payment_captured_at,payment_failed_reason,refunded_at,commission_amount,created_at,updated_at';
+
+const REGISTRATION_SELECT_LEGACY =
+  'id,event_id,organizer_id,full_name,participant_email,phone,city,birth_date,privacy_consent,retention_consent,group_participants_count,assigned_number,registration_code,registration_status,payment_status,payment_amount,payment_method,payment_reference,payment_session_expires_at,payment_captured_at,payment_failed_reason,refunded_at,commission_amount,created_at,updated_at';
+
+const isUnsupportedRegistrationFieldError = (message: string): boolean =>
+  /participant_message_to_organizer|group_participants/i.test(message);
+
+export type ParticipantRegistrationRow = {
+  id: string;
+  event_id: string;
+  organizer_id: string;
+  full_name: string;
+  participant_email: string;
+  phone: string | null;
+  city: string | null;
+  birth_date: string | null;
+  privacy_consent: boolean;
+  retention_consent: boolean;
+  group_participants_count: number;
+  group_participants?: Array<{
+    full_name?: string | null;
+    assigned_number?: number | null;
+  }> | null;
+  participant_message_to_organizer?: string | null;
+  assigned_number: number | null;
+  registration_code: string;
+  registration_status: RegistrationRecord['registrationStatus'];
+  payment_status: RegistrationRecord['paymentStatus'] | null;
+  payment_amount: number;
+  payment_method: string | null;
+  payment_reference: string | null;
+  payment_session_expires_at: string | null;
+  payment_captured_at: string | null;
+  payment_failed_reason: string | null;
+  refunded_at: string | null;
+  commission_amount: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export const listOrganizerCatalogFromSupabase = async (): Promise<
   SyncResult<{
     organizers: OrganizerCatalogOrganizerRow[];
@@ -246,6 +288,97 @@ export const listOrganizerCatalogFromSupabase = async (): Promise<
       organizers: organizersData,
       events: eventsData,
     },
+  };
+};
+
+export const listPublicEventsFromSupabase = async (): Promise<
+  SyncResult<OrganizerCatalogEventRow[]>
+> => {
+  if (!supabase) {
+    return fail('Supabase non configurato.');
+  }
+
+  let eventsData: OrganizerCatalogEventRow[] = [];
+  let eventsError: Error | null = null;
+
+  const eventsExtended = await supabase
+    .from('events')
+    .select(EVENT_CATALOG_SELECT_EXTENDED)
+    .eq('active', true)
+    .order('event_date', { ascending: true });
+
+  if (eventsExtended.error) {
+    if (isUnsupportedEventFieldError(eventsExtended.error.message)) {
+      const eventsLegacy = await supabase
+        .from('events')
+        .select(EVENT_CATALOG_SELECT_LEGACY)
+        .eq('active', true)
+        .order('event_date', { ascending: true });
+      eventsData = (eventsLegacy.data ?? []) as OrganizerCatalogEventRow[];
+      eventsError = eventsLegacy.error;
+    } else {
+      eventsError = eventsExtended.error;
+    }
+  } else {
+    eventsData = (eventsExtended.data ?? []) as OrganizerCatalogEventRow[];
+  }
+
+  if (eventsError) {
+    return fail(`Lettura eventi pubblici fallita: ${eventsError.message}`);
+  }
+
+  return {
+    ok: true,
+    data: eventsData,
+  };
+};
+
+export const listParticipantRegistrationsFromSupabase = async (): Promise<
+  SyncResult<ParticipantRegistrationRow[]>
+> => {
+  if (!supabase) {
+    return fail('Supabase non configurato.');
+  }
+
+  const auth = await ensureSupabaseUser({
+    allowAnonymous: false,
+  });
+  if (!auth.ok) {
+    return fail(auth.reason);
+  }
+
+  let registrationsData: ParticipantRegistrationRow[] = [];
+  let registrationsError: Error | null = null;
+
+  const registrationsExtended = await supabase
+    .from('registrations')
+    .select(REGISTRATION_SELECT_EXTENDED)
+    .eq('participant_user_id', auth.data.userId)
+    .order('created_at', { ascending: false });
+
+  if (registrationsExtended.error) {
+    if (isUnsupportedRegistrationFieldError(registrationsExtended.error.message)) {
+      const registrationsLegacy = await supabase
+        .from('registrations')
+        .select(REGISTRATION_SELECT_LEGACY)
+        .eq('participant_user_id', auth.data.userId)
+        .order('created_at', { ascending: false });
+      registrationsData = (registrationsLegacy.data ?? []) as ParticipantRegistrationRow[];
+      registrationsError = registrationsLegacy.error;
+    } else {
+      registrationsError = registrationsExtended.error;
+    }
+  } else {
+    registrationsData = (registrationsExtended.data ?? []) as ParticipantRegistrationRow[];
+  }
+
+  if (registrationsError) {
+    return fail(`Lettura iscrizioni partecipante fallita: ${registrationsError.message}`);
+  }
+
+  return {
+    ok: true,
+    data: registrationsData,
   };
 };
 

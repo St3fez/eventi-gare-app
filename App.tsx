@@ -20,6 +20,7 @@ import {
   IS_DEMO_CHANNEL,
   ORGANIZER_SECURITY_ENFORCED,
   ORGANIZER_TEST_MODE,
+  PARTICIPANT_SECURITY_ENFORCED,
   PAID_FEATURE_UNLOCK_CONTACT,
   PAYMENT_SESSION_MINUTES,
   SPONSOR_MODULE_ACTIVATION_EUR,
@@ -67,9 +68,12 @@ import {
   deleteEventInSupabase,
   ensureSupabaseUser,
   insertEventInSupabase,
+  listParticipantRegistrationsFromSupabase,
+  listPublicEventsFromSupabase,
   listOrganizerCatalogFromSupabase,
   OrganizerCatalogEventRow,
   OrganizerCatalogOrganizerRow,
+  ParticipantRegistrationRow,
   updateEventInSupabase,
   upsertOrganizerInSupabase,
   upsertRegistrationInSupabase,
@@ -714,6 +718,274 @@ const mergeOrganizerCatalogFromSupabase = (
   };
 };
 
+const mergePublicEventsFromSupabase = (
+  source: AppData,
+  events: OrganizerCatalogEventRow[]
+): AppData => {
+  const organizerPlaceholdersByRemoteId = new Map<string, OrganizerCatalogOrganizerRow>();
+  const nowIso = new Date().toISOString();
+
+  events.forEach((row) => {
+    const organizerRemoteId = cleanText(row.organizer_id);
+    if (!organizerRemoteId || organizerPlaceholdersByRemoteId.has(organizerRemoteId)) {
+      return;
+    }
+
+    const existing = source.organizers.find(
+      (entry) => cleanText(entry.remoteId ?? '') === organizerRemoteId
+    );
+    const safeSuffix = organizerRemoteId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12) || randomId('pub');
+    const email =
+      cleanText(existing?.email ?? '').toLowerCase() || `organizer.${safeSuffix}@eventigare.local`;
+
+    organizerPlaceholdersByRemoteId.set(organizerRemoteId, {
+      id: organizerRemoteId,
+      user_id: cleanText(existing?.userId ?? ''),
+      email,
+      fiscal_data: existing?.fiscalData ?? null,
+      bank_account: existing?.bankAccount ?? null,
+      verification_status: existing?.verificationStatus ?? 'pending_review',
+      payout_enabled: existing?.payoutEnabled ?? false,
+      created_at: existing?.createdAt ?? nowIso,
+      updated_at: existing?.updatedAt ?? nowIso,
+    });
+  });
+
+  return mergeOrganizerCatalogFromSupabase(
+    source,
+    {
+      organizers: Array.from(organizerPlaceholdersByRemoteId.values()),
+      events,
+    },
+    false
+  );
+};
+
+const normalizeRegistrationStatusFromCatalog = (
+  value: string | null | undefined
+): RegistrationRecord['registrationStatus'] => {
+  if (
+    value === 'pending_payment' ||
+    value === 'pending_cash' ||
+    value === 'paid' ||
+    value === 'cancelled' ||
+    value === 'payment_failed' ||
+    value === 'refunded'
+  ) {
+    return value;
+  }
+  return 'pending_payment';
+};
+
+const normalizePaymentStatusFromCatalog = (
+  value: string | null | undefined
+): RegistrationRecord['paymentStatus'] => {
+  if (!value) {
+    return 'not_required';
+  }
+  if (
+    value === 'pending' ||
+    value === 'requires_action' ||
+    value === 'authorized' ||
+    value === 'captured' ||
+    value === 'failed' ||
+    value === 'expired' ||
+    value === 'refunded' ||
+    value === 'cancelled'
+  ) {
+    return value;
+  }
+  return 'not_required';
+};
+
+const mergeParticipantRegistrationsFromSupabase = (
+  source: AppData,
+  rows: ParticipantRegistrationRow[]
+): AppData => {
+  if (!rows.length) {
+    return source;
+  }
+
+  const nextOrganizers = [...source.organizers];
+  const organizerIdByRemoteId = new Map<string, string>();
+  nextOrganizers.forEach((organizer) => {
+    const remoteId = cleanText(organizer.remoteId ?? '');
+    if (remoteId) {
+      organizerIdByRemoteId.set(remoteId, organizer.id);
+    }
+  });
+
+  rows.forEach((row) => {
+    const organizerRemoteId = cleanText(row.organizer_id);
+    if (!organizerRemoteId || organizerIdByRemoteId.has(organizerRemoteId)) {
+      return;
+    }
+    const safeSuffix = organizerRemoteId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12) || randomId('pub');
+    const placeholder: OrganizerProfile = {
+      id: `org_pub_${organizerRemoteId}`,
+      remoteId: organizerRemoteId,
+      email: `organizer.${safeSuffix}@eventigare.local`,
+      organizationName: '',
+      organizationRole: 'altro',
+      organizationRoleLabel: '',
+      legalRepresentative: '',
+      officialPhone: '',
+      fiscalData: '',
+      bankAccount: '',
+      complianceDocuments: {
+        identityDocumentUrl: '',
+        organizationDocumentUrl: '',
+        paymentAuthorizationDocumentUrl: '',
+        adminContactMessage: '',
+      },
+      complianceSubmittedAt: undefined,
+      verificationStatus: 'pending_review',
+      payoutEnabled: false,
+      paidFeatureUnlocked: false,
+      paidFeatureUnlockRequestedAt: undefined,
+      paidFeatureUnlockContact: PAID_FEATURE_UNLOCK_CONTACT,
+      sponsorModuleEnabled: false,
+      sponsorModuleActivatedAt: undefined,
+      sponsorModuleActivationAmount: SPONSOR_MODULE_ACTIVATION_EUR,
+      stripeConnectAccountId: undefined,
+      stripeConnectChargesEnabled: false,
+      stripeConnectPayoutsEnabled: false,
+      stripeConnectDetailsSubmitted: false,
+      stripeConnectRequirements: [],
+      stripeConnectLastSyncAt: undefined,
+      riskScore: 0,
+      riskFlags: [],
+      verificationChecklist: {
+        emailVerified: false,
+        fiscalDataVerified: false,
+        ibanOwnershipVerified: false,
+        identityVerified: false,
+        manualReviewPassed: false,
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    nextOrganizers.push(placeholder);
+    organizerIdByRemoteId.set(organizerRemoteId, placeholder.id);
+  });
+
+  const eventIdByRemoteId = new Map<string, string>();
+  source.events.forEach((event) => {
+    const remoteId = cleanText(event.remoteId ?? '');
+    if (remoteId) {
+      eventIdByRemoteId.set(remoteId, event.id);
+    }
+  });
+
+  const existingByRemoteId = new Map<string, RegistrationRecord>();
+  source.registrations.forEach((entry) => {
+    const remoteId = cleanText(entry.remoteId ?? '');
+    if (remoteId) {
+      existingByRemoteId.set(remoteId, entry);
+    }
+  });
+
+  const mergedById = new Map(source.registrations.map((entry) => [entry.id, entry]));
+
+  rows.forEach((row) => {
+    const remoteId = cleanText(row.id);
+    const eventId = eventIdByRemoteId.get(cleanText(row.event_id));
+    const organizerId = organizerIdByRemoteId.get(cleanText(row.organizer_id));
+    if (!remoteId || !eventId || !organizerId) {
+      return;
+    }
+
+    const existing = existingByRemoteId.get(remoteId);
+    const rowGroupParticipants = Array.isArray(row.group_participants)
+      ? row.group_participants
+      : [];
+    const normalizedGroupParticipants = rowGroupParticipants
+      .map((participant) => {
+        const fullName = cleanText(participant?.full_name ?? '');
+        if (!fullName) {
+          return null;
+        }
+        const assignedNumber =
+          typeof participant?.assigned_number === 'number'
+            ? participant.assigned_number
+            : undefined;
+        return {
+          fullName,
+          assignedNumber,
+        };
+      })
+      .filter(Boolean) as GroupParticipant[];
+
+    const fullName = cleanText(row.full_name);
+    if (!normalizedGroupParticipants.length && fullName) {
+      normalizedGroupParticipants.push({
+        fullName,
+        assignedNumber:
+          typeof row.assigned_number === 'number' ? row.assigned_number : undefined,
+      });
+    }
+
+    const merged: RegistrationRecord = {
+      id: existing?.id ?? randomId('reg'),
+      remoteId,
+      eventId,
+      organizerId,
+      fullName: fullName || existing?.fullName || '',
+      email: cleanText(row.participant_email).toLowerCase(),
+      phone: cleanText(row.phone ?? '') || undefined,
+      city: cleanText(row.city ?? '') || undefined,
+      birthDate: cleanText(row.birth_date ?? '') || undefined,
+      privacyConsent: Boolean(row.privacy_consent),
+      retentionConsent: Boolean(row.retention_consent),
+      groupParticipantsCount: Math.max(1, row.group_participants_count || 1),
+      participantMessage:
+        cleanText(row.participant_message_to_organizer ?? '') || undefined,
+      groupParticipants: normalizedGroupParticipants,
+      assignedNumber:
+        typeof row.assigned_number === 'number'
+          ? row.assigned_number
+          : existing?.assignedNumber,
+      registrationCode:
+        cleanText(row.registration_code) || existing?.registrationCode || randomId('rc'),
+      registrationStatus: normalizeRegistrationStatusFromCatalog(row.registration_status),
+      paymentIntentId: existing?.paymentIntentId,
+      paymentStatus: normalizePaymentStatusFromCatalog(row.payment_status),
+      paymentAmount:
+        typeof row.payment_amount === 'number'
+          ? row.payment_amount
+          : existing?.paymentAmount ?? 0,
+      paymentMethod: cleanText(row.payment_method ?? '') || undefined,
+      paymentReference: cleanText(row.payment_reference ?? '') || undefined,
+      paymentSessionExpiresAt:
+        cleanText(row.payment_session_expires_at ?? '') || undefined,
+      paymentCapturedAt: cleanText(row.payment_captured_at ?? '') || undefined,
+      paymentFailedReason:
+        cleanText(row.payment_failed_reason ?? '') || undefined,
+      refundedAt: cleanText(row.refunded_at ?? '') || undefined,
+      commissionAmount:
+        typeof row.commission_amount === 'number'
+          ? row.commission_amount
+          : existing?.commissionAmount ?? 0,
+      createdAt:
+        cleanText(row.created_at) || existing?.createdAt || new Date().toISOString(),
+      updatedAt:
+        cleanText(row.updated_at) || existing?.updatedAt || new Date().toISOString(),
+    };
+
+    mergedById.set(merged.id, merged);
+  });
+
+  const mergedRegistrations = Array.from(mergedById.values()).sort((first, second) =>
+    second.updatedAt.localeCompare(first.updatedAt)
+  );
+
+  return {
+    ...source,
+    organizers: nextOrganizers,
+    registrations: mergedRegistrations,
+  };
+};
+
 type AuthNotice = {
   tone: 'error' | 'success' | 'info';
   title: string;
@@ -754,6 +1026,7 @@ function App() {
   const [postRegistrationAlert, setPostRegistrationAlert] =
     useState<PostRegistrationAlert | null>(null);
   const [handledSharedEventRef, setHandledSharedEventRef] = useState<string | null>(null);
+  const [publicEventRemoteIds, setPublicEventRemoteIds] = useState<string[]>([]);
   const t = useMemo(() => createTranslator(language), [language]);
   const appSubtitle = IS_DEMO_CHANNEL ? t('app_subtitle_demo') : t('app_subtitle');
 
@@ -831,9 +1104,12 @@ function App() {
       }
       return false;
     });
+    if (!sharedEvent) {
+      return;
+    }
     setHandledSharedEventRef(sharedRef);
 
-    if (!sharedEvent || sharedEvent.visibility !== 'public' || !sharedEvent.active) {
+    if (sharedEvent.visibility !== 'public' || !sharedEvent.active) {
       return;
     }
 
@@ -877,6 +1153,79 @@ function App() {
       clearInterval(intervalId);
     };
   }, [isReady]);
+
+  useEffect(() => {
+    if (!isReady || IS_DEMO_CHANNEL) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const refreshPublicEvents = async () => {
+      const result = await listPublicEventsFromSupabase();
+      if (!result.ok || cancelled) {
+        return;
+      }
+
+      const remoteIds = result.data
+        .map((entry) => cleanText(entry.id))
+        .filter(Boolean);
+      setPublicEventRemoteIds((current) => {
+        if (
+          current.length === remoteIds.length &&
+          current.every((entry, index) => entry === remoteIds[index])
+        ) {
+          return current;
+        }
+        return remoteIds;
+      });
+
+      setAppData((current) => mergePublicEventsFromSupabase(current, result.data));
+    };
+
+    void refreshPublicEvents();
+    const intervalId = setInterval(() => {
+      void refreshPublicEvents();
+    }, 30_000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [isReady]);
+
+  useEffect(() => {
+    if (!isReady || IS_DEMO_CHANNEL || !PARTICIPANT_SECURITY_ENFORCED) {
+      return;
+    }
+    if (!organizerSecurity?.securityReady) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const refreshParticipantRegistrations = async () => {
+      const result = await listParticipantRegistrationsFromSupabase();
+      if (!result.ok || cancelled) {
+        return;
+      }
+      setAppData((current) => mergeParticipantRegistrationsFromSupabase(current, result.data));
+    };
+
+    void refreshParticipantRegistrations();
+    const intervalId = setInterval(() => {
+      void refreshParticipantRegistrations();
+    }, 30_000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [
+    isReady,
+    organizerSecurity?.securityReady,
+    organizerSecurity?.userId,
+  ]);
 
   useEffect(() => {
     if (!isReady || !ORGANIZER_SECURITY_ENFORCED) {
@@ -1068,14 +1417,15 @@ function App() {
   );
 
   useEffect(() => {
-    if (screen.name !== 'organizerAuth') {
+    if (screen.name !== 'organizerAuth' && screen.name !== 'participantAuth') {
       setAuthNotice(null);
     }
     if (
       screen.name === 'organizerAuth' ||
       screen.name === 'organizerProfile' ||
       screen.name === 'organizerCreate' ||
-      screen.name === 'organizerDashboard'
+      screen.name === 'organizerDashboard' ||
+      screen.name === 'participantAuth'
     ) {
       void refreshOrganizerSecurityState();
     }
@@ -1094,16 +1444,7 @@ function App() {
         const cleanUrl = `${window.location.origin}${window.location.pathname}`;
         window.history.replaceState({}, '', cleanUrl);
       }
-      const securityReady = await refreshOrganizerSecurityState();
-      if (securityReady) {
-        const latestSecurity = await getOrganizerSecurityStatus();
-        if (latestSecurity.ok) {
-          setOrganizerSecurity(latestSecurity.data);
-          await openOrganizerWorkspace(latestSecurity.data);
-          return;
-        }
-        await openOrganizerWorkspace();
-      }
+      await refreshOrganizerSecurityState();
     };
 
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -1326,6 +1667,11 @@ function App() {
     }
     return appData.events.find((event) => event.id === participantRegistrationForPayment.eventId);
   }, [appData.events, participantRegistrationForPayment]);
+
+  const publicEventRemoteIdSet = useMemo(
+    () => new Set(publicEventRemoteIds),
+    [publicEventRemoteIds]
+  );
 
   const shouldShowMonetizationBanner = screen.name !== 'role';
 
@@ -1618,11 +1964,78 @@ function App() {
     return true;
   };
 
+  const refreshParticipantSecurityState = async (showMissingAlert = false): Promise<boolean> => {
+    if (!PARTICIPANT_SECURITY_ENFORCED) {
+      return true;
+    }
+
+    const status = await getOrganizerSecurityStatus();
+    if (!status.ok) {
+      if (showMissingAlert) {
+        showAuthAlert(t('participant_access_action_fail_title'), status.reason);
+      }
+      return false;
+    }
+
+    setOrganizerSecurity(status.data);
+    void refreshAdminAccess(status.data.email);
+    if (showMissingAlert && !status.data.securityReady) {
+      showAuthAlert(
+        t('participant_access_action_fail_title'),
+        t('participant_access_required_message')
+      );
+      return false;
+    }
+    return status.data.securityReady;
+  };
+
   const ensureParticipantAuthForEvent = async (
-    _event: EventItem,
+    event: EventItem,
     _draft: RegistrationDraft
   ): Promise<boolean> => {
     if (ORGANIZER_TEST_MODE) {
+      return true;
+    }
+
+    const requiresSecureSession =
+      PARTICIPANT_SECURITY_ENFORCED || event.participantAuthMode !== 'anonymous';
+    if (requiresSecureSession) {
+      const status = await getOrganizerSecurityStatus();
+      if (!status.ok || !status.data.securityReady) {
+        showAppAlert(
+          t('participant_auth_required_title'),
+          status.ok ? t('participant_access_required_message') : status.reason
+        );
+        setScreen({ name: 'participantAuth' });
+        return false;
+      }
+
+      if (
+        event.participantAuthMode === 'social_verified' &&
+        status.data.socialProvider !== 'google'
+      ) {
+        showAppAlert(
+          t('participant_auth_required_title'),
+          t('participant_auth_social_required_message')
+        );
+        setScreen({ name: 'participantAuth' });
+        return false;
+      }
+
+      if (
+        event.participantAuthMode === 'email' &&
+        !status.data.providers.includes('email')
+      ) {
+        showAppAlert(
+          t('participant_auth_required_title'),
+          t('participant_auth_email_required_message')
+        );
+        setScreen({ name: 'participantAuth' });
+        return false;
+      }
+
+      setOrganizerSecurity(status.data);
+      void refreshAdminAccess(status.data.email);
       return true;
     }
 
@@ -1680,6 +2093,21 @@ function App() {
     }
   };
 
+  const signInParticipantWithOAuth = async (provider: 'google') => {
+    const result = await startOrganizerOAuth(provider);
+    if (!result.ok) {
+      showAuthAlert(t('participant_access_action_fail_title'), result.reason);
+      return;
+    }
+    if (Platform.OS !== 'web') {
+      showAuthAlert(
+        t('participant_access_action_fail_title'),
+        t('organizer_security_browser_opened'),
+        'info'
+      );
+    }
+  };
+
   const showAppAlert = (title: string, message: string) => {
     if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.alert === 'function') {
       window.alert(`${title}\n${message}`);
@@ -1724,6 +2152,35 @@ function App() {
     );
   };
 
+  const requestParticipantMagicLink = async (email: string) => {
+    const normalizedEmail = cleanText(email).toLowerCase();
+    if (!normalizedEmail.includes('@')) {
+      showAuthAlert(t('invalid_email_title'), t('invalid_email_message'));
+      return;
+    }
+
+    let action;
+    try {
+      action = await requestEmailOtp(normalizedEmail, true);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Errore imprevisto durante invio Magic Link.';
+      showAuthAlert(t('participant_access_action_fail_title'), message);
+      return;
+    }
+
+    if (action.error) {
+      showAuthAlert(t('participant_access_action_fail_title'), action.error.message);
+      return;
+    }
+
+    showAuthAlert(
+      t('participant_access_action_fail_title'),
+      t('participant_access_magic_sent'),
+      'success'
+    );
+  };
+
   const signOutOrganizerAccount = async () => {
     const result = await signOut();
     if (result.error) {
@@ -1739,6 +2196,26 @@ function App() {
     setAdminUsers([]);
     showAuthAlert(
       t('organizer_security_action_fail_title'),
+      t('organizer_security_signed_out'),
+      'info'
+    );
+  };
+
+  const signOutParticipantAccount = async () => {
+    const result = await signOut();
+    if (result.error) {
+      showAuthAlert(t('participant_access_action_fail_title'), result.error.message);
+      return;
+    }
+
+    setOrganizerSecurity(null);
+    setAdminAccess({
+      isAdmin: false,
+      canManageAdmins: false,
+    });
+    setAdminUsers([]);
+    showAuthAlert(
+      t('participant_access_action_fail_title'),
       t('organizer_security_signed_out'),
       'info'
     );
@@ -4149,6 +4626,10 @@ function App() {
               setScreen({ name: 'organizerAuth' });
             }}
             onParticipant={() => {
+              if (PARTICIPANT_SECURITY_ENFORCED) {
+                setScreen({ name: 'participantAuth' });
+                return;
+              }
               setScreen({ name: 'participantSearch' });
             }}
             onOpenLegal={() => setShowLegalModal(true)}
@@ -4291,9 +4772,23 @@ function App() {
       case 'participantAuth':
         return (
           <ParticipantAuthScreen
+            status={organizerSecurity}
+            notice={authNotice}
             onBack={() => setScreen({ name: 'role' })}
-            onContinue={() => {
-              setScreen({ name: 'participantSearch' });
+            onEmailMagicLinkRequest={async (email) => {
+              await requestParticipantMagicLink(email);
+            }}
+            onGoogleSignIn={async () => {
+              await signInParticipantWithOAuth('google');
+            }}
+            onSignOut={async () => {
+              await signOutParticipantAccount();
+            }}
+            onContinue={async () => {
+              const securityReady = await refreshParticipantSecurityState(true);
+              if (securityReady) {
+                setScreen({ name: 'participantSearch' });
+              }
             }}
             t={t}
           />
@@ -4303,7 +4798,10 @@ function App() {
         return (
           <ParticipantSearchScreen
             events={appData.events.filter(
-              (event) => IS_DEMO_CHANNEL || Boolean(cleanText(event.remoteId ?? ''))
+              (event) =>
+                IS_DEMO_CHANNEL ||
+                (Boolean(cleanText(event.remoteId ?? '')) &&
+                  publicEventRemoteIdSet.has(cleanText(event.remoteId ?? '')))
             )}
             onBack={() => {
               setScreen({ name: 'role' });

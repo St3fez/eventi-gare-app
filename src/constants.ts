@@ -39,6 +39,12 @@ const organizerSecurityFromEnv = parseEnvBoolean(
 export const ORGANIZER_SECURITY_ENFORCED =
   !ORGANIZER_TEST_MODE && (organizerSecurityFromEnv ?? true);
 
+const participantSecurityFromEnv = parseEnvBoolean(
+  process.env.EXPO_PUBLIC_PARTICIPANT_SECURITY_ENFORCED
+);
+export const PARTICIPANT_SECURITY_ENFORCED =
+  !IS_DEMO_CHANNEL && (participantSecurityFromEnv ?? true);
+
 const demoAllOpenFromEnv = parseEnvBoolean(process.env.EXPO_PUBLIC_DEMO_ALL_OPEN);
 export const DEMO_ALL_OPEN = demoAllOpenFromEnv ?? IS_DEMO_CHANNEL;
 
