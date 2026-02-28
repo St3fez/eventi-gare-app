@@ -48,6 +48,7 @@ import {
   getOrganizerSecurityStatus,
   OrganizerSecurityStatus,
   requestEmailOtp,
+  signOut,
   startOrganizerOAuth,
 } from './src/services/authSupabase';
 import {
@@ -1649,6 +1650,26 @@ function App() {
       t('organizer_security_action_fail_title'),
       t('organizer_security_otp_sent'),
       'success'
+    );
+  };
+
+  const signOutOrganizerAccount = async () => {
+    const result = await signOut();
+    if (result.error) {
+      showAuthAlert(t('organizer_security_action_fail_title'), result.error.message);
+      return;
+    }
+
+    setOrganizerSecurity(null);
+    setAdminAccess({
+      isAdmin: false,
+      canManageAdmins: false,
+    });
+    setAdminUsers([]);
+    showAuthAlert(
+      t('organizer_security_action_fail_title'),
+      t('organizer_security_signed_out'),
+      'info'
     );
   };
 
@@ -4062,6 +4083,9 @@ function App() {
             }}
             onGoogleSignIn={async () => {
               await signInOrganizerWithOAuth('google');
+            }}
+            onSignOut={async () => {
+              await signOutOrganizerAccount();
             }}
             onContinue={async () => {
               const securityReady = await refreshOrganizerSecurityState(true);

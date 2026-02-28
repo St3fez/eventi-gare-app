@@ -18,6 +18,7 @@ type Props = {
   onBack: () => void;
   onEmailMagicLinkRequest: (email: string) => Promise<void>;
   onGoogleSignIn: () => Promise<void>;
+  onSignOut: () => Promise<void>;
   onContinue: () => void | Promise<void>;
   t: Translator;
 };
@@ -28,6 +29,7 @@ export function OrganizerAuthScreen({
   onBack,
   onEmailMagicLinkRequest,
   onGoogleSignIn,
+  onSignOut,
   onContinue,
   t,
 }: Props) {
@@ -84,6 +86,11 @@ export function OrganizerAuthScreen({
         <Pressable style={styles.primaryButton} onPress={() => void onGoogleSignIn()}>
           <Text style={styles.primaryButtonText}>{t('organizer_security_google')}</Text>
         </Pressable>
+        {status?.email ? (
+          <Pressable style={styles.secondaryButton} onPress={() => void onSignOut()}>
+            <Text style={styles.secondaryButtonText}>{t('organizer_security_signout')}</Text>
+          </Pressable>
+        ) : null}
 
         <TextField
           label={t('organizer_security_email_label')}
