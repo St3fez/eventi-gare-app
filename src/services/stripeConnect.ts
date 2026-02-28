@@ -30,16 +30,36 @@ const normalizeBaseUrl = (value?: string): string | null => {
   if (!text) {
     return null;
   }
-  return text.endsWith('/') ? text.slice(0, -1) : text;
+  try {
+    const parsed = new URL(text);
+    if (!/^https?:$/i.test(parsed.protocol)) {
+      return null;
+    }
+    const normalizedPath = parsed.pathname
+      .replace(/\/index\.html?$/i, '')
+      .replace(/\/+$/, '');
+    return `${parsed.origin}${normalizedPath}`;
+  } catch {
+    return null;
+  }
 };
 
+const runtimeWebBaseUrl = (): string | null => {
+  if (typeof window === 'undefined' || !window.location?.origin) {
+    return null;
+  }
+  return normalizeBaseUrl(`${window.location.origin}${window.location.pathname}`);
+};
+
+const resolvePublicWebBaseUrl = (): string | null => runtimeWebBaseUrl() ?? normalizeBaseUrl(EVENT_WEB_BASE_URL);
+
 const defaultReturnUrl = (): string | undefined => {
-  const base = normalizeBaseUrl(EVENT_WEB_BASE_URL);
+  const base = resolvePublicWebBaseUrl();
   return base ? `${base}/?stripeConnect=return` : undefined;
 };
 
 const defaultRefreshUrl = (): string | undefined => {
-  const base = normalizeBaseUrl(EVENT_WEB_BASE_URL);
+  const base = resolvePublicWebBaseUrl();
   return base ? `${base}/?stripeConnect=refresh` : undefined;
 };
 

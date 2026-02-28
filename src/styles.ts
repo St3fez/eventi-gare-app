@@ -410,16 +410,6 @@ export const styles = StyleSheet.create({
     backgroundColor: 'rgba(7, 30, 49, 0.89)',
     resizeMode: 'cover',
   },
-  qrCodePreviewImage: {
-    width: 180,
-    height: 180,
-    alignSelf: 'center',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(118, 180, 209, 0.48)',
-    backgroundColor: '#FFFFFF',
-    resizeMode: 'contain',
-  },
   methodRow: {
     flexDirection: 'row',
     gap: 8,

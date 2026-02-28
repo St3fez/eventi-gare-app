@@ -121,8 +121,6 @@ type QrCodeHandle = {
   toDataURL: (callback: (base64: string) => void) => void;
 };
 
-const officialWebQrImage = require('../../assets/official-web-qr.png');
-
 export function OrganizerDashboardScreen({
   organizer,
   isAdmin,
@@ -982,7 +980,7 @@ export function OrganizerDashboardScreen({
                 <Text style={styles.listSubText}>{appPublicUrl ?? t('event_public_url_missing')}</Text>
                 {appPublicUrl ? (
                   <View style={styles.registrationCard}>
-                    <Image source={officialWebQrImage} style={styles.qrCodePreviewImage} />
+                    <QRCode value={appPublicUrl} size={180} />
                   </View>
                 ) : null}
                 <Text style={styles.fieldLabel}>{t('selected_event_qr_title')}</Text>

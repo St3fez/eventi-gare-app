@@ -283,14 +283,38 @@ const purgeExpiredRegistrationsByPolicy = (source: AppData): AppData => {
   };
 };
 
+const normalizePublicBaseUrl = (value: string | undefined): string | null => {
+  const candidate = cleanText(value ?? '');
+  if (!candidate) {
+    return null;
+  }
+  try {
+    const parsed = new URL(candidate);
+    if (!/^https?:$/i.test(parsed.protocol)) {
+      return null;
+    }
+    const normalizedPath = parsed.pathname
+      .replace(/\/index\.html?$/i, '')
+      .replace(/\/+$/, '');
+    return `${parsed.origin}${normalizedPath}`;
+  } catch {
+    return null;
+  }
+};
+
+const getRuntimeWebBaseUrl = (): string | null => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined' || !window.location?.origin) {
+    return null;
+  }
+  return normalizePublicBaseUrl(`${window.location.origin}${window.location.pathname}`);
+};
+
 const getEventPublicBaseUrl = (): string | null => {
-  if (cleanText(EVENT_WEB_BASE_URL ?? '')) {
-    return cleanText(EVENT_WEB_BASE_URL ?? '').replace(/\/+$/, '');
+  const runtimeBase = getRuntimeWebBaseUrl();
+  if (runtimeBase) {
+    return runtimeBase;
   }
-  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.origin) {
-    return window.location.origin.replace(/\/+$/, '');
-  }
-  return null;
+  return normalizePublicBaseUrl(EVENT_WEB_BASE_URL);
 };
 
 const buildEventDuplicateKey = (name: string, location: string, date: string): string =>

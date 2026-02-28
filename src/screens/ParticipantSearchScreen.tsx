@@ -19,8 +19,6 @@ import { styles } from '../styles';
 import { EventItem, SponsorSlot } from '../types';
 import { cleanText, formatEventSchedule, isImageDataUrl, toMoney } from '../utils/format';
 
-const officialWebQrImage = require('../../assets/official-web-qr.png');
-
 type Props = {
   events: EventItem[];
   onBack: () => void;
@@ -222,7 +220,10 @@ export function ParticipantSearchScreen({
                 <>
                   <Text style={styles.fieldLabel}>{t('official_app_qr_title')}</Text>
                   <View style={styles.registrationCard}>
-                    <Image source={officialWebQrImage} style={styles.qrCodePreviewImage} />
+                    <Text style={styles.helperText}>{appPublicUrl}</Text>
+                    <View style={styles.registrationCard}>
+                      <QRCode value={appPublicUrl} size={120} />
+                    </View>
                   </View>
                 </>
               ) : null}
