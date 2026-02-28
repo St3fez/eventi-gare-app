@@ -4043,27 +4043,11 @@ function App() {
             eventCount={appData.events.length}
             registrationCount={appData.registrations.length}
             onOrganizer={() => {
-              void (async () => {
-                if (!ORGANIZER_SECURITY_ENFORCED) {
-                  setScreen({ name: 'organizerProfile' });
-                  return;
-                }
-
-                const securityReady = await refreshOrganizerSecurityState();
-                if (!securityReady) {
-                  setScreen({ name: 'organizerAuth' });
-                  return;
-                }
-
-                const latestSecurity = await getOrganizerSecurityStatus();
-                if (latestSecurity.ok) {
-                  setOrganizerSecurity(latestSecurity.data);
-                  await openOrganizerWorkspace(latestSecurity.data);
-                  return;
-                }
-
-                await openOrganizerWorkspace();
-              })();
+              if (!ORGANIZER_SECURITY_ENFORCED) {
+                setScreen({ name: 'organizerProfile' });
+                return;
+              }
+              setScreen({ name: 'organizerAuth' });
             }}
             onParticipant={() => {
               setScreen({ name: 'participantSearch' });
@@ -4081,6 +4065,10 @@ function App() {
             <OrganizerProfileScreen
               organizers={organizersForProfile}
               onBack={() => setScreen({ name: 'role' })}
+              onSignOut={() => {
+                void signOutOrganizerAccount();
+              }}
+              showSignOut={ORGANIZER_SECURITY_ENFORCED && Boolean(organizerSecurity?.email)}
               onCreate={createOrganizer}
               onUseExisting={(organizerId) => setScreen({ name: 'organizerDashboard', organizerId })}
               t={t}
@@ -4123,6 +4111,10 @@ function App() {
           <OrganizerProfileScreen
             organizers={organizersForProfile}
             onBack={() => setScreen({ name: 'role' })}
+            onSignOut={() => {
+              void signOutOrganizerAccount();
+            }}
+            showSignOut={ORGANIZER_SECURITY_ENFORCED && Boolean(organizerSecurity?.email)}
             onCreate={createOrganizer}
             onUseExisting={(organizerId) => setScreen({ name: 'organizerDashboard', organizerId })}
             t={t}

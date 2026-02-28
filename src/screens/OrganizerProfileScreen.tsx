@@ -9,6 +9,8 @@ import { OrganizerProfile, OrganizerRole } from '../types';
 type Props = {
   organizers: OrganizerProfile[];
   onBack: () => void;
+  onSignOut?: () => void;
+  showSignOut?: boolean;
   onCreate: (payload: {
     email: string;
     fiscalData?: string;
@@ -26,6 +28,8 @@ type Props = {
 export function OrganizerProfileScreen({
   organizers,
   onBack,
+  onSignOut,
+  showSignOut = false,
   onCreate,
   onUseExisting,
   t,
@@ -172,6 +176,11 @@ export function OrganizerProfileScreen({
         >
           <Text style={styles.primaryButtonText}>{t('save_organizer')}</Text>
         </Pressable>
+        {showSignOut && onSignOut ? (
+          <Pressable style={styles.secondaryButton} onPress={onSignOut}>
+            <Text style={styles.secondaryButtonText}>{t('organizer_security_signout')}</Text>
+          </Pressable>
+        ) : null}
         <Pressable style={styles.secondaryButton} onPress={onBack}>
           <Text style={styles.secondaryButtonText}>{t('back_home')}</Text>
         </Pressable>
