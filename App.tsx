@@ -279,11 +279,11 @@ const purgeExpiredRegistrationsByPolicy = (source: AppData): AppData => {
 };
 
 const getEventPublicBaseUrl = (): string | null => {
-  if (cleanText(EVENT_WEB_BASE_URL ?? '')) {
-    return cleanText(EVENT_WEB_BASE_URL ?? '').replace(/\/+$/, '');
-  }
   if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.origin) {
     return window.location.origin.replace(/\/+$/, '');
+  }
+  if (cleanText(EVENT_WEB_BASE_URL ?? '')) {
+    return cleanText(EVENT_WEB_BASE_URL ?? '').replace(/\/+$/, '');
   }
   return null;
 };
