@@ -66,6 +66,9 @@ import {
   deleteEventInSupabase,
   ensureSupabaseUser,
   insertEventInSupabase,
+  listOrganizerCatalogFromSupabase,
+  OrganizerCatalogEventRow,
+  OrganizerCatalogOrganizerRow,
   updateEventInSupabase,
   upsertOrganizerInSupabase,
   upsertRegistrationInSupabase,
@@ -304,6 +307,358 @@ const addYearsIso = (isoDate: string, years: number): string => {
   return parsed.toISOString().slice(0, 10);
 };
 
+const normalizeOrganizerRoleFromCatalog = (
+  value: string | null | undefined,
+  fallback: OrganizerProfile['organizationRole']
+): OrganizerProfile['organizationRole'] => {
+  if (value === 'presidente_fondazione' || value === 'segretario_associazione') {
+    return value;
+  }
+  if (value === 'altro') {
+    return value;
+  }
+  return fallback;
+};
+
+const normalizeVerificationStatusFromCatalog = (
+  value: string | null | undefined,
+  fallback: OrganizerProfile['verificationStatus']
+): OrganizerProfile['verificationStatus'] => {
+  if (value === 'verified' || value === 'rejected' || value === 'suspended') {
+    return value;
+  }
+  if (value === 'pending_review') {
+    return value;
+  }
+  return fallback;
+};
+
+const normalizeParticipantAuthModeFromCatalog = (
+  value: string | null | undefined,
+  fallback: EventItem['participantAuthMode']
+): EventItem['participantAuthMode'] => {
+  if (
+    value === 'anonymous' ||
+    value === 'email' ||
+    value === 'social_verified' ||
+    value === 'flexible'
+  ) {
+    return value;
+  }
+  return fallback;
+};
+
+const normalizeEventTimeFromCatalog = (value: string | null | undefined, fallback: string): string => {
+  const text = cleanText(value ?? '');
+  if (!text) {
+    return fallback;
+  }
+  const match = /^(\d{2}:\d{2})/.exec(text);
+  return match ? match[1] : fallback;
+};
+
+const mergeOrganizerCatalogFromSupabase = (
+  source: AppData,
+  catalog: {
+    organizers: OrganizerCatalogOrganizerRow[];
+    events: OrganizerCatalogEventRow[];
+  }
+): AppData => {
+  const nextOrganizers = [...source.organizers];
+  const organizerIndexByRemoteId = new Map<string, number>();
+  const organizerIndexByEmail = new Map<string, number>();
+
+  nextOrganizers.forEach((organizer, index) => {
+    const remoteId = cleanText(organizer.remoteId ?? '');
+    if (remoteId) {
+      organizerIndexByRemoteId.set(remoteId, index);
+    }
+    organizerIndexByEmail.set(organizer.email.toLowerCase(), index);
+  });
+
+  for (const row of catalog.organizers) {
+    const remoteId = cleanText(row.id);
+    const email = cleanText(row.email).toLowerCase();
+    if (!remoteId || !email) {
+      continue;
+    }
+
+    const existingIndex =
+      organizerIndexByRemoteId.get(remoteId) ?? organizerIndexByEmail.get(email);
+    const existing = existingIndex !== undefined ? nextOrganizers[existingIndex] : undefined;
+
+    const complianceSource =
+      row.compliance_documents && typeof row.compliance_documents === 'object'
+        ? row.compliance_documents
+        : existing?.complianceDocuments;
+    const checklistSource =
+      row.verification_checklist && typeof row.verification_checklist === 'object'
+        ? row.verification_checklist
+        : existing?.verificationChecklist;
+
+    const mergedOrganizer: OrganizerProfile = {
+      id: existing?.id ?? randomId('org'),
+      remoteId,
+      userId: cleanText(row.user_id ?? '') || existing?.userId,
+      email,
+      organizationName: cleanText(row.organization_name ?? existing?.organizationName ?? ''),
+      organizationRole: normalizeOrganizerRoleFromCatalog(
+        row.organization_role,
+        existing?.organizationRole ?? 'altro'
+      ),
+      organizationRoleLabel: cleanText(
+        row.organization_role_label ?? existing?.organizationRoleLabel ?? ''
+      ),
+      legalRepresentative: cleanText(
+        row.legal_representative ?? existing?.legalRepresentative ?? ''
+      ),
+      officialPhone: cleanText(row.official_phone ?? existing?.officialPhone ?? ''),
+      fiscalData: cleanText(row.fiscal_data ?? existing?.fiscalData ?? ''),
+      bankAccount: cleanText(row.bank_account ?? existing?.bankAccount ?? ''),
+      complianceDocuments: {
+        identityDocumentUrl: cleanText(
+          complianceSource?.identityDocumentUrl ??
+            existing?.complianceDocuments.identityDocumentUrl ??
+            ''
+        ),
+        organizationDocumentUrl: cleanText(
+          complianceSource?.organizationDocumentUrl ??
+            existing?.complianceDocuments.organizationDocumentUrl ??
+            ''
+        ),
+        paymentAuthorizationDocumentUrl: cleanText(
+          complianceSource?.paymentAuthorizationDocumentUrl ??
+            existing?.complianceDocuments.paymentAuthorizationDocumentUrl ??
+            ''
+        ),
+        adminContactMessage: cleanText(
+          complianceSource?.adminContactMessage ??
+            existing?.complianceDocuments.adminContactMessage ??
+            ''
+        ),
+      },
+      complianceSubmittedAt: cleanText(
+        row.compliance_submitted_at ?? existing?.complianceSubmittedAt ?? ''
+      ) || undefined,
+      verificationStatus: normalizeVerificationStatusFromCatalog(
+        row.verification_status,
+        existing?.verificationStatus ?? 'pending_review'
+      ),
+      payoutEnabled:
+        typeof row.payout_enabled === 'boolean'
+          ? row.payout_enabled
+          : existing?.payoutEnabled ?? false,
+      paidFeatureUnlocked:
+        typeof row.paid_feature_unlocked === 'boolean'
+          ? row.paid_feature_unlocked
+          : existing?.paidFeatureUnlocked ?? false,
+      paidFeatureUnlockRequestedAt:
+        cleanText(
+          row.paid_feature_unlock_requested_at ??
+            existing?.paidFeatureUnlockRequestedAt ??
+            ''
+        ) || undefined,
+      paidFeatureUnlockContact:
+        cleanText(
+          row.paid_feature_unlock_contact ?? existing?.paidFeatureUnlockContact ?? ''
+        ) || PAID_FEATURE_UNLOCK_CONTACT,
+      sponsorModuleEnabled:
+        typeof row.sponsor_module_enabled === 'boolean'
+          ? row.sponsor_module_enabled
+          : existing?.sponsorModuleEnabled ?? false,
+      sponsorModuleActivatedAt:
+        cleanText(
+          row.sponsor_module_activated_at ?? existing?.sponsorModuleActivatedAt ?? ''
+        ) || undefined,
+      sponsorModuleActivationAmount:
+        typeof row.sponsor_module_activation_amount === 'number'
+          ? row.sponsor_module_activation_amount
+          : existing?.sponsorModuleActivationAmount ?? SPONSOR_MODULE_ACTIVATION_EUR,
+      stripeConnectAccountId:
+        cleanText(
+          row.stripe_connect_account_id ?? existing?.stripeConnectAccountId ?? ''
+        ) || undefined,
+      stripeConnectChargesEnabled:
+        typeof row.stripe_connect_charges_enabled === 'boolean'
+          ? row.stripe_connect_charges_enabled
+          : existing?.stripeConnectChargesEnabled ?? false,
+      stripeConnectPayoutsEnabled:
+        typeof row.stripe_connect_payouts_enabled === 'boolean'
+          ? row.stripe_connect_payouts_enabled
+          : existing?.stripeConnectPayoutsEnabled ?? false,
+      stripeConnectDetailsSubmitted:
+        typeof row.stripe_connect_details_submitted === 'boolean'
+          ? row.stripe_connect_details_submitted
+          : existing?.stripeConnectDetailsSubmitted ?? false,
+      stripeConnectRequirements: existing?.stripeConnectRequirements ?? [],
+      stripeConnectLastSyncAt:
+        cleanText(row.stripe_connect_last_sync_at ?? existing?.stripeConnectLastSyncAt ?? '') ||
+        undefined,
+      riskScore:
+        typeof row.risk_score === 'number' ? row.risk_score : existing?.riskScore ?? 0,
+      riskFlags: Array.isArray(row.risk_flags)
+        ? row.risk_flags.map((entry) => cleanText(String(entry))).filter(Boolean)
+        : existing?.riskFlags ?? [],
+      verificationChecklist: {
+        emailVerified: Boolean(
+          checklistSource?.emailVerified ??
+            existing?.verificationChecklist.emailVerified
+        ),
+        fiscalDataVerified: Boolean(
+          checklistSource?.fiscalDataVerified ??
+            existing?.verificationChecklist.fiscalDataVerified
+        ),
+        ibanOwnershipVerified: Boolean(
+          checklistSource?.ibanOwnershipVerified ??
+            existing?.verificationChecklist.ibanOwnershipVerified
+        ),
+        identityVerified: Boolean(
+          checklistSource?.identityVerified ??
+            existing?.verificationChecklist.identityVerified
+        ),
+        manualReviewPassed: Boolean(
+          checklistSource?.manualReviewPassed ??
+            existing?.verificationChecklist.manualReviewPassed
+        ),
+      },
+      createdAt: cleanText(row.created_at ?? existing?.createdAt ?? '') || new Date().toISOString(),
+      updatedAt: cleanText(row.updated_at ?? existing?.updatedAt ?? '') || new Date().toISOString(),
+    };
+
+    if (existingIndex !== undefined) {
+      nextOrganizers[existingIndex] = mergedOrganizer;
+      organizerIndexByRemoteId.set(remoteId, existingIndex);
+      organizerIndexByEmail.set(email, existingIndex);
+    } else {
+      nextOrganizers.push(mergedOrganizer);
+      const insertedIndex = nextOrganizers.length - 1;
+      organizerIndexByRemoteId.set(remoteId, insertedIndex);
+      organizerIndexByEmail.set(email, insertedIndex);
+    }
+  }
+
+  const localOrganizerIdByRemoteId = new Map<string, string>();
+  nextOrganizers.forEach((organizer) => {
+    const remoteId = cleanText(organizer.remoteId ?? '');
+    if (remoteId) {
+      localOrganizerIdByRemoteId.set(remoteId, organizer.id);
+    }
+  });
+
+  const nextEvents = [...source.events];
+  const eventIndexByRemoteId = new Map<string, number>();
+  nextEvents.forEach((event, index) => {
+    const remoteId = cleanText(event.remoteId ?? '');
+    if (remoteId) {
+      eventIndexByRemoteId.set(remoteId, index);
+    }
+  });
+
+  for (const row of catalog.events) {
+    const remoteId = cleanText(row.id);
+    const organizerRemoteId = cleanText(row.organizer_id);
+    const localOrganizerId = localOrganizerIdByRemoteId.get(organizerRemoteId);
+    if (!remoteId || !localOrganizerId) {
+      continue;
+    }
+
+    let existingIndex = eventIndexByRemoteId.get(remoteId);
+    if (existingIndex === undefined) {
+      const duplicateKey = buildEventDuplicateKey(row.name, row.location, row.event_date);
+      existingIndex = nextEvents.findIndex(
+        (event) =>
+          event.organizerId === localOrganizerId &&
+          buildEventDuplicateKey(event.name, event.location, event.date) === duplicateKey
+      );
+    }
+
+    const existing = existingIndex !== undefined && existingIndex >= 0 ? nextEvents[existingIndex] : undefined;
+    const eventDate = toIsoDate(row.event_date ?? '') || existing?.date || new Date().toISOString().slice(0, 10);
+    const eventEndDate = toIsoDate(row.event_end_date ?? '') || existing?.endDate || eventDate;
+    const createdAt = cleanText(row.created_at ?? existing?.createdAt ?? '') || new Date().toISOString();
+
+    const mergedEvent: EventItem = {
+      id: existing?.id ?? randomId('evt'),
+      remoteId,
+      organizerId: localOrganizerId,
+      name: cleanText(row.name ?? existing?.name ?? ''),
+      location: cleanText(row.location ?? existing?.location ?? ''),
+      date: eventDate,
+      endDate: eventEndDate,
+      startTime: normalizeEventTimeFromCatalog(row.event_time, existing?.startTime ?? '09:00'),
+      isFree: typeof row.is_free === 'boolean' ? row.is_free : existing?.isFree ?? true,
+      feeAmount: Number(row.fee_amount ?? existing?.feeAmount ?? 0),
+      privacyText: cleanText(row.privacy_text ?? existing?.privacyText ?? DEFAULT_PRIVACY_TEXT),
+      logoUrl: cleanText(row.logo_url ?? existing?.logoUrl ?? ''),
+      localSponsor: cleanText(row.local_sponsor ?? existing?.localSponsor ?? ''),
+      assignNumbers:
+        typeof row.assign_numbers === 'boolean'
+          ? row.assign_numbers
+          : existing?.assignNumbers ?? true,
+      registrationOpenDate: existing?.registrationOpenDate ?? createdAt.slice(0, 10),
+      registrationCloseDate: existing?.registrationCloseDate ?? eventEndDate,
+      registrationsOpen:
+        typeof row.registrations_open === 'boolean'
+          ? row.registrations_open
+          : existing?.registrationsOpen ?? true,
+      visibility:
+        existing?.visibility ??
+        (Boolean(row.active) && !cleanText(row.closed_at ?? '') ? 'public' : 'hidden'),
+      closedAt: cleanText(row.closed_at ?? existing?.closedAt ?? '') || undefined,
+      definitivePublishedAt:
+        cleanText(
+          row.definitive_published_at ?? existing?.definitivePublishedAt ?? ''
+        ) || undefined,
+      seasonVersion:
+        typeof row.season_version === 'number' ? row.season_version : existing?.seasonVersion ?? 1,
+      lastParticipantsResetAt:
+        cleanText(
+          row.last_participants_reset_at ?? existing?.lastParticipantsResetAt ?? ''
+        ) || undefined,
+      baseFeeAmount: existing?.baseFeeAmount ?? Number(row.fee_amount ?? 0),
+      feePolicy: existing?.feePolicy ?? (row.is_free ? 'organizer_absorbs_fees' : 'participant_pays_fees'),
+      paymentChannel: existing?.paymentChannel ?? 'stripe',
+      cashPaymentEnabled:
+        typeof row.cash_payment_enabled === 'boolean'
+          ? row.cash_payment_enabled
+          : existing?.cashPaymentEnabled ?? false,
+      cashPaymentInstructions: cleanText(
+        row.cash_payment_instructions ?? existing?.cashPaymentInstructions ?? ''
+      ),
+      cashPaymentDeadline:
+        cleanText(row.cash_payment_deadline ?? existing?.cashPaymentDeadline ?? '') || undefined,
+      participantAuthMode: normalizeParticipantAuthModeFromCatalog(
+        row.participant_auth_mode,
+        existing?.participantAuthMode ?? 'anonymous'
+      ),
+      participantPhoneRequired:
+        typeof row.participant_phone_required === 'boolean'
+          ? row.participant_phone_required
+          : existing?.participantPhoneRequired ?? false,
+      developerCommissionRate: existing?.developerCommissionRate ?? COMMISSION_RATE,
+      providerFeeRate: existing?.providerFeeRate ?? STRIPE_PROVIDER_FEE_RATE,
+      providerFeeFixed: existing?.providerFeeFixed ?? STRIPE_PROVIDER_FEE_FIXED,
+      organizerNetAmount: existing?.organizerNetAmount ?? Number(row.fee_amount ?? 0),
+      active: typeof row.active === 'boolean' ? row.active : existing?.active ?? true,
+      createdAt,
+    };
+
+    if (existingIndex !== undefined && existingIndex >= 0) {
+      nextEvents[existingIndex] = mergedEvent;
+      eventIndexByRemoteId.set(remoteId, existingIndex);
+    } else {
+      nextEvents.push(mergedEvent);
+      eventIndexByRemoteId.set(remoteId, nextEvents.length - 1);
+    }
+  }
+
+  return {
+    ...source,
+    organizers: nextOrganizers,
+    events: nextEvents,
+  };
+};
+
 type AuthNotice = {
   tone: 'error' | 'success' | 'info';
   title: string;
@@ -467,6 +822,38 @@ function App() {
       clearInterval(intervalId);
     };
   }, [isReady]);
+
+  useEffect(() => {
+    if (!isReady || !ORGANIZER_SECURITY_ENFORCED) {
+      return;
+    }
+    if (!organizerSecurity?.securityReady) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const refreshCatalog = async () => {
+      const catalogResult = await listOrganizerCatalogFromSupabase();
+      if (!catalogResult.ok || cancelled) {
+        return;
+      }
+
+      setAppData((current) => mergeOrganizerCatalogFromSupabase(current, catalogResult.data));
+    };
+
+    void refreshCatalog();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    adminAccess.isAdmin,
+    isReady,
+    organizerSecurity?.email,
+    organizerSecurity?.securityReady,
+    organizerSecurity?.userId,
+  ]);
 
   const refreshAdminAccess = useCallback(
     async (email?: string) => {

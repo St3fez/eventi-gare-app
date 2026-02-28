@@ -72,6 +72,183 @@ const isUnsupportedEventFieldError = (message: string): boolean =>
     message
   );
 
+type OrganizerCatalogOrganizerLegacyRow = {
+  id: string;
+  user_id: string;
+  email: string;
+  fiscal_data: string | null;
+  bank_account: string | null;
+  verification_status: OrganizerProfile['verificationStatus'];
+  payout_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OrganizerCatalogOrganizerRow = OrganizerCatalogOrganizerLegacyRow & {
+  organization_name?: string | null;
+  organization_role?: OrganizerProfile['organizationRole'] | null;
+  organization_role_label?: string | null;
+  legal_representative?: string | null;
+  official_phone?: string | null;
+  compliance_documents?: OrganizerProfile['complianceDocuments'] | null;
+  compliance_submitted_at?: string | null;
+  paid_feature_unlocked?: boolean;
+  paid_feature_unlock_requested_at?: string | null;
+  paid_feature_unlock_contact?: string | null;
+  sponsor_module_enabled?: boolean;
+  sponsor_module_activated_at?: string | null;
+  sponsor_module_activation_amount?: number;
+  stripe_connect_account_id?: string | null;
+  stripe_connect_charges_enabled?: boolean;
+  stripe_connect_payouts_enabled?: boolean;
+  stripe_connect_details_submitted?: boolean;
+  stripe_connect_last_sync_at?: string | null;
+  risk_score?: number;
+  risk_flags?: string[] | null;
+  verification_checklist?: OrganizerProfile['verificationChecklist'] | null;
+};
+
+type OrganizerCatalogEventLegacyRow = {
+  id: string;
+  organizer_id: string;
+  name: string;
+  location: string;
+  event_date: string;
+  is_free: boolean;
+  fee_amount: number;
+  privacy_text: string;
+  logo_url: string | null;
+  local_sponsor: string | null;
+  assign_numbers: boolean;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OrganizerCatalogEventRow = OrganizerCatalogEventLegacyRow & {
+  event_end_date?: string | null;
+  event_time?: string | null;
+  participant_auth_mode?: EventItem['participantAuthMode'] | null;
+  participant_phone_required?: boolean;
+  cash_payment_enabled?: boolean;
+  cash_payment_instructions?: string | null;
+  cash_payment_deadline?: string | null;
+  registrations_open?: boolean;
+  closed_at?: string | null;
+  definitive_published_at?: string | null;
+  season_version?: number;
+  last_participants_reset_at?: string | null;
+};
+
+const ORGANIZER_CATALOG_SELECT_EXTENDED =
+  'id,user_id,email,organization_name,organization_role,organization_role_label,legal_representative,official_phone,fiscal_data,bank_account,compliance_documents,compliance_submitted_at,verification_status,payout_enabled,paid_feature_unlocked,paid_feature_unlock_requested_at,paid_feature_unlock_contact,sponsor_module_enabled,sponsor_module_activated_at,sponsor_module_activation_amount,stripe_connect_account_id,stripe_connect_charges_enabled,stripe_connect_payouts_enabled,stripe_connect_details_submitted,stripe_connect_last_sync_at,risk_score,risk_flags,verification_checklist,created_at,updated_at';
+
+const ORGANIZER_CATALOG_SELECT_LEGACY =
+  'id,user_id,email,fiscal_data,bank_account,verification_status,payout_enabled,created_at,updated_at';
+
+const EVENT_CATALOG_SELECT_EXTENDED =
+  'id,organizer_id,name,location,event_date,event_end_date,event_time,is_free,fee_amount,privacy_text,logo_url,local_sponsor,assign_numbers,participant_auth_mode,participant_phone_required,cash_payment_enabled,cash_payment_instructions,cash_payment_deadline,registrations_open,closed_at,definitive_published_at,season_version,last_participants_reset_at,active,created_at,updated_at';
+
+const EVENT_CATALOG_SELECT_LEGACY =
+  'id,organizer_id,name,location,event_date,is_free,fee_amount,privacy_text,logo_url,local_sponsor,assign_numbers,active,created_at,updated_at';
+
+export const listOrganizerCatalogFromSupabase = async (): Promise<
+  SyncResult<{
+    organizers: OrganizerCatalogOrganizerRow[];
+    events: OrganizerCatalogEventRow[];
+  }>
+> => {
+  if (!supabase) {
+    return fail('Supabase non configurato.');
+  }
+
+  const auth = await ensureSupabaseUser({
+    allowAnonymous: !ORGANIZER_SECURITY_ENFORCED,
+  });
+  if (!auth.ok) {
+    return fail(auth.reason);
+  }
+
+  let organizersData: OrganizerCatalogOrganizerRow[] = [];
+  let organizersError: Error | null = null;
+
+  const organizersExtended = await supabase
+    .from('organizers')
+    .select(ORGANIZER_CATALOG_SELECT_EXTENDED)
+    .order('created_at', { ascending: false });
+
+  if (organizersExtended.error) {
+    if (
+      /organization_name|organization_role|legal_representative|official_phone|compliance_documents|paid_feature_unlocked|sponsor_module_enabled|stripe_connect_account_id|risk_score|verification_checklist/i.test(
+        organizersExtended.error.message
+      )
+    ) {
+      const organizersLegacy = await supabase
+        .from('organizers')
+        .select(ORGANIZER_CATALOG_SELECT_LEGACY)
+        .order('created_at', { ascending: false });
+      organizersData = (organizersLegacy.data ?? []) as OrganizerCatalogOrganizerRow[];
+      organizersError = organizersLegacy.error;
+    } else {
+      organizersError = organizersExtended.error;
+    }
+  } else {
+    organizersData = (organizersExtended.data ?? []) as OrganizerCatalogOrganizerRow[];
+  }
+
+  if (organizersError) {
+    return fail(`Lettura organizer fallita: ${organizersError.message}`);
+  }
+
+  const organizerIds = organizersData.map((entry) => entry.id);
+  if (!organizerIds.length) {
+    return {
+      ok: true,
+      data: {
+        organizers: organizersData,
+        events: [],
+      },
+    };
+  }
+
+  let eventsData: OrganizerCatalogEventRow[] = [];
+  let eventsError: Error | null = null;
+
+  const eventsExtended = await supabase
+    .from('events')
+    .select(EVENT_CATALOG_SELECT_EXTENDED)
+    .in('organizer_id', organizerIds)
+    .order('event_date', { ascending: true });
+
+  if (eventsExtended.error) {
+    if (isUnsupportedEventFieldError(eventsExtended.error.message)) {
+      const eventsLegacy = await supabase
+        .from('events')
+        .select(EVENT_CATALOG_SELECT_LEGACY)
+        .in('organizer_id', organizerIds)
+        .order('event_date', { ascending: true });
+      eventsData = (eventsLegacy.data ?? []) as OrganizerCatalogEventRow[];
+      eventsError = eventsLegacy.error;
+    } else {
+      eventsError = eventsExtended.error;
+    }
+  } else {
+    eventsData = (eventsExtended.data ?? []) as OrganizerCatalogEventRow[];
+  }
+
+  if (eventsError) {
+    return fail(`Lettura eventi fallita: ${eventsError.message}`);
+  }
+
+  return {
+    ok: true,
+    data: {
+      organizers: organizersData,
+      events: eventsData,
+    },
+  };
+};
+
 export const ensureSupabaseUser = async (options?: {
   allowAnonymous?: boolean;
 }): Promise<SyncResult<{ userId: string }>> => {
