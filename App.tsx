@@ -953,7 +953,7 @@ function App() {
   };
 
   const openOrganizerWorkspace = useCallback(
-    (status?: OrganizerSecurityStatus | null) => {
+    async (status?: OrganizerSecurityStatus | null) => {
       if (!ORGANIZER_SECURITY_ENFORCED) {
         setScreen({ name: 'organizerProfile' });
         return;
@@ -967,6 +967,20 @@ function App() {
 
       const currentUserId = cleanText(currentStatus.userId ?? '');
       const currentEmail = cleanText(currentStatus.email ?? '').toLowerCase();
+
+      if (currentEmail) {
+        const adminResult = await getAdminAccessByEmail(currentEmail);
+        if (adminResult.ok && adminResult.data.isAdmin) {
+          setAdminAccess(adminResult.data);
+          const adminsResult = await listAdminUsers();
+          if (adminsResult.ok) {
+            setAdminUsers(adminsResult.data);
+          }
+          setScreen({ name: 'organizerProfile' });
+          return;
+        }
+      }
+
       const matchedOrganizer = appData.organizers.find((organizer) => {
         if (currentUserId && organizer.userId && organizer.userId === currentUserId) {
           return true;
@@ -1028,10 +1042,10 @@ function App() {
         const latestSecurity = await getOrganizerSecurityStatus();
         if (latestSecurity.ok) {
           setOrganizerSecurity(latestSecurity.data);
-          openOrganizerWorkspace(latestSecurity.data);
+          await openOrganizerWorkspace(latestSecurity.data);
           return;
         }
-        openOrganizerWorkspace();
+        await openOrganizerWorkspace();
       }
     };
 
@@ -4043,11 +4057,11 @@ function App() {
                 const latestSecurity = await getOrganizerSecurityStatus();
                 if (latestSecurity.ok) {
                   setOrganizerSecurity(latestSecurity.data);
-                  openOrganizerWorkspace(latestSecurity.data);
+                  await openOrganizerWorkspace(latestSecurity.data);
                   return;
                 }
 
-                openOrganizerWorkspace();
+                await openOrganizerWorkspace();
               })();
             }}
             onParticipant={() => {
@@ -4093,10 +4107,10 @@ function App() {
                 const latestSecurity = await getOrganizerSecurityStatus();
                 if (latestSecurity.ok) {
                   setOrganizerSecurity(latestSecurity.data);
-                  openOrganizerWorkspace(latestSecurity.data);
+                  await openOrganizerWorkspace(latestSecurity.data);
                   return;
                 }
-                openOrganizerWorkspace();
+                await openOrganizerWorkspace();
               }
             }}
             t={t}
