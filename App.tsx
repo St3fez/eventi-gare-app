@@ -923,6 +923,7 @@ function App() {
 
     const status = await getOrganizerSecurityStatus();
     if (!status.ok) {
+      setOrganizerSecurity(null);
       setAdminAccess({
         isAdmin: false,
         canManageAdmins: false,

@@ -138,7 +138,22 @@ export const getOrganizerSecurityStatus = async (): Promise<
   if (result.error) {
     return authFail(`Lettura sessione fallita: ${result.error.message}`);
   }
-  return parseOrganizerSecurity(result.data.session);
+
+  const currentSession = result.data.session;
+  if (!currentSession?.access_token) {
+    return parseOrganizerSecurity(currentSession);
+  }
+
+  const validatedUser = await client.auth.getUser(currentSession.access_token);
+  if (validatedUser.error || !validatedUser.data.user) {
+    await client.auth.signOut();
+    return authFail('Sessione non valida o account non piu disponibile. Effettua di nuovo login.');
+  }
+
+  return parseOrganizerSecurity({
+    ...currentSession,
+    user: validatedUser.data.user,
+  });
 };
 
 const getRedirectTo = (): string | undefined => {
