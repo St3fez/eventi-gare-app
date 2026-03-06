@@ -6,8 +6,14 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from '../constants';
 export const isSupabaseConfigured = (): boolean =>
   Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
+const isNodeTestRuntime = (): boolean =>
+  typeof window === 'undefined' &&
+  typeof document === 'undefined' &&
+  typeof process !== 'undefined' &&
+  Boolean((process as { versions?: { node?: string } }).versions?.node);
+
 export const createSupabaseClient = (): SupabaseClient | null => {
-  if (!isSupabaseConfigured()) {
+  if (!isSupabaseConfigured() || isNodeTestRuntime()) {
     return null;
   }
 
