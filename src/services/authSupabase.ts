@@ -8,9 +8,12 @@ import {
 } from './authSupabaseWeb';
 import { supabase } from './supabaseClient';
 
+const SUPABASE_CONFIG_ERROR =
+  'Supabase non configurato. Controlla EXPO_PUBLIC_SUPABASE_URL e EXPO_PUBLIC_SUPABASE_ANON_KEY';
+
 const requireSupabase = () => {
   if (!supabase) {
-    throw new Error('Supabase non configurato. Controlla EXPO_PUBLIC_SUPABASE_URL e EXPO_PUBLIC_SUPABASE_ANON_KEY');
+    throw new Error(SUPABASE_CONFIG_ERROR);
   }
   return supabase;
 };
@@ -138,7 +141,10 @@ const parseOrganizerSecurity = (
 export const getOrganizerSecurityStatus = async (): Promise<
   AuthResult<OrganizerSecurityStatus>
 > => {
-  const client = requireSupabase();
+  const client = supabase;
+  if (!client) {
+    return authFail(SUPABASE_CONFIG_ERROR);
+  }
   const result = await client.auth.getSession();
   if (result.error) {
     return authFail(`Lettura sessione fallita: ${result.error.message}`);
@@ -169,7 +175,10 @@ const getRedirectTo = (): string | undefined => {
 };
 
 export const startOrganizerOAuth = async (provider: 'google'): Promise<AuthResult<null>> => {
-  const client = requireSupabase();
+  const client = supabase;
+  if (!client) {
+    return authFail(SUPABASE_CONFIG_ERROR);
+  }
   const redirectTo = getRedirectTo();
 
   const session = await client.auth.getSession();
@@ -208,8 +217,13 @@ export { getWebAuthRedirectUrl, hasAuthCallbackParams } from './authSupabaseWeb'
 export const completeOAuthFromUrl = async (
   url: string,
   clientOverride?: WebAuthClientLike
-): Promise<AuthResult<boolean>> =>
-  completeWebAuthFromUrl(url, clientOverride ?? requireSupabase());
+): Promise<AuthResult<boolean>> => {
+  const client = clientOverride ?? supabase;
+  if (!client) {
+    return authFail(SUPABASE_CONFIG_ERROR);
+  }
+  return completeWebAuthFromUrl(url, client);
+};
 
 export const requestOrganizerPhoneOtp = async (phone: string): Promise<AuthResult<null>> => {
   const client = requireSupabase();
