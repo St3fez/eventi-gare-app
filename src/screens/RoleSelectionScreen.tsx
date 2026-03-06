@@ -30,11 +30,41 @@ export function RoleSelectionScreen({
   const isDesktopLayout = width >= 980;
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={[styles.screenSplit, isDesktopLayout ? styles.screenSplitDesktop : undefined]}>
         <View style={[styles.screenSplitColumn, isDesktopLayout ? styles.screenSplitColumnMain : undefined]}>
           <SectionCard title={t('home_select_user_type')} delayMs={0}>
-            <Text style={styles.cardParagraph}>{t('home_intro')}</Text>
+            <View style={styles.heroPanel}>
+              <Text style={styles.heroEyebrow}>{t('app_name')}</Text>
+              <Text style={styles.heroHeadline}>{t('home_flow_title')}</Text>
+              <Text style={styles.emphasisParagraph}>{t('home_intro')}</Text>
+              <View style={styles.inlineMetricRow}>
+                <MetricChip label={t('metric_total_events')} value={String(eventCount)} />
+                <MetricChip
+                  label={t('metric_total_registrations')}
+                  value={String(registrationCount)}
+                />
+              </View>
+            </View>
+
+            <View style={styles.flowCard}>
+              <View style={styles.flowStepRow}>
+                <Text style={styles.flowStepIndex}>1</Text>
+                <Text style={styles.flowStepText}>{t('home_flow_step_1')}</Text>
+              </View>
+              <View style={styles.flowStepRow}>
+                <Text style={styles.flowStepIndex}>2</Text>
+                <Text style={styles.flowStepText}>{t('home_flow_step_2')}</Text>
+              </View>
+              <View style={styles.flowStepRow}>
+                <Text style={styles.flowStepIndex}>3</Text>
+                <Text style={styles.flowStepText}>{t('home_flow_step_3')}</Text>
+              </View>
+            </View>
+
             <View style={styles.homeTopActions}>
               <Pressable style={styles.inlineActionButton} onPress={onOpenLegal}>
                 <Text style={styles.inlineActionButtonText}>{t('legal_button')}</Text>
@@ -77,25 +107,41 @@ export function RoleSelectionScreen({
                 </Pressable>
               </View>
             </View>
-            <View style={styles.inlineMetricRow}>
-              <MetricChip label={t('metric_total_events')} value={String(eventCount)} />
-              <MetricChip label={t('metric_total_registrations')} value={String(registrationCount)} />
+
+            <View
+              style={[
+                styles.actionChoiceGrid,
+                isDesktopLayout ? styles.actionChoiceGridDesktop : undefined,
+              ]}
+            >
+              <View style={[styles.actionChoiceCard, styles.actionChoiceCardPrimary]}>
+                <Text style={styles.actionChoiceTitle}>{t('enter_as_participant')}</Text>
+                <Text style={styles.actionChoiceText}>{t('home_role_participant_hint')}</Text>
+                <Pressable style={styles.primaryButton} onPress={onParticipant}>
+                  <Text style={styles.primaryButtonText}>{t('enter_as_participant')}</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.actionChoiceCard}>
+                <Text style={styles.actionChoiceTitle}>{t('enter_as_organizer')}</Text>
+                <Text style={styles.actionChoiceText}>{t('home_role_organizer_hint')}</Text>
+                <Pressable style={styles.secondaryButton} onPress={onOrganizer}>
+                  <Text style={styles.secondaryButtonText}>{t('enter_as_organizer')}</Text>
+                </Pressable>
+              </View>
             </View>
-            <Pressable style={styles.primaryButton} onPress={onOrganizer}>
-              <Text style={styles.primaryButtonText}>{t('enter_as_organizer')}</Text>
-            </Pressable>
-            <Pressable style={styles.secondaryButton} onPress={onParticipant}>
-              <Text style={styles.secondaryButtonText}>{t('enter_as_participant')}</Text>
-            </Pressable>
           </SectionCard>
         </View>
         <View style={[styles.screenSplitColumn, isDesktopLayout ? styles.screenSplitColumnSide : undefined]}>
           <SectionCard title={t('included_features')} delayMs={120}>
-            <Text style={styles.cardParagraph}>{t('feature_1')}</Text>
-            <Text style={styles.cardParagraph}>{t('feature_2')}</Text>
-            <Text style={styles.cardParagraph}>{t('feature_3')}</Text>
-            <Text style={styles.cardParagraph}>{t('feature_4')}</Text>
-            <Text style={styles.cardParagraph}>{t('feature_5')}</Text>
+            <Text style={styles.cardParagraph}>{t('home_features_hint')}</Text>
+            <View style={styles.flowCard}>
+              <Text style={styles.cardParagraph}>{t('feature_1')}</Text>
+              <Text style={styles.cardParagraph}>{t('feature_2')}</Text>
+              <Text style={styles.cardParagraph}>{t('feature_3')}</Text>
+              <Text style={styles.cardParagraph}>{t('feature_4')}</Text>
+              <Text style={styles.cardParagraph}>{t('feature_5')}</Text>
+            </View>
           </SectionCard>
         </View>
       </View>

@@ -8,6 +8,7 @@ export const BANK_PROVIDER_FEE_RATE = 0;
 export const BANK_PROVIDER_FEE_FIXED = 0;
 export const PAYMENT_SESSION_MINUTES = 15;
 export const MAX_IMAGE_UPLOAD_BYTES = 500 * 1024;
+const ENV = process.env as Record<string, string | undefined>;
 
 const parseEnvBoolean = (value: string | undefined): boolean | null => {
   if (typeof value !== 'string') {
@@ -25,61 +26,61 @@ const parseEnvBoolean = (value: string | undefined): boolean | null => {
 };
 
 export const APP_CHANNEL: 'demo' | 'prod' =
-  String(process.env.EXPO_PUBLIC_APP_CHANNEL ?? '').trim().toLowerCase() === 'demo'
+  String(ENV.EXPO_PUBLIC_APP_CHANNEL ?? '').trim().toLowerCase() === 'demo'
     ? 'demo'
     : 'prod';
 export const IS_DEMO_CHANNEL = APP_CHANNEL === 'demo';
 
-const organizerTestModeFromEnv = parseEnvBoolean(process.env.EXPO_PUBLIC_ORGANIZER_TEST_MODE);
+const organizerTestModeFromEnv = parseEnvBoolean(ENV.EXPO_PUBLIC_ORGANIZER_TEST_MODE);
 export const ORGANIZER_TEST_MODE = organizerTestModeFromEnv ?? IS_DEMO_CHANNEL;
 
 const organizerSecurityFromEnv = parseEnvBoolean(
-  process.env.EXPO_PUBLIC_ORGANIZER_SECURITY_ENFORCED
+  ENV.EXPO_PUBLIC_ORGANIZER_SECURITY_ENFORCED
 );
 export const ORGANIZER_SECURITY_ENFORCED =
   !ORGANIZER_TEST_MODE && (organizerSecurityFromEnv ?? true);
 
 const participantSecurityFromEnv = parseEnvBoolean(
-  process.env.EXPO_PUBLIC_PARTICIPANT_SECURITY_ENFORCED
+  ENV.EXPO_PUBLIC_PARTICIPANT_SECURITY_ENFORCED
 );
 export const PARTICIPANT_SECURITY_ENFORCED =
   !IS_DEMO_CHANNEL && (participantSecurityFromEnv ?? true);
 
-const demoAllOpenFromEnv = parseEnvBoolean(process.env.EXPO_PUBLIC_DEMO_ALL_OPEN);
+const demoAllOpenFromEnv = parseEnvBoolean(ENV.EXPO_PUBLIC_DEMO_ALL_OPEN);
 export const DEMO_ALL_OPEN = demoAllOpenFromEnv ?? IS_DEMO_CHANNEL;
 
-const admobEnabledFromEnv = parseEnvBoolean(process.env.EXPO_PUBLIC_ADMOB_ENABLED);
+const admobEnabledFromEnv = parseEnvBoolean(ENV.EXPO_PUBLIC_ADMOB_ENABLED);
 export const ADMOB_ENABLED = admobEnabledFromEnv ?? false;
-const admobTestFromEnv = parseEnvBoolean(process.env.EXPO_PUBLIC_ADMOB_TEST_MODE);
+const admobTestFromEnv = parseEnvBoolean(ENV.EXPO_PUBLIC_ADMOB_TEST_MODE);
 export const ADMOB_TEST_MODE = admobTestFromEnv ?? IS_DEMO_CHANNEL;
 
 export const PAID_FEATURE_UNLOCK_CONTACT =
-  process.env.EXPO_PUBLIC_PAID_FEATURE_UNLOCK_CONTACT ?? 'profstefanoferrari';
+  ENV.EXPO_PUBLIC_PAID_FEATURE_UNLOCK_CONTACT ?? 'profstefanoferrari';
 export const SPONSOR_MODULE_ACTIVATION_EUR = 25;
 export const ADMIN_CONTACT_EMAIL =
-  process.env.EXPO_PUBLIC_ADMIN_CONTACT_EMAIL ?? 'profstefanoferrari@gmail.com';
-export const EMAIL_WEBHOOK_URL = process.env.EXPO_PUBLIC_EMAIL_WEBHOOK_URL;
+  ENV.EXPO_PUBLIC_ADMIN_CONTACT_EMAIL ?? 'profstefanoferrari@gmail.com';
+export const EMAIL_WEBHOOK_URL = ENV.EXPO_PUBLIC_EMAIL_WEBHOOK_URL;
 export const ORGANIZER_COMPLIANCE_WEBHOOK_URL =
-  process.env.EXPO_PUBLIC_ORGANIZER_COMPLIANCE_WEBHOOK_URL;
-export const EVENT_WEB_BASE_URL = process.env.EXPO_PUBLIC_EVENT_WEB_BASE_URL;
+  ENV.EXPO_PUBLIC_ORGANIZER_COMPLIANCE_WEBHOOK_URL;
+export const EVENT_WEB_BASE_URL = ENV.EXPO_PUBLIC_EVENT_WEB_BASE_URL;
 export const PRIVACY_POLICY_URL =
-  process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL || EVENT_WEB_BASE_URL;
-export const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
-export const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-export const SPONSOR_CHECKOUT_URL = process.env.EXPO_PUBLIC_SPONSOR_CHECKOUT_URL;
+  ENV.EXPO_PUBLIC_PRIVACY_POLICY_URL || EVENT_WEB_BASE_URL;
+export const SUPABASE_URL = ENV.EXPO_PUBLIC_SUPABASE_URL;
+export const SUPABASE_ANON_KEY = ENV.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+export const SPONSOR_CHECKOUT_URL = ENV.EXPO_PUBLIC_SPONSOR_CHECKOUT_URL;
 export const SPONSOR_MODULE_CHECKOUT_URL =
-  process.env.EXPO_PUBLIC_SPONSOR_MODULE_CHECKOUT_URL;
-export const STRIPE_CONNECT_URL = process.env.EXPO_PUBLIC_STRIPE_CONNECT_URL;
-export const STRIPE_CONNECT_SYNC_URL = process.env.EXPO_PUBLIC_STRIPE_CONNECT_SYNC_URL;
-export const PARTICIPANT_CHECKOUT_URL = process.env.EXPO_PUBLIC_PARTICIPANT_CHECKOUT_URL;
+  ENV.EXPO_PUBLIC_SPONSOR_MODULE_CHECKOUT_URL;
+export const STRIPE_CONNECT_URL = ENV.EXPO_PUBLIC_STRIPE_CONNECT_URL;
+export const STRIPE_CONNECT_SYNC_URL = ENV.EXPO_PUBLIC_STRIPE_CONNECT_SYNC_URL;
+export const PARTICIPANT_CHECKOUT_URL = ENV.EXPO_PUBLIC_PARTICIPANT_CHECKOUT_URL;
 export const ADMOB_BANNER_UNIT_ID_ANDROID =
-  process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID_ANDROID;
+  ENV.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID_ANDROID;
 export const ADMOB_BANNER_UNIT_ID_IOS =
-  process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID_IOS;
+  ENV.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID_IOS;
 export const ADMOB_INTERSTITIAL_UNIT_ID_ANDROID =
-  process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID_ANDROID;
+  ENV.EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID_ANDROID;
 export const ADMOB_INTERSTITIAL_UNIT_ID_IOS =
-  process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID_IOS;
+  ENV.EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID_IOS;
 
 export const DEFAULT_PRIVACY_TEXT =
   'Autorizzo il trattamento dei dati personali solo per gestione iscrizione, comunicazioni evento e obblighi fiscali previsti.';

@@ -163,22 +163,18 @@ powershell -ExecutionPolicy Bypass -File ./scripts/preflight-prod-readiness.ps1
 - `docs/web-publish-quickstart-en.md`
 - `docs/deploy-web-autosync-github-it.md`
 
-## Deploy Netlify su sito fisso
-Per evitare la creazione di siti Netlify casuali:
+## Deploy GitHub Pages
+Il progetto web pubblica da GitHub Pages tramite:
+- `.github/workflows/deploy-pages.yml`
 
-1. Imposta token Netlify nella shell:
-   ```powershell
-   $env:NETLIFY_AUTH_TOKEN="NETLIFY_PERSONAL_ACCESS_TOKEN"
-   ```
-2. Deploy produzione sempre sul progetto `eventi-gare-app`:
-   ```powershell
-   npm run deploy:netlify
-   ```
+Flusso operativo:
+1. Configura `Settings -> Pages -> Source: GitHub Actions`
+2. Inserisci in `Settings -> Secrets and variables -> Actions` le `EXPO_PUBLIC_*` richieste
+3. Fai push su `main`
 
-3. Deploy demo sullo stesso script, con canale demo:
-   ```powershell
-   npm run deploy:netlify:demo
-   ```
+URL consigliati:
+- `EXPO_PUBLIC_EVENT_WEB_BASE_URL=https://<owner>.github.io/eventi-gare-app`
+- `EXPO_PUBLIC_PRIVACY_POLICY_URL=https://<owner>.github.io/eventi-gare-app/privacy-policy`
 
 ## Build icon
 Icone personalizzate generate in `assets/`:

@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { SectionCard, TextField } from '../components/Common';
 import { Translator } from '../i18n';
 import { styles } from '../styles';
 import { OrganizerProfile, OrganizerRole } from '../types';
+import { cleanText } from '../utils/format';
 
 type Props = {
   organizers: OrganizerProfile[];
@@ -42,11 +43,39 @@ export function OrganizerProfileScreen({
   const [officialPhone, setOfficialPhone] = useState('');
   const [fiscalData, setFiscalData] = useState('');
   const [bankAccount, setBankAccount] = useState('');
+  const normalizedEmail = cleanText(email).toLowerCase();
+  const emailIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail);
+  const missingRequiredLabels = useMemo(() => {
+    const missing: string[] = [];
+    if (!emailIsValid) {
+      missing.push(t('email_required'));
+    }
+    return missing;
+  }, [emailIsValid, t]);
+  const canSubmit = missingRequiredLabels.length === 0;
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps='handled'>
       <SectionCard title={t('organizer_access')} delayMs={0}>
         <Text style={styles.cardParagraph}>{t('organizer_access_intro')}</Text>
+        <View style={styles.registrationCard}>
+          <Text style={styles.fieldLabel}>{t('guided_organizer_checklist_title')}</Text>
+          <Text style={styles.helperText}>{t('guided_organizer_checklist_intro')}</Text>
+          {canSubmit ? (
+            <Text style={styles.helperText}>{t('guided_organizer_checklist_ready')}</Text>
+          ) : (
+            <>
+              <Text style={styles.helperText}>
+                {t('guided_required_checklist_missing', { count: missingRequiredLabels.length })}
+              </Text>
+              {missingRequiredLabels.map((label) => (
+                <Text key={label} style={styles.listSubText}>
+                  - {label}
+                </Text>
+              ))}
+            </>
+          )}
+        </View>
 
         {organizers.length > 0 ? (
           <View style={styles.blockSpacing}>
@@ -160,10 +189,11 @@ export function OrganizerProfileScreen({
         />
 
         <Pressable
-          style={styles.primaryButton}
+          style={[styles.primaryButton, !canSubmit ? styles.primaryButtonDisabled : undefined]}
+          disabled={!canSubmit}
           onPress={() =>
             onCreate({
-              email,
+              email: normalizedEmail,
               fiscalData,
               bankAccount,
               organizationName,
@@ -176,6 +206,9 @@ export function OrganizerProfileScreen({
         >
           <Text style={styles.primaryButtonText}>{t('save_organizer')}</Text>
         </Pressable>
+        {!canSubmit ? (
+          <Text style={styles.helperText}>{t('guided_complete_required_fields_hint')}</Text>
+        ) : null}
         {showSignOut && onSignOut ? (
           <Pressable style={styles.secondaryButton} onPress={onSignOut}>
             <Text style={styles.secondaryButtonText}>{t('organizer_security_signout')}</Text>

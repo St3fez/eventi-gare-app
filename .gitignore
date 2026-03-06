@@ -5,10 +5,16 @@ node_modules/
 
 # Expo
 .expo/
+.netlify/
 dist/
 web-build/
+web-build-ci/
+web-build-demo-publish/
 expo-web-tunnel.log
 expo-web-tunnel.err.log
+autolinking-resolve.json
+expo-modules-autolinking-*.tgz
+tmp_data_dump.sql
 
 # Local tools
 .vscode/

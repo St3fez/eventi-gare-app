@@ -58,9 +58,9 @@ In Stripe:
    - `checkout.session.expired`
 3. Copia il signing secret (`whsec_...`) in Supabase secret `STRIPE_WEBHOOK_SIGNING_SECRET`.
 
-## 4) Variabili Netlify (Production)
+## 4) Variabili GitHub Actions (Production)
 
-Nel sito Netlify, imposta le stesse variabili di produzione:
+In GitHub repo, `Settings -> Secrets and variables -> Actions`, imposta le stesse variabili di produzione:
 
 - `EXPO_PUBLIC_SUPABASE_URL`
 - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
@@ -108,5 +108,7 @@ Implicazione:
 Quando il preflight e tutto verde:
 
 ```powershell
-npm run deploy:netlify
+git push origin main
 ```
+
+Il workflow `.github/workflows/deploy-pages.yml` esegue build e pubblicazione su GitHub Pages.

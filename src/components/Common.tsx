@@ -6,6 +6,7 @@ import {
   Switch,
   Text,
   TextInput,
+  TextInputProps,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -62,9 +63,17 @@ type TextFieldProps = {
   value: string;
   onChangeText: (value: string) => void;
   placeholder?: string;
-  keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'decimal-pad';
+  keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'decimal-pad' | 'number-pad';
   multiline?: boolean;
   secureTextEntry?: boolean;
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  autoCorrect?: boolean;
+  autoComplete?: TextInputProps['autoComplete'];
+  textContentType?: TextInputProps['textContentType'];
+  inputMode?: TextInputProps['inputMode'];
+  returnKeyType?: TextInputProps['returnKeyType'];
+  maxLength?: number;
+  autoFocus?: boolean;
 };
 
 export function TextField({
@@ -75,7 +84,22 @@ export function TextField({
   keyboardType = 'default',
   multiline = false,
   secureTextEntry = false,
+  autoCapitalize,
+  autoCorrect,
+  autoComplete,
+  textContentType,
+  inputMode,
+  returnKeyType,
+  maxLength,
+  autoFocus = false,
 }: TextFieldProps) {
+  const resolvedAutoCapitalize =
+    autoCapitalize ??
+    (keyboardType === 'email-address' ? 'none' : multiline ? 'sentences' : 'words');
+  const resolvedAutoCorrect =
+    autoCorrect ??
+    !['email-address', 'phone-pad', 'decimal-pad', 'number-pad'].includes(keyboardType);
+
   return (
     <View style={styles.fieldBlock}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -87,6 +111,16 @@ export function TextField({
         keyboardType={keyboardType}
         multiline={multiline}
         secureTextEntry={secureTextEntry}
+        autoCapitalize={resolvedAutoCapitalize}
+        autoCorrect={resolvedAutoCorrect}
+        autoComplete={autoComplete}
+        textContentType={textContentType}
+        inputMode={inputMode}
+        returnKeyType={returnKeyType}
+        maxLength={maxLength}
+        autoFocus={autoFocus}
+        importantForAutofill='yes'
+        accessibilityLabel={label}
         textAlignVertical={multiline ? 'top' : 'center'}
         style={[styles.input, multiline ? styles.inputMultiline : undefined]}
       />
@@ -145,6 +179,39 @@ export function MetricChip({ label, value }: MetricChipProps) {
     <View style={styles.metricChip}>
       <Text style={styles.metricValue}>{value}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
+    </View>
+  );
+}
+
+type StatusBadgeProps = {
+  label: string;
+  tone?: 'neutral' | 'success' | 'warning';
+};
+
+export function StatusBadge({ label, tone = 'neutral' }: StatusBadgeProps) {
+  return (
+    <View
+      style={[
+        styles.statusBadge,
+        tone === 'success'
+          ? styles.statusBadgeSuccess
+          : tone === 'warning'
+            ? styles.statusBadgeWarning
+            : styles.statusBadgeNeutral,
+      ]}
+    >
+      <Text
+        style={[
+          styles.statusBadgeText,
+          tone === 'success'
+            ? styles.statusBadgeTextSuccess
+            : tone === 'warning'
+              ? styles.statusBadgeTextWarning
+              : styles.statusBadgeTextNeutral,
+        ]}
+      >
+        {label}
+      </Text>
     </View>
   );
 }

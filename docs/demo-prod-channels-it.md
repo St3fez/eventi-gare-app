@@ -57,15 +57,10 @@ Output zip:
 - `dist/web/events-web-build-prod.zip`
 - `dist/web/events-web-build-demo.zip`
 
-## Deploy Netlify
+## Deploy web
 
-```powershell
-# Produzione
-npm run deploy:netlify
-
-# Demo
-npm run deploy:netlify:demo
-```
+Per la produzione web usa GitHub Pages con push su `main`.
+Per una demo separata usa un repo GitHub dedicato e pubblicalo con GitHub Pages sul relativo path.
 
 ## Nota operativa
 

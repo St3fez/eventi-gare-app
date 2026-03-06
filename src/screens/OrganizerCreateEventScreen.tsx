@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Image, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 
 import {
   COMMISSION_RATE,
@@ -262,6 +262,56 @@ export function OrganizerCreateEventScreen({
       : Number.parseFloat(
           Math.max(0, baseFeeValue - commissionPreview - providerPreview).toFixed(2)
         );
+  const normalizedEventTime = toIsoTime(startTime);
+  const missingRequiredLabels = useMemo(() => {
+    const missing: string[] = [];
+    if (!cleanText(name)) {
+      missing.push(t('event_name_required'));
+    }
+    if (!cleanText(location)) {
+      missing.push(t('location_required'));
+    }
+    if (!cleanText(date)) {
+      missing.push(t('event_start_date_label'));
+    }
+    if (!cleanText(endDate)) {
+      missing.push(t('event_end_date_label'));
+    }
+    if (!normalizedEventTime) {
+      missing.push(t('event_time_label'));
+    }
+    if (!cleanText(registrationOpenDate)) {
+      missing.push(t('registration_open_date_label'));
+    }
+    if (!cleanText(registrationCloseDate)) {
+      missing.push(t('registration_close_date_label'));
+    }
+    if (!isFree && baseFeeValue <= 0) {
+      missing.push(t('base_fee_label'));
+    }
+    if (!isFree && cashPaymentEnabled && !cleanText(cashPaymentInstructions)) {
+      missing.push(t('cash_payment_instructions_label'));
+    }
+    if (!isFree && cashPaymentEnabled && !cleanText(cashPaymentDeadline)) {
+      missing.push(t('cash_payment_deadline_label'));
+    }
+    return missing;
+  }, [
+    baseFeeValue,
+    cashPaymentDeadline,
+    cashPaymentEnabled,
+    cashPaymentInstructions,
+    date,
+    endDate,
+    isFree,
+    location,
+    name,
+    normalizedEventTime,
+    registrationCloseDate,
+    registrationOpenDate,
+    t,
+  ]);
+  const canSubmit = missingRequiredLabels.length === 0;
 
   const handlePaidToggle = (nextValue: boolean) => {
     if (!nextValue) {
@@ -379,6 +429,24 @@ export function OrganizerCreateEventScreen({
         {!canCreatePaid ? (
           <Text style={styles.helperText}>{t('paid_unlock_required_message')}</Text>
         ) : null}
+        <View style={styles.registrationCard}>
+          <Text style={styles.fieldLabel}>{t('guided_event_checklist_title')}</Text>
+          <Text style={styles.helperText}>{t('guided_event_checklist_intro')}</Text>
+          {missingRequiredLabels.length === 0 ? (
+            <Text style={styles.helperText}>{t('guided_event_checklist_ready')}</Text>
+          ) : (
+            <>
+              <Text style={styles.helperText}>
+                {t('guided_required_checklist_missing', { count: missingRequiredLabels.length })}
+              </Text>
+              {missingRequiredLabels.map((label) => (
+                <Text key={label} style={styles.listSubText}>
+                  - {label}
+                </Text>
+              ))}
+            </>
+          )}
+        </View>
 
         <TextField label={t('event_name_required')} value={name} onChangeText={setName} />
         <TextField label={t('location_required')} value={location} onChangeText={setLocation} />
@@ -554,11 +622,18 @@ export function OrganizerCreateEventScreen({
           multiline
         />
 
-        <Pressable style={styles.primaryButton} onPress={submit}>
+        <Pressable
+          style={[styles.primaryButton, !canSubmit ? styles.primaryButtonDisabled : undefined]}
+          onPress={submit}
+          disabled={!canSubmit}
+        >
           <Text style={styles.primaryButtonText}>
             {initialEvent ? t('save_event_changes') : t('publish_event')}
           </Text>
         </Pressable>
+        {!canSubmit ? (
+          <Text style={styles.helperText}>{t('guided_complete_required_fields_hint')}</Text>
+        ) : null}
         <Pressable style={styles.secondaryButton} onPress={onBack}>
           <Text style={styles.secondaryButtonText}>{t('back_dashboard')}</Text>
         </Pressable>

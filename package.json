@@ -14,35 +14,35 @@
     "build:play:aab:prod": "powershell -ExecutionPolicy Bypass -File ./scripts/build-play-aab.ps1 -Channel prod",
     "build:play:aab:demo": "powershell -ExecutionPolicy Bypass -File ./scripts/build-play-aab.ps1 -Channel demo",
     "stripe:live:secrets": "powershell -ExecutionPolicy Bypass -File ./scripts/set-stripe-live-secrets.ps1",
-    "deploy:netlify": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-netlify-prod.ps1",
-    "deploy:netlify:demo": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-netlify-prod.ps1 -Channel demo",
-    "deploy:netlify:skip-build": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-netlify-prod.ps1 -SkipBuild",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/**/*.test.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "~3.2.3",
-    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-async-storage/async-storage": "1.23.1",
     "@supabase/supabase-js": "^2.96.0",
     "expo": "^51.0.39",
-    "expo-clipboard": "~8.0.8",
-    "expo-document-picker": "~14.0.8",
-    "expo-file-system": "^19.0.21",
-    "expo-linear-gradient": "^15.0.8",
-    "expo-sharing": "^14.0.8",
-    "expo-status-bar": "~3.0.9",
+    "expo-clipboard": "~6.0.3",
+    "expo-document-picker": "~12.0.2",
+    "expo-file-system": "~17.0.1",
+    "expo-linear-gradient": "~13.0.2",
+    "expo-sharing": "~12.0.1",
+    "expo-status-bar": "~1.12.1",
     "pdf-lib": "^1.17.1",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-native": "0.74.5",
     "react-native-google-mobile-ads": "^13.0.0",
     "react-native-qrcode-svg": "^6.3.21",
-    "react-native-web": "^0.21.0"
+    "react-native-svg": "^14.1.0",
+    "react-native-web": "~0.19.10"
   },
   "devDependencies": {
     "@react-native/typescript-config": "^0.84.0",
     "@types/react": "~18.2.6",
     "supabase": "^2.76.12",
-    "typescript": "~5.9.2"
+    "tsx": "^4.21.0",
+    "typescript": "~5.3.3"
   },
   "private": true
 }

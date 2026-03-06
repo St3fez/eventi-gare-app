@@ -158,6 +158,63 @@ export const styles = StyleSheet.create({
     fontSize: 14.5,
     lineHeight: 21,
   },
+  emphasisParagraph: {
+    color: '#ECFAFF',
+    fontSize: 16,
+    lineHeight: 23,
+    fontWeight: '700',
+  },
+  heroPanel: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(110, 214, 230, 0.34)',
+    backgroundColor: 'rgba(10, 38, 60, 0.74)',
+    padding: 16,
+    gap: 10,
+  },
+  heroEyebrow: {
+    color: '#7FEBD9',
+    fontSize: 11.5,
+    letterSpacing: 1.1,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  heroHeadline: {
+    color: '#F4FBFF',
+    fontSize: 23,
+    lineHeight: 30,
+    fontWeight: '900',
+  },
+  flowCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 196, 225, 0.34)',
+    backgroundColor: 'rgba(6, 27, 44, 0.72)',
+    padding: 14,
+    gap: 10,
+  },
+  flowStepRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  flowStepIndex: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#36D4B8',
+    color: '#04273A',
+    textAlign: 'center',
+    lineHeight: 24,
+    fontWeight: '900',
+    overflow: 'hidden',
+  },
+  flowStepText: {
+    flex: 1,
+    color: '#D4EAF8',
+    fontSize: 13.5,
+    lineHeight: 19,
+  },
   fieldBlock: {
     gap: 6,
   },
@@ -244,6 +301,9 @@ export const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 5,
   },
+  primaryButtonDisabled: {
+    opacity: 0.5,
+  },
   primaryButtonCompact: {
     marginTop: 10,
     backgroundColor: '#36D4B8',
@@ -279,6 +339,37 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     flexWrap: 'wrap',
+  },
+  actionChoiceGrid: {
+    gap: 12,
+  },
+  actionChoiceGridDesktop: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  actionChoiceCard: {
+    flex: 1,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(125, 188, 216, 0.35)',
+    backgroundColor: 'rgba(7, 29, 46, 0.72)',
+    padding: 14,
+    gap: 10,
+    minWidth: 0,
+  },
+  actionChoiceCardPrimary: {
+    borderColor: 'rgba(110, 239, 217, 0.44)',
+    backgroundColor: 'rgba(8, 44, 55, 0.72)',
+  },
+  actionChoiceTitle: {
+    color: '#F4FBFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  actionChoiceText: {
+    color: '#C3DEEF',
+    fontSize: 13.5,
+    lineHeight: 19,
   },
   homeTopActions: {
     flexDirection: 'row',
@@ -336,6 +427,42 @@ export const styles = StyleSheet.create({
     color: '#BFDCED',
     fontSize: 12,
     marginTop: 2,
+  },
+  statusBadgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  statusBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderWidth: 1,
+  },
+  statusBadgeNeutral: {
+    backgroundColor: 'rgba(11, 39, 60, 0.88)',
+    borderColor: 'rgba(133, 194, 221, 0.42)',
+  },
+  statusBadgeSuccess: {
+    backgroundColor: 'rgba(14, 70, 60, 0.88)',
+    borderColor: 'rgba(83, 227, 203, 0.42)',
+  },
+  statusBadgeWarning: {
+    backgroundColor: 'rgba(84, 60, 18, 0.88)',
+    borderColor: 'rgba(241, 198, 92, 0.44)',
+  },
+  statusBadgeText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  statusBadgeTextNeutral: {
+    color: '#DCEFFB',
+  },
+  statusBadgeTextSuccess: {
+    color: '#9CF3E5',
+  },
+  statusBadgeTextWarning: {
+    color: '#F7D98B',
   },
   listCard: {
     backgroundColor: 'rgba(11, 39, 60, 0.9)',
@@ -400,6 +527,72 @@ export const styles = StyleSheet.create({
     padding: 12,
     gap: 4,
     minWidth: 0,
+  },
+  sectionStack: {
+    gap: 12,
+  },
+  formSectionCard: {
+    backgroundColor: 'rgba(6, 25, 41, 0.82)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(116, 181, 210, 0.36)',
+    padding: 14,
+    gap: 10,
+    minWidth: 0,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  sectionHeaderTitle: {
+    color: '#F1FAFF',
+    fontSize: 15,
+    fontWeight: '900',
+    flexShrink: 1,
+  },
+  miniMetricsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  miniMetricCard: {
+    flexGrow: 1,
+    minWidth: 120,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(122, 192, 221, 0.38)',
+    backgroundColor: 'rgba(7, 32, 50, 0.78)',
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  miniMetricCardCompact: {
+    minWidth: 100,
+    flexBasis: '48%',
+  },
+  miniMetricValue: {
+    color: '#F6FBFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  miniMetricLabel: {
+    color: '#A9CCDE',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  qrWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  qrCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(128, 193, 224, 0.4)',
+    backgroundColor: 'rgba(236, 248, 255, 0.96)',
+    padding: 14,
   },
   sponsorLogoPreview: {
     width: '100%',
@@ -469,6 +662,11 @@ export const styles = StyleSheet.create({
   },
   blockSpacing: {
     gap: 8,
+  },
+  compactActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
   },
   fallbackContainer: {
     flex: 1,

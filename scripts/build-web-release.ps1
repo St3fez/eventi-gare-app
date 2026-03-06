@@ -23,6 +23,18 @@ if ($Channel -eq 'demo') {
   $env:EXPO_PUBLIC_DEMO_ALL_OPEN = 'false'
 }
 
+# Web builds do not require native AdMob plugin wiring.
+# Force-disable AdMob to avoid config plugin resolution failures during expo export.
+$env:EXPO_PUBLIC_ADMOB_ENABLED = 'false'
+$env:EXPO_PUBLIC_ADMOB_TEST_MODE = 'false'
+$env:ADMOB_ANDROID_APP_ID = ''
+$env:ADMOB_IOS_APP_ID = ''
+$env:EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID_ANDROID = ''
+$env:EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID_IOS = ''
+$env:EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID_ANDROID = ''
+$env:EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID_IOS = ''
+$env:EXPO_SKIP_ADMOB_PLUGIN = 'true'
+
 Push-Location $projectRoot
 try {
   if ($Clear) {
