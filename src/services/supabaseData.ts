@@ -1,5 +1,5 @@
 import { EventItem, OrganizerProfile, RegistrationRecord } from '../types';
-import { cleanText, toIsoTime } from '../utils/format';
+import { cleanText, toIsoTime, tryToIsoDate } from '../utils/format';
 import { ORGANIZER_SECURITY_ENFORCED } from '../constants';
 import { supabase } from './supabaseClient';
 
@@ -15,14 +15,33 @@ const fail = <T>(reason: string): SyncResult<T> => ({
   reason,
 });
 
+type SupabaseClientLike = {
+  auth: {
+    getSession: () => Promise<any>;
+    signInAnonymously: () => Promise<any>;
+  };
+  from: (table: string) => any;
+};
+
+type SupabaseDataDependencies = {
+  client?: SupabaseClientLike | null;
+  ensureUser?: typeof ensureSupabaseUser;
+};
+
+const resolveSupabaseClient = (
+  deps?: {
+    client?: SupabaseClientLike | null;
+  }
+): SupabaseClientLike | null => deps?.client ?? supabase;
+
 const nullableText = (value?: string): string | null => {
   const text = cleanText(value ?? '');
   return text ? text : null;
 };
 
 const nullableDate = (value?: string): string | null => {
-  const text = cleanText(value ?? '');
-  return text ? text : null;
+  const normalized = tryToIsoDate(value ?? '');
+  return normalized || null;
 };
 
 const nullableTime = (value?: string): string | null => {
@@ -194,18 +213,23 @@ export type ParticipantRegistrationRow = {
   updated_at: string;
 };
 
-export const listOrganizerCatalogFromSupabase = async (): Promise<
+export const listOrganizerCatalogFromSupabase = async (
+  deps?: SupabaseDataDependencies
+): Promise<
   SyncResult<{
     organizers: OrganizerCatalogOrganizerRow[];
     events: OrganizerCatalogEventRow[];
   }>
 > => {
-  if (!supabase) {
+  const client = resolveSupabaseClient(deps);
+  if (!client) {
     return fail('Supabase non configurato.');
   }
 
-  const auth = await ensureSupabaseUser({
+  const auth = await (deps?.ensureUser ?? ensureSupabaseUser)({
     allowAnonymous: !ORGANIZER_SECURITY_ENFORCED,
+  }, {
+    client,
   });
   if (!auth.ok) {
     return fail(auth.reason);
@@ -214,7 +238,7 @@ export const listOrganizerCatalogFromSupabase = async (): Promise<
   let organizersData: OrganizerCatalogOrganizerRow[] = [];
   let organizersError: Error | null = null;
 
-  const organizersExtended = await supabase
+  const organizersExtended = await client
     .from('organizers')
     .select(ORGANIZER_CATALOG_SELECT_EXTENDED)
     .order('created_at', { ascending: false });
@@ -225,7 +249,7 @@ export const listOrganizerCatalogFromSupabase = async (): Promise<
         organizersExtended.error.message
       )
     ) {
-      const organizersLegacy = await supabase
+      const organizersLegacy = await client
         .from('organizers')
         .select(ORGANIZER_CATALOG_SELECT_LEGACY)
         .order('created_at', { ascending: false });
@@ -256,7 +280,7 @@ export const listOrganizerCatalogFromSupabase = async (): Promise<
   let eventsData: OrganizerCatalogEventRow[] = [];
   let eventsError: Error | null = null;
 
-  const eventsExtended = await supabase
+  const eventsExtended = await client
     .from('events')
     .select(EVENT_CATALOG_SELECT_EXTENDED)
     .in('organizer_id', organizerIds)
@@ -264,7 +288,7 @@ export const listOrganizerCatalogFromSupabase = async (): Promise<
 
   if (eventsExtended.error) {
     if (isUnsupportedEventFieldError(eventsExtended.error.message)) {
-      const eventsLegacy = await supabase
+      const eventsLegacy = await client
         .from('events')
         .select(EVENT_CATALOG_SELECT_LEGACY)
         .in('organizer_id', organizerIds)
@@ -291,17 +315,20 @@ export const listOrganizerCatalogFromSupabase = async (): Promise<
   };
 };
 
-export const listPublicEventsFromSupabase = async (): Promise<
+export const listPublicEventsFromSupabase = async (
+  deps?: SupabaseDataDependencies
+): Promise<
   SyncResult<OrganizerCatalogEventRow[]>
 > => {
-  if (!supabase) {
+  const client = resolveSupabaseClient(deps);
+  if (!client) {
     return fail('Supabase non configurato.');
   }
 
   let eventsData: OrganizerCatalogEventRow[] = [];
   let eventsError: Error | null = null;
 
-  const eventsExtended = await supabase
+  const eventsExtended = await client
     .from('events')
     .select(EVENT_CATALOG_SELECT_EXTENDED)
     .eq('active', true)
@@ -309,7 +336,7 @@ export const listPublicEventsFromSupabase = async (): Promise<
 
   if (eventsExtended.error) {
     if (isUnsupportedEventFieldError(eventsExtended.error.message)) {
-      const eventsLegacy = await supabase
+      const eventsLegacy = await client
         .from('events')
         .select(EVENT_CATALOG_SELECT_LEGACY)
         .eq('active', true)
@@ -333,15 +360,20 @@ export const listPublicEventsFromSupabase = async (): Promise<
   };
 };
 
-export const listParticipantRegistrationsFromSupabase = async (): Promise<
+export const listParticipantRegistrationsFromSupabase = async (
+  deps?: SupabaseDataDependencies
+): Promise<
   SyncResult<ParticipantRegistrationRow[]>
 > => {
-  if (!supabase) {
+  const client = resolveSupabaseClient(deps);
+  if (!client) {
     return fail('Supabase non configurato.');
   }
 
-  const auth = await ensureSupabaseUser({
+  const auth = await (deps?.ensureUser ?? ensureSupabaseUser)({
     allowAnonymous: false,
+  }, {
+    client,
   });
   if (!auth.ok) {
     return fail(auth.reason);
@@ -350,7 +382,7 @@ export const listParticipantRegistrationsFromSupabase = async (): Promise<
   let registrationsData: ParticipantRegistrationRow[] = [];
   let registrationsError: Error | null = null;
 
-  const registrationsExtended = await supabase
+  const registrationsExtended = await client
     .from('registrations')
     .select(REGISTRATION_SELECT_EXTENDED)
     .eq('participant_user_id', auth.data.userId)
@@ -358,7 +390,7 @@ export const listParticipantRegistrationsFromSupabase = async (): Promise<
 
   if (registrationsExtended.error) {
     if (isUnsupportedRegistrationFieldError(registrationsExtended.error.message)) {
-      const registrationsLegacy = await supabase
+      const registrationsLegacy = await client
         .from('registrations')
         .select(REGISTRATION_SELECT_LEGACY)
         .eq('participant_user_id', auth.data.userId)
@@ -384,14 +416,17 @@ export const listParticipantRegistrationsFromSupabase = async (): Promise<
 
 export const ensureSupabaseUser = async (options?: {
   allowAnonymous?: boolean;
+}, deps?: {
+  client?: SupabaseClientLike | null;
 }): Promise<SyncResult<{ userId: string }>> => {
-  if (!supabase) {
+  const client = resolveSupabaseClient(deps);
+  if (!client) {
     return fail('Supabase non configurato.');
   }
 
   const allowAnonymous = options?.allowAnonymous ?? true;
 
-  const sessionResult = await supabase.auth.getSession();
+  const sessionResult = await client.auth.getSession();
   if (sessionResult.error) {
     return fail(`Lettura sessione fallita: ${sessionResult.error.message}`);
   }
@@ -400,11 +435,13 @@ export const ensureSupabaseUser = async (options?: {
   if (existingUser) {
     const providers = Array.isArray(existingUser.app_metadata?.providers)
       ? existingUser.app_metadata.providers
-          .map((entry) => String(entry).toLowerCase())
+          .map((entry: unknown) => String(entry).toLowerCase())
           .filter(Boolean)
       : [];
     const hasEmailIdentity = providers.includes('email') || Boolean(existingUser.email);
-    const hasNonAnonymousIdentity = providers.some((provider) => provider !== 'anonymous');
+    const hasNonAnonymousIdentity = providers.some(
+      (provider: string) => provider !== 'anonymous'
+    );
     const isEffectivelyAnonymous =
       Boolean(existingUser.is_anonymous) && !hasEmailIdentity && !hasNonAnonymousIdentity;
 
@@ -427,7 +464,7 @@ export const ensureSupabaseUser = async (options?: {
     );
   }
 
-  const anonymous = await supabase.auth.signInAnonymously();
+  const anonymous = await client.auth.signInAnonymously();
   if (anonymous.error || !anonymous.data.user) {
     const rawError = anonymous.error?.message ?? 'errore sconosciuto';
     const isCaptcha = /captcha/i.test(rawError);
@@ -449,14 +486,18 @@ export const ensureSupabaseUser = async (options?: {
 };
 
 export const upsertOrganizerInSupabase = async (
-  organizer: OrganizerProfile
+  organizer: OrganizerProfile,
+  deps?: SupabaseDataDependencies
 ): Promise<SyncResult<{ id: string; email: string }>> => {
-  if (!supabase) {
+  const client = resolveSupabaseClient(deps);
+  if (!client) {
     return fail('Supabase non configurato.');
   }
 
-  const auth = await ensureSupabaseUser({
+  const auth = await (deps?.ensureUser ?? ensureSupabaseUser)({
     allowAnonymous: !ORGANIZER_SECURITY_ENFORCED,
+  }, {
+    client,
   });
   if (!auth.ok) {
     return fail(auth.reason);
@@ -488,7 +529,7 @@ export const upsertOrganizerInSupabase = async (
 
   let emailToUse = cleanText(organizer.email).toLowerCase();
 
-  let { data, error } = await supabase
+  let { data, error } = await client
     .from('organizers')
     .upsert(extendedPayload(emailToUse), {
       onConflict: 'user_id',
@@ -502,7 +543,7 @@ export const upsertOrganizerInSupabase = async (
       error.message
     )
   ) {
-    const fallback = await supabase
+    const fallback = await client
       .from('organizers')
       .upsert(basePayload(emailToUse), {
         onConflict: 'user_id',
@@ -522,7 +563,7 @@ export const upsertOrganizerInSupabase = async (
     const safeDomain = cleanText(domainPart || 'eventigare.app');
     emailToUse = `${safeLocal}+${auth.data.userId.slice(0, 8)}@${safeDomain}`;
 
-    const retry = await supabase
+    const retry = await client
       .from('organizers')
       .upsert(extendedPayload(emailToUse), {
         onConflict: 'user_id',
@@ -536,7 +577,7 @@ export const upsertOrganizerInSupabase = async (
         retry.error.message
       )
     ) {
-      const fallbackRetry = await supabase
+      const fallbackRetry = await client
         .from('organizers')
         .upsert(basePayload(emailToUse), {
           onConflict: 'user_id',
@@ -573,23 +614,25 @@ export const upsertOrganizerInSupabase = async (
 
 export const insertEventInSupabase = async (
   event: EventItem,
-  organizerRemoteId: string
+  organizerRemoteId: string,
+  deps?: SupabaseDataDependencies
 ): Promise<SyncResult<{ id: string }>> => {
-  if (!supabase) {
+  const client = resolveSupabaseClient(deps);
+  if (!client) {
     return fail('Supabase non configurato.');
   }
 
   const legacyPayload = buildEventLegacyPayload(event, organizerRemoteId);
   const extendedPayload = buildEventExtendedPayload(event, organizerRemoteId);
 
-  let { data, error } = await supabase
+  let { data, error } = await client
     .from('events')
     .insert(extendedPayload)
     .select('id')
     .single();
 
   if (error && isUnsupportedEventFieldError(error.message)) {
-    const fallback = await supabase.from('events').insert(legacyPayload).select('id').single();
+    const fallback = await client.from('events').insert(legacyPayload).select('id').single();
     data = fallback.data;
     error = fallback.error;
   }
@@ -609,16 +652,18 @@ export const insertEventInSupabase = async (
 export const updateEventInSupabase = async (
   event: EventItem,
   organizerRemoteId: string,
-  eventRemoteId: string
+  eventRemoteId: string,
+  deps?: SupabaseDataDependencies
 ): Promise<SyncResult<{ id: string }>> => {
-  if (!supabase) {
+  const client = resolveSupabaseClient(deps);
+  if (!client) {
     return fail('Supabase non configurato.');
   }
 
   const legacyPayload = buildEventLegacyPayload(event, organizerRemoteId);
   const extendedPayload = buildEventExtendedPayload(event, organizerRemoteId);
 
-  let { data, error } = await supabase
+  let { data, error } = await client
     .from('events')
     .update(extendedPayload)
     .eq('id', eventRemoteId)
@@ -626,7 +671,7 @@ export const updateEventInSupabase = async (
     .single();
 
   if (error && isUnsupportedEventFieldError(error.message)) {
-    const fallback = await supabase
+    const fallback = await client
       .from('events')
       .update(legacyPayload)
       .eq('id', eventRemoteId)
@@ -649,25 +694,29 @@ export const updateEventInSupabase = async (
 };
 
 export const deleteEventInSupabase = async (
-  eventRemoteId: string
+  eventRemoteId: string,
+  deps?: SupabaseDataDependencies
 ): Promise<SyncResult<{ id: string }>> => {
-  if (!supabase) {
+  const client = resolveSupabaseClient(deps);
+  if (!client) {
     return fail('Supabase non configurato.');
   }
 
-  const auth = await ensureSupabaseUser({
+  const auth = await (deps?.ensureUser ?? ensureSupabaseUser)({
     allowAnonymous: false,
+  }, {
+    client,
   });
   if (!auth.ok) {
     return fail(auth.reason);
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('events')
     .delete()
     .eq('id', eventRemoteId)
     .select('id')
-    .maybeSingle<{ id: string }>();
+    .maybeSingle();
 
   if (error) {
     return fail(`Eliminazione evento fallita: ${error.message}`);
@@ -689,12 +738,15 @@ export const upsertRegistrationInSupabase = async (params: {
   registration: RegistrationRecord;
   organizerRemoteId: string;
   eventRemoteId: string;
-}): Promise<SyncResult<{ id: string }>> => {
-  if (!supabase) {
+}, deps?: SupabaseDataDependencies): Promise<SyncResult<{ id: string }>> => {
+  const client = resolveSupabaseClient(deps);
+  if (!client) {
     return fail('Supabase non configurato.');
   }
 
-  const auth = await ensureSupabaseUser();
+  const auth = await (deps?.ensureUser ?? ensureSupabaseUser)(undefined, {
+    client,
+  });
   if (!auth.ok) {
     return fail(auth.reason);
   }
@@ -743,7 +795,7 @@ export const upsertRegistrationInSupabase = async (params: {
       .filter((participant) => Boolean(participant.full_name)),
   };
 
-  let { data, error } = await supabase
+  let { data, error } = await client
     .from('registrations')
     .upsert(extendedPayload, {
       onConflict: 'registration_code',
@@ -755,7 +807,7 @@ export const upsertRegistrationInSupabase = async (params: {
     error &&
     /participant_message_to_organizer|group_participants/i.test(error.message)
   ) {
-    const fallback = await supabase
+    const fallback = await client
       .from('registrations')
       .upsert(basePayload, {
         onConflict: 'registration_code',

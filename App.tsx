@@ -126,6 +126,7 @@ import {
   toMoney,
   toIsoDate,
   toIsoTime,
+  tryToIsoDate,
 } from './src/utils/format';
 
 const mapSponsorRowToSlot = (row: SponsorSlotRow, source: AppData): SponsorSlot => {
@@ -3040,9 +3041,16 @@ function App() {
       Alert.alert(t('sponsor_checkout_fail_title'), t('sponsor_event_remote_missing'));
       return;
     }
+    if (!organizerRemoteId) {
+      Alert.alert(t('sponsor_checkout_fail_title'), t('organizer_not_found_message'));
+      return;
+    }
+
+    const safeEventRemoteId = eventRemoteId;
+    const safeOrganizerRemoteId = organizerRemoteId;
 
     const sponsorCheckout = await createSponsorCheckout({
-      eventId: eventRemoteId,
+      eventId: safeEventRemoteId,
       sponsorName: payload.sponsorName,
       sponsorNameIt: payload.sponsorNameIt,
       sponsorNameEn: payload.sponsorNameEn,
@@ -3064,9 +3072,9 @@ function App() {
       const slot: SponsorSlot = {
         ...slotFromDb,
         eventId: event.id,
-        eventRemoteId,
+        eventRemoteId: safeEventRemoteId,
         organizerId: organizer.id,
-        organizerRemoteId,
+        organizerRemoteId: safeOrganizerRemoteId,
       };
       const existing = current.sponsorSlots.filter((entry) => entry.id !== slot.id);
       return {
@@ -3889,7 +3897,7 @@ function App() {
         email: normalizedEmail,
         phone: cleanText(draft.phone),
         city: cleanText(draft.city),
-        birthDate: cleanText(draft.birthDate),
+        birthDate: tryToIsoDate(draft.birthDate) || '',
         privacyConsent: draft.privacyConsent,
         retentionConsent: draft.retentionConsent,
         groupParticipantsCount,
@@ -4120,7 +4128,7 @@ function App() {
         email: normalizedEmail,
         phone: cleanText(draft.phone),
         city: cleanText(draft.city),
-        birthDate: cleanText(draft.birthDate),
+        birthDate: tryToIsoDate(draft.birthDate) || '',
         privacyConsent: draft.privacyConsent,
         retentionConsent: draft.retentionConsent,
         groupParticipantsCount: Math.max(1, draft.groupParticipantsCount || 1),
@@ -4181,7 +4189,7 @@ function App() {
         email: normalizedEmail,
         phone: cleanText(draft.phone),
         city: cleanText(draft.city),
-        birthDate: cleanText(draft.birthDate),
+        birthDate: tryToIsoDate(draft.birthDate) || '',
         privacyConsent: draft.privacyConsent,
         retentionConsent: draft.retentionConsent,
         groupParticipantsCount,

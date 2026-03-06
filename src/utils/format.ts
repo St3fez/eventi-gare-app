@@ -22,26 +22,78 @@ export const randomId = (prefix: string): string =>
 export const addMinutesIso = (minutes: number): string =>
   new Date(Date.now() + minutes * 60_000).toISOString();
 
-export const toIsoDate = (raw: string): string => {
-  const value = raw.trim();
-  if (!value) {
-    return new Date().toISOString().slice(0, 10);
-  }
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+const toSafeTextInput = (value: unknown): string => {
+  if (typeof value === 'string') {
     return value;
   }
-  const match = value.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
-  if (!match) {
-    return new Date().toISOString().slice(0, 10);
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value);
   }
-  const day = match[1].padStart(2, '0');
-  const month = match[2].padStart(2, '0');
-  const year = match[3];
-  return `${year}-${month}-${day}`;
+  return '';
 };
 
-export const toIsoTime = (raw: string): string => {
-  const value = raw.trim();
+const buildStrictIsoDate = (
+  yearRaw: string | number,
+  monthRaw: string | number,
+  dayRaw: string | number
+): string => {
+  const year = Number.parseInt(String(yearRaw), 10);
+  const month = Number.parseInt(String(monthRaw), 10);
+  const day = Number.parseInt(String(dayRaw), 10);
+
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(day) ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
+    return '';
+  }
+
+  const candidate = new Date(Date.UTC(year, month - 1, day));
+  if (
+    candidate.getUTCFullYear() !== year ||
+    candidate.getUTCMonth() !== month - 1 ||
+    candidate.getUTCDate() !== day
+  ) {
+    return '';
+  }
+
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+};
+
+export const tryToIsoDate = (raw: unknown): string => {
+  const value = toSafeTextInput(raw).trim();
+  if (!value) {
+    return '';
+  }
+
+  const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    return buildStrictIsoDate(isoMatch[1], isoMatch[2], isoMatch[3]);
+  }
+
+  const localizedMatch = value.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (!localizedMatch) {
+    return '';
+  }
+
+  return buildStrictIsoDate(localizedMatch[3], localizedMatch[2], localizedMatch[1]);
+};
+
+export const toIsoDate = (raw: unknown): string => {
+  const normalized = tryToIsoDate(raw);
+  if (normalized) {
+    return normalized;
+  }
+  return new Date().toISOString().slice(0, 10);
+};
+
+export const toIsoTime = (raw: unknown): string => {
+  const value = toSafeTextInput(raw).trim();
   if (!value) {
     return '';
   }
@@ -98,7 +150,10 @@ export const toMoney = (value: number): string =>
     currency: 'EUR',
   }).format(value);
 
-export const cleanText = (value: string): string => value.trim();
+export const cleanText = (value: unknown): string => toSafeTextInput(value).trim();
+
+export const isValidEmailAddress = (value: unknown): boolean =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanText(value).toLowerCase());
 
 export const isImageDataUrl = (value: string): boolean =>
   /^data:image\/[a-z0-9.+-]+;base64,/i.test(cleanText(value));

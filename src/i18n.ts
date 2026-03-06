@@ -10,12 +10,22 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     app_subtitle_demo: 'DEMO | tutte le sezioni aperte',
     loading_data: 'Caricamento dati...',
     home_select_user_type: 'Seleziona tipo utente',
+    home_flow_title: 'Flusso chiaro, rapido, pronto alla pubblicazione',
     home_intro: "All'avvio scegli se operare come organizzatore o partecipante.",
+    home_flow_step_1: 'Scegli il ruolo con cui vuoi entrare.',
+    home_flow_step_2: 'Gestisci eventi o trova subito la gara corretta.',
+    home_flow_step_3: 'Completa iscrizione, pagamenti e condivisione senza passaggi inutili.',
     metric_total_events: 'Eventi totali',
     metric_total_registrations: 'Iscritti totali',
     enter_as_organizer: 'Entra come organizzatore',
     enter_as_participant: 'Entra come partecipante',
+    home_role_organizer_hint:
+      'Crea eventi, controlla iscritti, esporta report e abilita pagamenti o sponsor.',
+    home_role_participant_hint:
+      "Trova l'evento giusto, verifica requisiti e completa l'iscrizione in pochi passaggi.",
     included_features: 'Funzioni incluse',
+    home_features_hint:
+      'Interfaccia ripensata per rendere piu immediati i flussi piu frequenti da desktop e mobile.',
     feature_1: '- Creazione eventi gratuiti o a quota.',
     feature_2: '- Commissione app 3% su iscrizioni con pagamento.',
     feature_3: '- Ricerca eventi per nome o localita.',
@@ -124,6 +134,15 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     save_organizer: 'Salva organizzatore',
     back_home: 'Torna alla home',
     create_event: 'Crea evento',
+    guided_organizer_checklist_title: 'Checklist profilo organizzatore',
+    guided_organizer_checklist_intro:
+      "Inserisci prima un'email valida: e il requisito minimo per creare o aggiornare il profilo.",
+    guided_organizer_checklist_ready: 'Requisiti minimi completi: puoi salvare il profilo.',
+    guided_event_checklist_title: 'Guida rapida creazione evento',
+    guided_event_checklist_intro:
+      'Ordine consigliato: dati base, periodo iscrizioni, quota/pagamenti, poi pubblicazione.',
+    guided_event_checklist_ready:
+      'Dati base completi: puoi pubblicare o salvare le modifiche.',
     organizer_label: 'Organizzatore: {email}',
     verification_status: 'Stato verifica pagamenti: {status}{payout}',
     payout_active: ' | Payout attivo',
@@ -388,6 +407,25 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_search: 'Partecipante: ricerca eventi',
     participant_search_intro:
       'Cerca per nome/localita. Con ricerca attiva vedi solo eventi pubblicati come attivi.',
+    participant_search_summary_title: 'Panoramica ricerca',
+    participant_search_open_now: 'Aperti ora',
+    participant_search_upcoming: 'In apertura',
+    participant_search_free: 'Gratuiti',
+    participant_search_paid: 'A quota',
+    participant_search_filters_title: 'Filtri rapidi',
+    participant_search_filters_hint:
+      'Usa nome o localita per restringere subito la lista. Se non trovi nulla, azzera i filtri e riparti dagli eventi aperti.',
+    clear_filters: 'Azzera filtri',
+    participant_search_next_steps_title: 'Percorso consigliato',
+    participant_search_next_steps_1:
+      'Filtra per nome o localita e parti dagli eventi con iscrizioni aperte.',
+    participant_search_next_steps_2:
+      'Apri la scheda evento e controlla quota, finestra iscrizioni e accesso richiesto.',
+    participant_search_next_steps_3:
+      'Apri il form solo quando hai tutti i dati del partecipante o del gruppo.',
+    participant_search_share_title: 'Segnala un evento mancante',
+    participant_search_results_hint:
+      'Ogni scheda mostra stato iscrizioni, costo, requisiti di accesso e link condivisibile.',
     search_name: 'Ricerca per nome evento',
     search_name_placeholder: 'Trail, maratona, torneo...',
     search_location: 'Ricerca per localita',
@@ -422,6 +460,14 @@ const translations: Record<AppLanguage, Record<string, string>> = {
       'Impossibile aprire app email/WhatsApp su questo dispositivo.',
     results: 'Risultati',
     no_results: 'Nessun evento trovato con i filtri attuali.',
+    participant_search_empty_hint:
+      'Prova ad allargare la ricerca, rimuovere i filtri o cercare eventi futuri in un altra localita.',
+    badge_registration_open: 'Iscrizioni aperte',
+    badge_registration_upcoming: 'Apre a breve',
+    badge_registration_closed: 'Iscrizioni chiuse',
+    badge_phone_short_required: 'Telefono richiesto',
+    badge_phone_short_optional: 'Telefono opzionale',
+    badge_sponsors_active: 'Sponsor attivi',
     free_event_label: 'Evento gratuito',
     entry_fee_label: 'Quota iscrizione: {fee}',
     subscribe: 'Iscriviti',
@@ -434,16 +480,58 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_auth_required_line: 'Accesso richiesto: {mode}',
     participant_phone_required_enabled: 'Telefono partecipante: obbligatorio',
     participant_phone_required_disabled: 'Telefono partecipante: facoltativo',
+    participant_search_card_hint_title: 'Cosa controllare subito',
+    participant_search_card_hint_open:
+      'Evento pronto per l iscrizione: puoi aprire il form e completare i dati.',
+    participant_search_card_hint_upcoming:
+      'Evento visibile ma non ancora aperto: verifica la data di apertura iscrizioni.',
+    participant_search_card_hint_closed:
+      'Evento non piu disponibile per nuove iscrizioni: usa il link solo per consultazione.',
     paid_pending_helper:
       'Le iscrizioni a pagamento restano in stato pending finche il pagamento non viene confermato.',
     participant_data: 'Dati partecipante',
+    guided_required_checklist_title: 'Checklist campi obbligatori',
+    guided_required_checklist_intro:
+      'Completa questi punti prima di confermare, cosi eviti errori e passaggi indietro.',
+    guided_required_checklist_ready: 'Tutto pronto: puoi continuare.',
+    registration_summary_title: 'Riepilogo iscrizione',
+    registration_progress_label: 'Passaggi pronti',
+    registration_participants_metric: 'Partecipanti',
+    registration_total_metric: 'Totale gruppo',
+    registration_total_free_value: 'Gratis',
+    registration_ready_badge: 'Checklist completa',
+    registration_missing_badge: 'Da completare: {count}',
+    registration_step_personal: '1. Dati principali',
+    registration_step_personal_hint:
+      'Inserisci anagrafica e contatti che useremo per conferma iscrizione e comunicazioni evento.',
+    registration_step_group: '2. Gruppo e note',
+    registration_step_group_hint:
+      'Se iscrivi un gruppo, prepara tutti i nomi completi prima di procedere.',
+    registration_step_consents: '3. Consensi e invio',
+    registration_step_consents_hint:
+      'Controlla la checklist finale, attiva i consensi richiesti e poi conferma.',
+    registration_summary_hint:
+      'La barra stato si aggiorna in tempo reale mentre compili i campi obbligatori.',
+    guided_required_checklist_missing: 'Campi obbligatori da completare: {count}',
+    guided_complete_required_fields_hint:
+      'Completa i campi obbligatori elencati qui sopra, poi premi il pulsante principale.',
     full_name_required: 'Nome e cognome *',
+    registration_email_invalid_label: 'Email in formato non valido',
+    phone_required_label: 'Telefono *',
     phone_label: 'Telefono (opzionale)',
     city_label: 'Citta',
+    registration_phone_requirement_required:
+      'Per questo evento il numero di telefono e obbligatorio.',
+    registration_phone_requirement_optional:
+      'Per questo evento il numero di telefono resta facoltativo.',
+    registration_email_usage_hint:
+      'Useremo questa email per conferma iscrizione, aggiornamenti e ricevute operative.',
     group_participants_count_label: 'Numero partecipanti gruppo (incluso referente)',
     group_participants_count_helper:
       'Usa 1 per iscrizione singola. Il referente coincide con Nome e cognome.',
     group_participants_invalid: 'Numero partecipanti gruppo non valido.',
+    registration_group_hint:
+      'Il referente resta il primo nominativo. Aumenta il numero solo se stai registrando un gruppo reale.',
     group_total_amount_line: 'Totale gruppo da pagare: {value}',
     group_participants_line: 'Partecipanti gruppo: {count}',
     group_participants_names_line: 'Nomi gruppo: {value}',
@@ -455,12 +543,18 @@ const translations: Record<AppLanguage, Record<string, string>> = {
       'Inserisci nome e cognome per tutti i partecipanti del gruppo.',
     birthdate_optional: 'Data nascita (opzionale)',
     birthdate_placeholder: 'GG/MM/AAAA',
+    birthdate_helper: 'Accettiamo formato GG/MM/AAAA o AAAA-MM-GG.',
+    birthdate_invalid_title: 'Data nascita non valida',
+    birthdate_invalid_message:
+      'Inserisci una data valida e non futura nel formato GG/MM/AAAA o AAAA-MM-GG.',
     participant_message_to_organizer_label: "Messaggio all'organizzatore (opzionale)",
     participant_message_to_organizer_placeholder:
       "Es. note, richieste, informazioni utili per l'organizzatore.",
     participant_message_line: 'Messaggio: {value}',
     participant_message_send_button: "Invia messaggio all'organizzatore",
     participant_message_missing_message: 'Inserisci un messaggio prima di inviare.',
+    participant_message_requirements_hint:
+      'Per inviare un messaggio servono almeno nome, email valida e testo del messaggio.',
     participant_message_sent_title: 'Messaggio inviato',
     participant_message_sent_message:
       "Messaggio inviato con conferma email.\n{sync}",
@@ -687,6 +781,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_phone_required_message:
       'Numero cellulare obbligatorio per questo evento.',
     participant_access_title: 'Accesso partecipante',
+    participant_access_eyebrow: 'Accesso sicuro',
     participant_access_message:
       'Per entrare come partecipante usa Google o Magic Link email. Dopo il login puoi cercare eventi e aggiornare iscrizioni.',
     participant_access_account: 'Account corrente: {value}',
@@ -697,11 +792,27 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_access_google: 'Accedi con Google',
     participant_access_email_label: 'Email personale',
     participant_access_magic_hint: 'Invio link sicuro senza codice OTP.',
+    participant_access_magic_email_hint:
+      'Inserisci un indirizzo email valido per abilitare l invio Magic Link.',
     participant_access_magic_send: 'Invia Magic Link',
     participant_access_signout: 'Cambia account',
     participant_access_continue: 'Continua alla ricerca eventi',
+    participant_access_continue_hint:
+      'Completa login Google o Magic Link: il pulsante continua si abilita automaticamente.',
     participant_access_action_fail_title: 'Accesso partecipante',
     participant_access_magic_sent: 'Magic Link inviato. Controlla la posta.',
+    participant_access_checklist_title: 'Checklist accesso',
+    participant_access_checklist_intro:
+      'Completa il login sicuro e poi continua verso la ricerca eventi.',
+    participant_access_checklist_ready:
+      'Accesso completato: puoi entrare nella ricerca eventi.',
+    participant_access_checklist_login: 'Login con Google oppure email Magic Link',
+    participant_access_step_1:
+      'Scegli Google oppure invia un Magic Link alla tua email personale.',
+    participant_access_step_2:
+      'Apri il link ricevuto nello stesso browser o torna qui dopo il login Google.',
+    participant_access_step_3:
+      'Quando lo stato diventa pronto, continua verso ricerca e iscrizione.',
     participant_access_required_message:
       'Serve autenticazione partecipante con Google o Magic Link email.',
     participant_no_auth_line: 'Accesso partecipante verificato: email obbligatoria, telefono opzionale.',
@@ -761,12 +872,22 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     app_subtitle_demo: 'DEMO | all sections unlocked',
     loading_data: 'Loading data...',
     home_select_user_type: 'Select user type',
+    home_flow_title: 'Clear flow, fast onboarding, release-ready',
     home_intro: 'At startup choose organizer or participant mode.',
+    home_flow_step_1: 'Choose the role you want to use.',
+    home_flow_step_2: 'Manage events or quickly find the right race.',
+    home_flow_step_3: 'Complete registration, payment and sharing with less friction.',
     metric_total_events: 'Total events',
     metric_total_registrations: 'Total registrations',
     enter_as_organizer: 'Continue as organizer',
     enter_as_participant: 'Continue as participant',
+    home_role_organizer_hint:
+      'Create events, monitor registrations, export reports and enable payments or sponsors.',
+    home_role_participant_hint:
+      'Find the right event, check requirements and complete registration in a few steps.',
     included_features: 'Included features',
+    home_features_hint:
+      'Layout refined to make the most frequent flows easier to scan on desktop and mobile.',
     feature_1: '- Free or paid event creation.',
     feature_2: '- App commission 3% on paid registrations.',
     feature_3: '- Event search by name or location.',
@@ -875,6 +996,15 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     save_organizer: 'Save organizer',
     back_home: 'Back to home',
     create_event: 'Create event',
+    guided_organizer_checklist_title: 'Organizer profile checklist',
+    guided_organizer_checklist_intro:
+      'Enter a valid email first: this is the minimum requirement to create or update the profile.',
+    guided_organizer_checklist_ready: 'Minimum requirements complete: you can save the profile.',
+    guided_event_checklist_title: 'Quick event creation guide',
+    guided_event_checklist_intro:
+      'Recommended order: basic info, registration period, fee/payments, then publish.',
+    guided_event_checklist_ready:
+      'Core data is complete: you can publish or save changes.',
     organizer_label: 'Organizer: {email}',
     verification_status: 'Payment verification: {status}{payout}',
     payout_active: ' | Payout enabled',
@@ -1142,6 +1272,25 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_search: 'Participant: event search',
     participant_search_intro:
       'Search by name/location. With active search enabled you only see active events.',
+    participant_search_summary_title: 'Search overview',
+    participant_search_open_now: 'Open now',
+    participant_search_upcoming: 'Opening soon',
+    participant_search_free: 'Free',
+    participant_search_paid: 'Paid',
+    participant_search_filters_title: 'Quick filters',
+    participant_search_filters_hint:
+      'Use name or location to narrow the list quickly. If nothing matches, clear filters and start again from open events.',
+    clear_filters: 'Clear filters',
+    participant_search_next_steps_title: 'Suggested path',
+    participant_search_next_steps_1:
+      'Filter by name or location and start from events with open registrations.',
+    participant_search_next_steps_2:
+      'Open the event card and check fee, registration window and required access.',
+    participant_search_next_steps_3:
+      'Open the form only when you already have all participant or group details.',
+    participant_search_share_title: 'Suggest a missing event',
+    participant_search_results_hint:
+      'Each card shows registration status, cost, access requirements and a shareable link.',
     search_name: 'Search by event name',
     search_name_placeholder: 'Trail, marathon, tournament...',
     search_location: 'Search by location',
@@ -1176,6 +1325,14 @@ const translations: Record<AppLanguage, Record<string, string>> = {
       'Unable to open email/WhatsApp app on this device.',
     results: 'Results',
     no_results: 'No events found with current filters.',
+    participant_search_empty_hint:
+      'Try widening the search, clearing filters, or looking for future events in another location.',
+    badge_registration_open: 'Registration open',
+    badge_registration_upcoming: 'Opens soon',
+    badge_registration_closed: 'Registration closed',
+    badge_phone_short_required: 'Phone required',
+    badge_phone_short_optional: 'Phone optional',
+    badge_sponsors_active: 'Sponsors active',
     free_event_label: 'Free event',
     entry_fee_label: 'Entry fee: {fee}',
     subscribe: 'Register',
@@ -1188,16 +1345,58 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_auth_required_line: 'Required access: {mode}',
     participant_phone_required_enabled: 'Participant phone: required',
     participant_phone_required_disabled: 'Participant phone: optional',
+    participant_search_card_hint_title: 'Check this first',
+    participant_search_card_hint_open:
+      'Event is ready for registration: you can open the form and complete the details.',
+    participant_search_card_hint_upcoming:
+      'Event is visible but not open yet: check the registration opening date.',
+    participant_search_card_hint_closed:
+      'Event is no longer available for new registrations: keep the link only for reference.',
     paid_pending_helper:
       'Paid registrations remain pending until payment is confirmed.',
     participant_data: 'Participant data',
+    guided_required_checklist_title: 'Required fields checklist',
+    guided_required_checklist_intro:
+      'Complete these items before confirming to avoid errors and extra steps.',
+    guided_required_checklist_ready: 'Everything is ready: you can continue.',
+    registration_summary_title: 'Registration summary',
+    registration_progress_label: 'Steps ready',
+    registration_participants_metric: 'Participants',
+    registration_total_metric: 'Group total',
+    registration_total_free_value: 'Free',
+    registration_ready_badge: 'Checklist complete',
+    registration_missing_badge: 'To complete: {count}',
+    registration_step_personal: '1. Main details',
+    registration_step_personal_hint:
+      'Enter the personal data and contacts used for registration confirmation and event updates.',
+    registration_step_group: '2. Group and notes',
+    registration_step_group_hint:
+      'If you are registering a group, prepare every full name before continuing.',
+    registration_step_consents: '3. Consents and submit',
+    registration_step_consents_hint:
+      'Review the final checklist, enable required consents, then confirm.',
+    registration_summary_hint:
+      'The progress status updates in real time while you complete the required fields.',
+    guided_required_checklist_missing: 'Required fields to complete: {count}',
+    guided_complete_required_fields_hint:
+      'Complete the required fields listed above, then press the main action button.',
     full_name_required: 'Full name *',
+    registration_email_invalid_label: 'Email format is invalid',
+    phone_required_label: 'Phone *',
     phone_label: 'Phone (optional)',
     city_label: 'City',
+    registration_phone_requirement_required:
+      'Phone number is required for this event.',
+    registration_phone_requirement_optional:
+      'Phone number is optional for this event.',
+    registration_email_usage_hint:
+      'We use this email for registration confirmation, updates, and operational receipts.',
     group_participants_count_label: 'Group participants (including lead)',
     group_participants_count_helper:
       'Use 1 for single registration. Lead participant is Full name.',
     group_participants_invalid: 'Invalid group participants count.',
+    registration_group_hint:
+      'The lead participant always stays first. Increase the number only for real group registrations.',
     group_total_amount_line: 'Group total amount: {value}',
     group_participants_line: 'Group participants: {count}',
     group_participants_names_line: 'Group names: {value}',
@@ -1209,12 +1408,18 @@ const translations: Record<AppLanguage, Record<string, string>> = {
       'Enter first and last name for all group participants.',
     birthdate_optional: 'Birth date (optional)',
     birthdate_placeholder: 'DD/MM/YYYY',
+    birthdate_helper: 'Accepted formats: DD/MM/YYYY or YYYY-MM-DD.',
+    birthdate_invalid_title: 'Invalid birth date',
+    birthdate_invalid_message:
+      'Enter a valid non-future date in DD/MM/YYYY or YYYY-MM-DD format.',
     participant_message_to_organizer_label: 'Message to organizer (optional)',
     participant_message_to_organizer_placeholder:
       'Example: notes, requests, useful details for the organizer.',
     participant_message_line: 'Message: {value}',
     participant_message_send_button: 'Send message to organizer',
     participant_message_missing_message: 'Enter a message before sending.',
+    participant_message_requirements_hint:
+      'Sending a message requires at least full name, a valid email, and the message text.',
     participant_message_sent_title: 'Message sent',
     participant_message_sent_message:
       'Message sent with email confirmation.\n{sync}',
@@ -1441,6 +1646,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
       'This event requires SMS phone verification.',
     participant_phone_required_message: 'Phone number is required for this event.',
     participant_access_title: 'Participant access',
+    participant_access_eyebrow: 'Secure access',
     participant_access_message:
       'Use Google or email Magic Link to enter participant area. After login you can browse events and update registrations.',
     participant_access_account: 'Current account: {value}',
@@ -1451,11 +1657,27 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_access_google: 'Sign in with Google',
     participant_access_email_label: 'Personal email',
     participant_access_magic_hint: 'Sends a secure sign-in link (no OTP code).',
+    participant_access_magic_email_hint:
+      'Enter a valid email address to enable Magic Link sending.',
     participant_access_magic_send: 'Send Magic Link',
     participant_access_signout: 'Switch account',
     participant_access_continue: 'Continue to event search',
+    participant_access_continue_hint:
+      'Complete Google or Magic Link login: the Continue button will enable automatically.',
     participant_access_action_fail_title: 'Participant access',
     participant_access_magic_sent: 'Magic Link sent. Check your inbox.',
+    participant_access_checklist_title: 'Access checklist',
+    participant_access_checklist_intro:
+      'Complete secure login, then continue to event search.',
+    participant_access_checklist_ready:
+      'Access completed: you can enter event search.',
+    participant_access_checklist_login: 'Login with Google or email Magic Link',
+    participant_access_step_1:
+      'Choose Google or send a Magic Link to your personal email.',
+    participant_access_step_2:
+      'Open the received link in the same browser or return here after Google login.',
+    participant_access_step_3:
+      'When the status turns ready, continue to search and registration.',
     participant_access_required_message:
       'Participant authentication is required with Google or email Magic Link.',
     participant_no_auth_line: 'Verified participant access: email required, phone optional.',

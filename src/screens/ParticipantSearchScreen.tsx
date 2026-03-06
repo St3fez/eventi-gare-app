@@ -13,11 +13,20 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
 
-import { SectionCard, SwitchRow, TextField } from '../components/Common';
+import { MetricChip, SectionCard, StatusBadge, SwitchRow, TextField } from '../components/Common';
 import { Translator } from '../i18n';
 import { styles } from '../styles';
 import { EventItem, SponsorSlot } from '../types';
-import { cleanText, formatEventSchedule, isImageDataUrl, toMoney } from '../utils/format';
+import { getParticipantEventAvailability } from '../utils/participantUx';
+import {
+  cleanText,
+  formatDate,
+  formatEventSchedule,
+  isValidEmailAddress,
+  isImageDataUrl,
+  toIsoDate,
+  toMoney,
+} from '../utils/format';
 
 type Props = {
   events: EventItem[];
@@ -49,23 +58,28 @@ export function ParticipantSearchScreen({
   const [suggestedEventLocation, setSuggestedEventLocation] = useState('');
   const [organizerEmailContact, setOrganizerEmailContact] = useState('');
   const [organizerWhatsappContact, setOrganizerWhatsappContact] = useState('');
+  const hasActiveFilters = Boolean(
+    cleanText(nameQuery) || cleanText(locationQuery) || !activeOnly
+  );
   const editableEventIdSet = useMemo(() => new Set(editableEventIds), [editableEventIds]);
 
   const filtered = useMemo(() => {
+    const normalizedNameQuery = cleanText(nameQuery).toLowerCase();
+    const normalizedLocationQuery = cleanText(locationQuery).toLowerCase();
     return events
-      .filter((event) => event.visibility === 'public')
-      .filter((event) => (activeOnly ? event.active : true))
+      .filter((event) => cleanText(event.visibility) === 'public')
+      .filter((event) => (activeOnly ? Boolean(event.active) : true))
       .filter((event) =>
-        cleanText(nameQuery)
-          ? event.name.toLowerCase().includes(cleanText(nameQuery).toLowerCase())
+        normalizedNameQuery
+          ? cleanText(event.name).toLowerCase().includes(normalizedNameQuery)
           : true
       )
       .filter((event) =>
-        cleanText(locationQuery)
-          ? event.location.toLowerCase().includes(cleanText(locationQuery).toLowerCase())
+        normalizedLocationQuery
+          ? cleanText(event.location).toLowerCase().includes(normalizedLocationQuery)
           : true
       )
-      .sort((first, second) => first.date.localeCompare(second.date));
+      .sort((first, second) => toIsoDate(first.date).localeCompare(toIsoDate(second.date)));
   }, [activeOnly, events, locationQuery, nameQuery]);
 
   const visibleSponsorSlotsByEvent = useMemo(() => {
@@ -80,6 +94,32 @@ export function ParticipantSearchScreen({
       });
     return grouped;
   }, [sponsorSlots]);
+
+  const summaryMetrics = useMemo(() => {
+    const metrics = {
+      open: 0,
+      upcoming: 0,
+      free: 0,
+      paid: 0,
+    };
+
+    filtered.forEach((event) => {
+      const availability = getParticipantEventAvailability(event);
+      if (availability === 'registration_open') {
+        metrics.open += 1;
+      } else if (availability === 'registration_upcoming') {
+        metrics.upcoming += 1;
+      }
+
+      if (event.isFree) {
+        metrics.free += 1;
+      } else {
+        metrics.paid += 1;
+      }
+    });
+
+    return metrics;
+  }, [filtered]);
 
   const normalizeExternalUrl = (input: string): string => {
     const value = cleanText(input);
@@ -117,6 +157,12 @@ export function ParticipantSearchScreen({
     });
   };
 
+  const resetFilters = () => {
+    setNameQuery('');
+    setLocationQuery('');
+    setActiveOnly(true);
+  };
+
   const buildSuggestionPayload = () => {
     if (!appPublicUrl) {
       Alert.alert(t('missing_data_title'), t('suggest_event_missing_link'));
@@ -144,7 +190,7 @@ export function ParticipantSearchScreen({
     }
 
     const contact = cleanText(organizerEmailContact).toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)) {
+    if (!isValidEmailAddress(contact)) {
       Alert.alert(t('missing_data_title'), t('suggest_event_invalid_email'));
       return;
     }
@@ -187,29 +233,95 @@ export function ParticipantSearchScreen({
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps='handled'
+      showsVerticalScrollIndicator={false}
+    >
       <View style={[styles.screenSplit, isDesktopLayout ? styles.screenSplitDesktop : undefined]}>
         <View style={[styles.screenSplitColumn, isDesktopLayout ? styles.screenSplitColumnSide : undefined]}>
           <SectionCard title={t('participant_search')} delayMs={0}>
-            <Text style={styles.cardParagraph}>{t('participant_search_intro')}</Text>
-            <Text style={styles.helperText}>{t('search_results_count', { count: filtered.length })}</Text>
-            <TextField
-              label={t('search_name')}
-              value={nameQuery}
-              onChangeText={setNameQuery}
-              placeholder={t('search_name_placeholder')}
-            />
-            <TextField
-              label={t('search_location')}
-              value={locationQuery}
-              onChangeText={setLocationQuery}
-              placeholder={t('search_location_placeholder')}
-            />
-            <SwitchRow label={t('active_search_only')} value={activeOnly} onValueChange={setActiveOnly} />
+            <View style={styles.heroPanel}>
+              <Text style={styles.heroEyebrow}>{t('participant_search_summary_title')}</Text>
+              <Text style={styles.emphasisParagraph}>{t('participant_search_intro')}</Text>
+              <Text style={styles.helperText}>
+                {t('search_results_count', { count: filtered.length })}
+              </Text>
+              <View style={styles.inlineMetricRow}>
+                <MetricChip
+                  label={t('participant_search_open_now')}
+                  value={String(summaryMetrics.open)}
+                />
+                <MetricChip
+                  label={t('participant_search_upcoming')}
+                  value={String(summaryMetrics.upcoming)}
+                />
+                <MetricChip
+                  label={t('participant_search_free')}
+                  value={String(summaryMetrics.free)}
+                />
+                <MetricChip
+                  label={t('participant_search_paid')}
+                  value={String(summaryMetrics.paid)}
+                />
+              </View>
+            </View>
 
-            <View style={styles.sectionDivider} />
-            <View style={styles.registrationCard}>
-              <Text style={styles.fieldLabel}>{t('suggest_event_title')}</Text>
+            <View style={styles.formSectionCard}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionHeaderTitle}>{t('participant_search_filters_title')}</Text>
+                {hasActiveFilters ? (
+                  <Pressable style={styles.inlineActionButton} onPress={resetFilters}>
+                    <Text style={styles.inlineActionButtonText}>{t('clear_filters')}</Text>
+                  </Pressable>
+                ) : (
+                  <StatusBadge label={t('search_results_count', { count: filtered.length })} />
+                )}
+              </View>
+              <Text style={styles.helperText}>{t('participant_search_filters_hint')}</Text>
+              <TextField
+                label={t('search_name')}
+                value={nameQuery}
+                onChangeText={setNameQuery}
+                placeholder={t('search_name_placeholder')}
+                autoCorrect={false}
+                returnKeyType='search'
+              />
+              <TextField
+                label={t('search_location')}
+                value={locationQuery}
+                onChangeText={setLocationQuery}
+                placeholder={t('search_location_placeholder')}
+                autoCorrect={false}
+                returnKeyType='search'
+              />
+              <SwitchRow
+                label={t('active_search_only')}
+                value={activeOnly}
+                onValueChange={setActiveOnly}
+              />
+            </View>
+
+            <View style={styles.formSectionCard}>
+              <Text style={styles.sectionHeaderTitle}>{t('participant_search_next_steps_title')}</Text>
+              <View style={styles.flowCard}>
+                <View style={styles.flowStepRow}>
+                  <Text style={styles.flowStepIndex}>1</Text>
+                  <Text style={styles.flowStepText}>{t('participant_search_next_steps_1')}</Text>
+                </View>
+                <View style={styles.flowStepRow}>
+                  <Text style={styles.flowStepIndex}>2</Text>
+                  <Text style={styles.flowStepText}>{t('participant_search_next_steps_2')}</Text>
+                </View>
+                <View style={styles.flowStepRow}>
+                  <Text style={styles.flowStepIndex}>3</Text>
+                  <Text style={styles.flowStepText}>{t('participant_search_next_steps_3')}</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.formSectionCard}>
+              <Text style={styles.sectionHeaderTitle}>{t('participant_search_share_title')}</Text>
               <Text style={styles.helperText}>{t('suggest_event_intro')}</Text>
               <Text style={styles.helperText}>
                 {appPublicUrl
@@ -219,9 +331,8 @@ export function ParticipantSearchScreen({
               {appPublicUrl ? (
                 <>
                   <Text style={styles.fieldLabel}>{t('official_app_qr_title')}</Text>
-                  <View style={styles.registrationCard}>
-                    <Text style={styles.helperText}>{appPublicUrl}</Text>
-                    <View style={styles.registrationCard}>
+                  <View style={styles.qrWrap}>
+                    <View style={styles.qrCard}>
                       <QRCode value={appPublicUrl} size={120} />
                     </View>
                   </View>
@@ -244,6 +355,11 @@ export function ParticipantSearchScreen({
                 onChangeText={setOrganizerEmailContact}
                 placeholder={t('suggest_event_email_placeholder')}
                 keyboardType='email-address'
+                autoCapitalize='none'
+                autoCorrect={false}
+                autoComplete='email'
+                textContentType='emailAddress'
+                inputMode='email'
               />
               <TextField
                 label={t('suggest_event_whatsapp_label')}
@@ -251,19 +367,28 @@ export function ParticipantSearchScreen({
                 onChangeText={setOrganizerWhatsappContact}
                 placeholder={t('suggest_event_whatsapp_placeholder')}
                 keyboardType='phone-pad'
+                autoCapitalize='none'
+                autoCorrect={false}
+                autoComplete='tel'
+                textContentType='telephoneNumber'
+                inputMode='tel'
               />
               <View style={styles.suggestionButtonRow}>
                 <Pressable
                   style={[styles.secondaryButton, styles.suggestionButton]}
                   onPress={() => void suggestEventViaEmail()}
                 >
-                  <Text style={styles.secondaryButtonText}>{t('suggest_event_send_email_button')}</Text>
+                  <Text style={styles.secondaryButtonText}>
+                    {t('suggest_event_send_email_button')}
+                  </Text>
                 </Pressable>
                 <Pressable
                   style={[styles.secondaryButton, styles.suggestionButton]}
                   onPress={() => void suggestEventViaWhatsapp()}
                 >
-                  <Text style={styles.secondaryButtonText}>{t('suggest_event_send_whatsapp_button')}</Text>
+                  <Text style={styles.secondaryButtonText}>
+                    {t('suggest_event_send_whatsapp_button')}
+                  </Text>
                 </Pressable>
               </View>
             </View>
@@ -276,119 +401,204 @@ export function ParticipantSearchScreen({
 
         <View style={[styles.screenSplitColumn, isDesktopLayout ? styles.screenSplitColumnMain : undefined]}>
           <SectionCard title={t('results')} delayMs={120}>
+            <Text style={styles.helperText}>{t('participant_search_results_hint')}</Text>
             {filtered.length === 0 ? (
-              <Text style={styles.cardParagraph}>{t('no_results')}</Text>
+              <View style={[styles.noticeCard, styles.noticeCardInfo]}>
+                <Text style={styles.noticeTitle}>{t('no_results')}</Text>
+                <Text style={styles.noticeText}>{t('participant_search_empty_hint')}</Text>
+              </View>
             ) : (
-              filtered.map((event) => (
-                <View key={event.id} style={styles.listCard}>
-                  <Text style={styles.listTitle}>{event.name}</Text>
-                  {cleanText(event.logoUrl ?? '') ? (
-                    <Image source={{ uri: cleanText(event.logoUrl ?? '') }} style={styles.sponsorLogoPreview} />
-                  ) : null}
-                  <Text style={styles.listSubText}>
-                    {event.location} | {formatEventSchedule(event)}
-                  </Text>
-                  <Text style={styles.listSubText}>
-                    {event.isFree
-                      ? t('free_event_label')
-                      : t('entry_fee_label', { fee: toMoney(event.feeAmount) })}
-                  </Text>
-                  <Text style={styles.listSubText}>
-                    {t('participant_auth_required_line', {
-                      mode:
-                        event.participantAuthMode === 'email'
-                          ? t('participant_auth_mode_email')
-                          : event.participantAuthMode === 'social_verified'
-                            ? t('participant_auth_mode_social')
-                            : event.participantAuthMode === 'flexible'
-                              ? t('participant_auth_mode_flexible')
-                              : t('participant_auth_mode_anonymous'),
-                    })}
-                  </Text>
-                  <Text style={styles.listSubText}>
-                    {event.participantPhoneRequired
-                      ? t('participant_phone_required_enabled')
-                      : t('participant_phone_required_disabled')}
-                  </Text>
-                  {event.isFree && cleanText(event.localSponsor ?? '') ? (
-                    isImageDataUrl(event.localSponsor ?? '') ? (
-                      <Image
-                        source={{ uri: cleanText(event.localSponsor ?? '') }}
-                        style={styles.sponsorLogoPreview}
+              filtered.map((event) => {
+                const eventId = cleanText(event.id);
+                if (!eventId) {
+                  return null;
+                }
+
+                const eventName = cleanText(event.name);
+                const eventLocation = cleanText(event.location);
+                const eventLogoUrl = cleanText(event.logoUrl ?? '');
+                const localSponsor = cleanText(event.localSponsor ?? '');
+                const eventSponsorSlots = visibleSponsorSlotsByEvent.get(eventId) ?? [];
+                const availability = getParticipantEventAvailability(event);
+                const availabilityTone =
+                  availability === 'registration_open'
+                    ? 'success'
+                    : availability === 'registration_upcoming'
+                      ? 'warning'
+                      : 'neutral';
+                const availabilityLabel =
+                  availability === 'registration_open'
+                    ? t('badge_registration_open')
+                    : availability === 'registration_upcoming'
+                      ? t('badge_registration_upcoming')
+                      : t('badge_registration_closed');
+                const authLabel =
+                  event.participantAuthMode === 'email'
+                    ? t('participant_auth_mode_email')
+                    : event.participantAuthMode === 'social_verified'
+                      ? t('participant_auth_mode_social')
+                      : event.participantAuthMode === 'flexible'
+                        ? t('participant_auth_mode_flexible')
+                        : t('participant_auth_mode_anonymous');
+
+                return (
+                  <View key={eventId} style={styles.listCard}>
+                    <View style={styles.statusBadgeRow}>
+                      <StatusBadge label={availabilityLabel} tone={availabilityTone} />
+                      <StatusBadge
+                        label={
+                          event.isFree
+                            ? t('free_event_label')
+                            : t('entry_fee_label', { fee: toMoney(event.feeAmount) })
+                        }
+                        tone={event.isFree ? 'success' : 'warning'}
                       />
-                    ) : (
-                      <Text style={styles.listSubText}>{event.localSponsor}</Text>
-                    )
-                  ) : null}
-                  {(() => {
-                    const eventSponsorSlots = visibleSponsorSlotsByEvent.get(event.id) ?? [];
-                    return (
-                      <>
-                        <Text style={styles.fieldLabel}>{t('sponsor_section_title')}</Text>
-                        {eventSponsorSlots.length === 0 ? (
-                          <Text style={styles.helperText}>{t('sponsor_section_empty')}</Text>
-                        ) : (
-                          eventSponsorSlots.map((slot) => (
-                            <View key={slot.id} style={styles.registrationCard}>
-                              <Text style={styles.listSubText}>
-                                {slot.sponsorName || slot.sponsorNameIt || slot.sponsorNameEn}
-                              </Text>
-                              {slot.sponsorLogoUrl ? (
-                                <Image source={{ uri: slot.sponsorLogoUrl }} style={styles.sponsorLogoPreview} />
-                              ) : null}
-                              {slot.sponsorUrl ? (
-                                <Pressable
-                                  style={styles.inlineActionButton}
-                                  onPress={() => {
-                                    void openSponsorActivity(slot.sponsorUrl ?? '');
-                                  }}
-                                >
-                                  <Text style={styles.inlineActionButtonText}>{t('sponsor_activity_open')}</Text>
-                                </Pressable>
-                              ) : null}
-                            </View>
-                          ))
-                        )}
-                      </>
-                    );
-                  })()}
-                  {(() => {
-                    const publicUrl = getEventPublicUrl(event);
-                    if (!publicUrl) {
-                      return null;
-                    }
-                    return (
-                      <View style={styles.registrationCard}>
-                        <Text style={styles.helperText}>{publicUrl}</Text>
-                        <View style={styles.registrationCard}>
-                          <QRCode value={publicUrl} size={120} />
-                        </View>
-                        <Pressable
-                          style={styles.secondaryButton}
-                          onPress={() => {
-                            void copyEventLink(publicUrl);
-                          }}
-                        >
-                          <Text style={styles.secondaryButtonText}>{t('copy_event_link')}</Text>
-                        </Pressable>
-                        <Pressable
-                          style={styles.secondaryButton}
-                          onPress={() => {
-                            void shareEventLink(publicUrl);
-                          }}
-                        >
-                          <Text style={styles.secondaryButtonText}>{t('share_event_link')}</Text>
-                        </Pressable>
-                      </View>
-                    );
-                  })()}
-                  <Pressable style={styles.primaryButtonCompact} onPress={() => onSelectEvent(event.id)}>
-                    <Text style={styles.primaryButtonText}>
-                      {editableEventIdSet.has(event.id) ? t('update_registration_data') : t('subscribe')}
+                      <StatusBadge label={authLabel} />
+                      <StatusBadge
+                        label={
+                          event.participantPhoneRequired
+                            ? t('badge_phone_short_required')
+                            : t('badge_phone_short_optional')
+                        }
+                      />
+                      {eventSponsorSlots.length > 0 ? (
+                        <StatusBadge label={t('badge_sponsors_active')} tone='success' />
+                      ) : null}
+                    </View>
+                    <Text style={styles.listTitle}>{eventName}</Text>
+                    {eventLogoUrl ? (
+                      <Image source={{ uri: eventLogoUrl }} style={styles.sponsorLogoPreview} />
+                    ) : null}
+                    <Text style={styles.listSubText}>
+                      {eventLocation} | {formatEventSchedule(event)}
                     </Text>
-                  </Pressable>
-                </View>
-              ))
+                    <Text style={styles.listSubText}>
+                      {t('registration_window_line', {
+                        from: formatDate(event.registrationOpenDate),
+                        to: formatDate(event.registrationCloseDate || event.endDate || event.date),
+                      })}
+                    </Text>
+                    <Text style={styles.listSubText}>
+                      {event.isFree
+                        ? t('free_event_label')
+                        : t('entry_fee_label', { fee: toMoney(event.feeAmount) })}
+                    </Text>
+                    <Text style={styles.listSubText}>
+                      {t('participant_auth_required_line', {
+                        mode:
+                          event.participantAuthMode === 'email'
+                            ? t('participant_auth_mode_email')
+                            : event.participantAuthMode === 'social_verified'
+                              ? t('participant_auth_mode_social')
+                              : event.participantAuthMode === 'flexible'
+                                ? t('participant_auth_mode_flexible')
+                                : t('participant_auth_mode_anonymous'),
+                      })}
+                    </Text>
+                    <Text style={styles.listSubText}>
+                      {event.participantPhoneRequired
+                        ? t('participant_phone_required_enabled')
+                        : t('participant_phone_required_disabled')}
+                    </Text>
+                    <View style={[styles.noticeCard, styles.noticeCardInfo]}>
+                      <Text style={styles.noticeTitle}>{t('participant_search_card_hint_title')}</Text>
+                      <Text style={styles.noticeText}>
+                        {availability === 'registration_open'
+                          ? t('participant_search_card_hint_open')
+                          : availability === 'registration_upcoming'
+                            ? t('participant_search_card_hint_upcoming')
+                            : t('participant_search_card_hint_closed')}
+                      </Text>
+                    </View>
+                    {event.isFree && localSponsor ? (
+                      isImageDataUrl(localSponsor) ? (
+                        <Image source={{ uri: localSponsor }} style={styles.sponsorLogoPreview} />
+                      ) : (
+                        <Text style={styles.listSubText}>{localSponsor}</Text>
+                      )
+                    ) : null}
+                    <Text style={styles.fieldLabel}>{t('sponsor_section_title')}</Text>
+                    {eventSponsorSlots.length === 0 ? (
+                      <Text style={styles.helperText}>{t('sponsor_section_empty')}</Text>
+                    ) : (
+                      eventSponsorSlots.map((slot) => {
+                        const sponsorName = cleanText(
+                          slot.sponsorName || slot.sponsorNameIt || slot.sponsorNameEn
+                        );
+                        const sponsorLogoUrl = cleanText(slot.sponsorLogoUrl ?? '');
+                        const sponsorUrl = cleanText(slot.sponsorUrl ?? '');
+
+                        return (
+                          <View key={slot.id} style={styles.registrationCard}>
+                            <Text style={styles.listSubText}>{sponsorName}</Text>
+                            {sponsorLogoUrl ? (
+                              <Image
+                                source={{ uri: sponsorLogoUrl }}
+                                style={styles.sponsorLogoPreview}
+                              />
+                            ) : null}
+                            {sponsorUrl ? (
+                              <Pressable
+                                style={styles.inlineActionButton}
+                                onPress={() => {
+                                  void openSponsorActivity(sponsorUrl);
+                                }}
+                              >
+                                <Text style={styles.inlineActionButtonText}>
+                                  {t('sponsor_activity_open')}
+                                </Text>
+                              </Pressable>
+                            ) : null}
+                          </View>
+                        );
+                      })
+                    )}
+                    {(() => {
+                      const publicUrl = cleanText(getEventPublicUrl(event));
+                      if (!publicUrl) {
+                        return null;
+                      }
+                      return (
+                        <View style={styles.registrationCard}>
+                          <Text style={styles.helperText}>{publicUrl}</Text>
+                          <View style={styles.qrWrap}>
+                            <View style={styles.qrCard}>
+                              <QRCode value={publicUrl} size={120} />
+                            </View>
+                          </View>
+                          <View style={styles.compactActionRow}>
+                            <Pressable
+                              style={styles.secondaryButton}
+                              onPress={() => {
+                                void copyEventLink(publicUrl);
+                              }}
+                            >
+                              <Text style={styles.secondaryButtonText}>
+                                {t('copy_event_link')}
+                              </Text>
+                            </Pressable>
+                            <Pressable
+                              style={styles.secondaryButton}
+                              onPress={() => {
+                                void shareEventLink(publicUrl);
+                              }}
+                            >
+                              <Text style={styles.secondaryButtonText}>
+                                {t('share_event_link')}
+                              </Text>
+                            </Pressable>
+                          </View>
+                        </View>
+                      );
+                    })()}
+                    <Pressable style={styles.primaryButtonCompact} onPress={() => onSelectEvent(eventId)}>
+                      <Text style={styles.primaryButtonText}>
+                        {editableEventIdSet.has(eventId) ? t('update_registration_data') : t('subscribe')}
+                      </Text>
+                    </Pressable>
+                  </View>
+                );
+              })
             )}
           </SectionCard>
         </View>
