@@ -432,6 +432,8 @@ export function ParticipantSearchScreen({
                     : availability === 'registration_upcoming'
                       ? t('badge_registration_upcoming')
                       : t('badge_registration_closed');
+                const canStartRegistration =
+                  availability === 'registration_open' || editableEventIdSet.has(eventId);
                 const authLabel =
                   event.participantAuthMode === 'email'
                     ? t('participant_auth_mode_email')
@@ -591,9 +593,20 @@ export function ParticipantSearchScreen({
                         </View>
                       );
                     })()}
-                    <Pressable style={styles.primaryButtonCompact} onPress={() => onSelectEvent(eventId)}>
+                    <Pressable
+                      style={[
+                        styles.primaryButtonCompact,
+                        !canStartRegistration ? styles.primaryButtonDisabled : undefined,
+                      ]}
+                      onPress={() => onSelectEvent(eventId)}
+                      disabled={!canStartRegistration}
+                    >
                       <Text style={styles.primaryButtonText}>
-                        {editableEventIdSet.has(eventId) ? t('update_registration_data') : t('subscribe')}
+                        {editableEventIdSet.has(eventId)
+                          ? t('update_registration_data')
+                          : canStartRegistration
+                            ? t('subscribe')
+                            : availabilityLabel}
                       </Text>
                     </Pressable>
                   </View>

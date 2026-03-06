@@ -46,7 +46,9 @@ import { createParticipantCheckout } from './src/services/participantCheckout';
 import { initAdMob, loadInterstitialAd, showInterstitialAd } from './src/services/admob';
 import {
   completeOAuthFromUrl,
+  getWebAuthRedirectUrl,
   getOrganizerSecurityStatus,
+  hasAuthCallbackParams,
   OrganizerSecurityStatus,
   requestEmailOtp,
   signOut,
@@ -121,6 +123,7 @@ import {
   cleanText,
   formatDate,
   isImageDataUrl,
+  isValidEmailAddress,
   normalizeComparableText,
   randomId,
   toMoney,
@@ -1464,18 +1467,45 @@ function App() {
   }, [screen.name]);
 
   useEffect(() => {
-    const handleOAuthUrl = async (url: string) => {
-      const completed = await completeOAuthFromUrl(url);
-      if (!completed.ok) {
+    const clearWebAuthUrl = () => {
+      if (Platform.OS !== 'web' || typeof window === 'undefined') {
         return;
       }
+      const cleanUrl =
+        getWebAuthRedirectUrl(window.location.href) ??
+        `${window.location.origin}${window.location.pathname}`;
+      window.history.replaceState({}, '', cleanUrl);
+    };
+
+    const handleOAuthUrl = async (url: string) => {
+      const callbackPresent = hasAuthCallbackParams(url);
+
+      let completed;
+      try {
+        completed = await completeOAuthFromUrl(url);
+      } catch (error) {
+        if (callbackPresent) {
+          clearWebAuthUrl();
+          showAuthAlert(
+            t('organizer_security_action_fail_title'),
+            error instanceof Error ? error.message : 'Errore imprevisto durante il callback web.'
+          );
+        }
+        return;
+      }
+
+      if (!completed.ok) {
+        if (callbackPresent) {
+          clearWebAuthUrl();
+          showAuthAlert(t('organizer_security_action_fail_title'), completed.reason);
+        }
+        return;
+      }
+
       if (!completed.data) {
         return;
       }
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        const cleanUrl = `${window.location.origin}${window.location.pathname}`;
-        window.history.replaceState({}, '', cleanUrl);
-      }
+      clearWebAuthUrl();
       await refreshOrganizerSecurityState();
     };
 
@@ -2309,7 +2339,7 @@ function App() {
 
   const requestOrganizerMagicLink = async (email: string) => {
     const normalizedEmail = cleanText(email).toLowerCase();
-    if (!normalizedEmail.includes('@')) {
+    if (!isValidEmailAddress(normalizedEmail)) {
       showAuthAlert(t('invalid_email_title'), t('invalid_email_message'));
       return;
     }
@@ -2338,7 +2368,7 @@ function App() {
 
   const requestParticipantMagicLink = async (email: string) => {
     const normalizedEmail = cleanText(email).toLowerCase();
-    if (!normalizedEmail.includes('@')) {
+    if (!isValidEmailAddress(normalizedEmail)) {
       showAuthAlert(t('invalid_email_title'), t('invalid_email_message'));
       return;
     }
@@ -3828,13 +3858,13 @@ function App() {
     const sourceData = withExpiredSessionsHandled(appData);
     const event = sourceData.events.find((entry) => entry.id === eventId);
     if (!event) {
-      Alert.alert(t('event_not_found_title'), t('event_not_found_message'));
+      showAppAlert(t('event_not_found_title'), t('event_not_found_message'));
       return;
     }
     const organizer = sourceData.organizers.find((entry) => entry.id === event.organizerId);
 
     if (!isRegistrationWindowOpen(event)) {
-      Alert.alert(
+      showAppAlert(
         t('registration_window_closed_title'),
         t('registration_window_closed_message', {
           from: formatDate(event.registrationOpenDate),
@@ -3876,7 +3906,7 @@ function App() {
       excludeRegistrationId: existingFreeRegistration?.id,
     });
     if (duplicateName) {
-      Alert.alert(
+      showAppAlert(
         t('participant_already_registered_title'),
         t('participant_already_registered_message')
       );
@@ -4024,12 +4054,12 @@ function App() {
     const sourceData = withExpiredSessionsHandled(appData);
     const event = sourceData.events.find((entry) => entry.id === eventId);
     if (!event) {
-      Alert.alert(t('event_not_found_title'), t('event_not_found_message'));
+      showAppAlert(t('event_not_found_title'), t('event_not_found_message'));
       return;
     }
 
     if (!isRegistrationWindowOpen(event)) {
-      Alert.alert(
+      showAppAlert(
         t('registration_window_closed_title'),
         t('registration_window_closed_message', {
           from: formatDate(event.registrationOpenDate),
@@ -4113,7 +4143,7 @@ function App() {
         pendingFromEdit?.id ?? existingPending?.id ?? existingPaidByEmail?.id,
     });
     if (duplicateName) {
-      Alert.alert(
+      showAppAlert(
         t('participant_already_registered_title'),
         t('participant_already_registered_message')
       );
@@ -4912,7 +4942,18 @@ function App() {
     const sourceData = withExpiredSessionsHandled(appData);
     const event = sourceData.events.find((entry) => entry.id === eventId);
     if (!event) {
-      Alert.alert(t('event_not_found_title'), t('event_not_found_message'));
+      showAppAlert(t('event_not_found_title'), t('event_not_found_message'));
+      return;
+    }
+
+    if (!activeParticipantEmail && !isRegistrationWindowOpen(event)) {
+      showAppAlert(
+        t('registration_window_closed_title'),
+        t('registration_window_closed_message', {
+          from: formatDate(event.registrationOpenDate),
+          to: formatDate(event.registrationCloseDate),
+        })
+      );
       return;
     }
 
@@ -4957,6 +4998,17 @@ function App() {
         }
         return second.updatedAt.localeCompare(first.updatedAt);
       })[0];
+
+    if (!candidate && !isRegistrationWindowOpen(event)) {
+      showAppAlert(
+        t('registration_window_closed_title'),
+        t('registration_window_closed_message', {
+          from: formatDate(event.registrationOpenDate),
+          to: formatDate(event.registrationCloseDate),
+        })
+      );
+      return;
+    }
 
     const target: ParticipantPostAuthTarget = candidate
       ? {

@@ -260,6 +260,13 @@ export function ParticipantRegistrationScreen({
 
   const canSubmit = validationIssues.length === 0;
   const canSendMessage = messageValidationIssues.length === 0;
+  const showAlert = (title: string, message: string) => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.alert === 'function') {
+      window.alert(`${title}\n${message}`);
+      return;
+    }
+    Alert.alert(title, message);
+  };
 
   const summaryBadgeLabel = canSubmit
     ? t('registration_ready_badge')
@@ -281,22 +288,22 @@ export function ParticipantRegistrationScreen({
   ) => {
     switch (issue) {
       case 'emailFormat':
-        Alert.alert(t('invalid_email_title'), t('invalid_email_message'));
+        showAlert(t('invalid_email_title'), t('invalid_email_message'));
         return;
       case 'birthDate':
-        Alert.alert(t('birthdate_invalid_title'), t('birthdate_invalid_message'));
+        showAlert(t('birthdate_invalid_title'), t('birthdate_invalid_message'));
         return;
       case 'phone':
-        Alert.alert(t('missing_data_title'), t('participant_phone_required_message'));
+        showAlert(t('missing_data_title'), t('participant_phone_required_message'));
         return;
       case 'groupParticipants':
-        Alert.alert(t('missing_data_title'), t('group_participants_names_required'));
+        showAlert(t('missing_data_title'), t('group_participants_names_required'));
         return;
       case 'participantMessage':
-        Alert.alert(t('missing_data_title'), t('participant_message_missing_message'));
+        showAlert(t('missing_data_title'), t('participant_message_missing_message'));
         return;
       default:
-        Alert.alert(t('missing_data_title'), t('guided_complete_required_fields_hint'));
+        showAlert(t('missing_data_title'), t('guided_complete_required_fields_hint'));
     }
   };
 
@@ -308,7 +315,7 @@ export function ParticipantRegistrationScreen({
 
     const parsedGroupCountInput = Number.parseInt(groupParticipantsCount, 10);
     if (!Number.isFinite(parsedGroupCountInput) || parsedGroupCountInput <= 0) {
-      Alert.alert(t('missing_data_title'), t('group_participants_invalid'));
+      showAlert(t('missing_data_title'), t('group_participants_invalid'));
       return null;
     }
 
@@ -324,7 +331,7 @@ export function ParticipantRegistrationScreen({
       parsedGroupCountInput > 1 &&
       normalizedGroupParticipants.slice(1).some((value) => !cleanText(value))
     ) {
-      Alert.alert(t('missing_data_title'), t('group_participants_names_required'));
+      showValidationAlert('groupParticipants');
       return null;
     }
 

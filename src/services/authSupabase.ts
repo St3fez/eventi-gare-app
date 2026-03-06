@@ -1,6 +1,11 @@
 import { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { Linking, Platform } from 'react-native';
 
+import {
+  completeWebAuthFromUrl,
+  getWebAuthRedirectUrl,
+  type WebAuthClientLike,
+} from './authSupabaseWeb';
 import { supabase } from './supabaseClient';
 
 const requireSupabase = () => {
@@ -158,11 +163,7 @@ export const getOrganizerSecurityStatus = async (): Promise<
 
 const getRedirectTo = (): string | undefined => {
   if (Platform.OS === 'web') {
-    if (typeof window === 'undefined' || !window.location?.origin) {
-      return undefined;
-    }
-    const path = window.location.pathname || '/';
-    return `${window.location.origin}${path}`;
+    return getWebAuthRedirectUrl();
   }
   return 'eventigare://auth/callback';
 };
@@ -202,70 +203,13 @@ export const startOrganizerOAuth = async (provider: 'google'): Promise<AuthResul
   };
 };
 
-const parseOAuthCodeFromUrl = (url: string): string | null => {
-  try {
-    const parsed = new URL(url);
-    return parsed.searchParams.get('code');
-  } catch {
-    return null;
-  }
-};
+export { getWebAuthRedirectUrl, hasAuthCallbackParams } from './authSupabaseWeb';
 
-const parseTokensFromHash = (url: string): {
-  accessToken: string;
-  refreshToken: string;
-} | null => {
-  const hashIndex = url.indexOf('#');
-  if (hashIndex < 0) {
-    return null;
-  }
-  const hash = url.slice(hashIndex + 1);
-  const params = new URLSearchParams(hash);
-  const accessToken = params.get('access_token');
-  const refreshToken = params.get('refresh_token');
-  if (!accessToken || !refreshToken) {
-    return null;
-  }
-  return {
-    accessToken,
-    refreshToken,
-  };
-};
-
-export const completeOAuthFromUrl = async (url: string): Promise<AuthResult<boolean>> => {
-  const client = requireSupabase();
-  const code = parseOAuthCodeFromUrl(url);
-  if (code) {
-    const exchanged = await client.auth.exchangeCodeForSession(code);
-    if (exchanged.error) {
-      return authFail(`Scambio code OAuth fallito: ${exchanged.error.message}`);
-    }
-    return {
-      ok: true,
-      data: true,
-    };
-  }
-
-  const tokens = parseTokensFromHash(url);
-  if (!tokens) {
-    return {
-      ok: true,
-      data: false,
-    };
-  }
-
-  const sessionSet = await client.auth.setSession({
-    access_token: tokens.accessToken,
-    refresh_token: tokens.refreshToken,
-  });
-  if (sessionSet.error) {
-    return authFail(`Sessione OAuth non applicata: ${sessionSet.error.message}`);
-  }
-  return {
-    ok: true,
-    data: true,
-  };
-};
+export const completeOAuthFromUrl = async (
+  url: string,
+  clientOverride?: WebAuthClientLike
+): Promise<AuthResult<boolean>> =>
+  completeWebAuthFromUrl(url, clientOverride ?? requireSupabase());
 
 export const requestOrganizerPhoneOtp = async (phone: string): Promise<AuthResult<null>> => {
   const client = requireSupabase();
