@@ -92,6 +92,14 @@ const resolveAllowedOrigins = (
 const isOriginAllowed = (origin: string, allowedOrigins: Set<string>): boolean =>
   allowedOrigins.size === 0 || allowedOrigins.has(origin);
 
+const formatStripeConnectErrorDetail = (error: unknown): string => {
+  const raw = error instanceof Error ? error.message : String(error);
+  if (/managing losses|platform-profile/i.test(raw)) {
+    return 'Completa prima il profilo piattaforma Stripe Connect: apri https://dashboard.stripe.com/settings/connect/platform-profile, conferma le responsabilita per perdite/saldi negativi e salva. Poi riprova.';
+  }
+  return raw;
+};
+
 const normalizeRedirectUrl = (
   value: unknown,
   fallback: string,
@@ -308,7 +316,7 @@ Deno.serve(async (req: Request) => {
     return json(
       {
         error: 'Stripe Connect request failed',
-        detail: error instanceof Error ? error.message : String(error),
+        detail: formatStripeConnectErrorDetail(error),
       },
       502
     );
