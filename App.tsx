@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Linking,
@@ -87,6 +87,7 @@ import {
   SponsorSlotRow,
 } from './src/services/sponsorSupabase';
 import {
+  parseStripeConnectCallbackUrl,
   startStripeConnectOnboarding,
   syncStripeConnectStatus,
 } from './src/services/stripeConnect';
@@ -1062,6 +1063,8 @@ function App() {
     useState<ParticipantPostAuthTarget | null>(null);
   const [handledSharedEventRef, setHandledSharedEventRef] = useState<string | null>(null);
   const [publicEventRemoteIds, setPublicEventRemoteIds] = useState<string[]>([]);
+  const handledStripeConnectCallbackRef = useRef<string | null>(null);
+  const pendingStripeConnectSecurityRef = useRef<string | null>(null);
   const t = useMemo(() => createTranslator(language), [language]);
   const appSubtitle = IS_DEMO_CHANNEL ? t('app_subtitle_demo') : t('app_subtitle');
 
@@ -1370,14 +1373,17 @@ function App() {
       });
       setAdminUsers([]);
       if (showMissingAlert) {
-        Alert.alert(t('organizer_security_required_title'), status.reason);
+        showAppAlert(t('organizer_security_required_title'), status.reason);
       }
       return false;
     }
     setOrganizerSecurity(status.data);
     void refreshAdminAccess(status.data.email);
     if (showMissingAlert && !status.data.securityReady) {
-      Alert.alert(t('organizer_security_required_title'), t('organizer_security_required_message'));
+      showAppAlert(
+        t('organizer_security_required_title'),
+        t('organizer_security_required_message')
+      );
       return false;
     }
     return status.data.securityReady;
@@ -2330,6 +2336,67 @@ function App() {
     Alert.alert(title, message);
   };
 
+  const openHostedFlowUrl = async (
+    url: string
+  ): Promise<'redirected' | 'opened' | 'failed'> => {
+    const targetUrl = cleanText(url);
+    if (!targetUrl) {
+      return 'failed';
+    }
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.location.assign(targetUrl);
+      return 'redirected';
+    }
+
+    try {
+      const canOpen = await Linking.canOpenURL(targetUrl);
+      if (!canOpen) {
+        return 'failed';
+      }
+      await Linking.openURL(targetUrl);
+      return 'opened';
+    } catch {
+      return 'failed';
+    }
+  };
+
+  const clearWebStripeConnectCallbackUrl = () => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') {
+      return;
+    }
+
+    const nextUrl = new URL(window.location.href);
+    let changed = false;
+    ['stripeConnect', 'organizer'].forEach((key) => {
+      if (nextUrl.searchParams.has(key)) {
+        nextUrl.searchParams.delete(key);
+        changed = true;
+      }
+    });
+
+    if (!changed) {
+      return;
+    }
+
+    const search = nextUrl.searchParams.toString();
+    const cleanUrl = `${nextUrl.origin}${nextUrl.pathname}${search ? `?${search}` : ''}${nextUrl.hash}`;
+    window.history.replaceState({}, '', cleanUrl);
+  };
+
+  const formatStripeConnectRequirementsMessage = (requirements?: string[]) => {
+    const items = (requirements ?? [])
+      .map((entry) => cleanText(entry))
+      .filter(Boolean)
+      .map((entry) => `- ${entry.replace(/\./g, ' > ').replace(/_/g, ' ')}`);
+
+    if (!items.length) {
+      return '';
+    }
+
+    return `\n${t('stripe_connect_requirements', { count: items.length })}\n${items.join('\n')}`;
+  };
+
   const showAuthAlert = (title: string, message: string, tone: AuthNotice['tone'] = 'error') => {
     setAuthNotice({ tone, title, message });
     if (Platform.OS !== 'web') {
@@ -3045,7 +3112,7 @@ function App() {
     if (!organizerRemoteId) {
       const organizerSync = await upsertOrganizerInSupabase(organizer);
       if (!organizerSync.ok) {
-        Alert.alert(t('sponsor_checkout_fail_title'), organizerSync.reason);
+        showAppAlert(t('sponsor_checkout_fail_title'), organizerSync.reason);
         return;
       }
 
@@ -3060,7 +3127,7 @@ function App() {
     if (!eventRemoteId) {
       const eventSync = await insertEventInSupabase(event, organizerRemoteId);
       if (!eventSync.ok) {
-        Alert.alert(t('sponsor_checkout_fail_title'), eventSync.reason);
+        showAppAlert(t('sponsor_checkout_fail_title'), eventSync.reason);
         return;
       }
       eventRemoteId = eventSync.data.id;
@@ -3068,11 +3135,11 @@ function App() {
     }
 
     if (!eventRemoteId) {
-      Alert.alert(t('sponsor_checkout_fail_title'), t('sponsor_event_remote_missing'));
+      showAppAlert(t('sponsor_checkout_fail_title'), t('sponsor_event_remote_missing'));
       return;
     }
     if (!organizerRemoteId) {
-      Alert.alert(t('sponsor_checkout_fail_title'), t('organizer_not_found_message'));
+      showAppAlert(t('sponsor_checkout_fail_title'), t('organizer_not_found_message'));
       return;
     }
 
@@ -3093,7 +3160,7 @@ function App() {
     });
 
     if (!sponsorCheckout.ok) {
-      Alert.alert(t('sponsor_checkout_fail_title'), sponsorCheckout.reason);
+      showAppAlert(t('sponsor_checkout_fail_title'), sponsorCheckout.reason);
       return;
     }
 
@@ -3113,10 +3180,20 @@ function App() {
       };
     });
 
-    Alert.alert(
+    if (!sponsorCheckout.data.checkoutUrl) {
+      showAppAlert(t('sponsor_checkout_fail_title'), t('payment_checkout_url_missing'));
+      return;
+    }
+
+    const openResult = await openHostedFlowUrl(sponsorCheckout.data.checkoutUrl);
+    if (openResult === 'redirected') {
+      return;
+    }
+
+    showAppAlert(
       t('sponsor_checkout_title'),
       t('sponsor_checkout_message', {
-        url: sponsorCheckout.data.checkoutUrl ?? 'N/D',
+        url: sponsorCheckout.data.checkoutUrl,
       })
     );
   };
@@ -3338,7 +3415,7 @@ function App() {
     if (!organizerRemoteId) {
       const organizerSync = await upsertOrganizerInSupabase(organizer);
       if (!organizerSync.ok) {
-        Alert.alert(t('sponsor_module_checkout_fail_title'), organizerSync.reason);
+        showAppAlert(t('sponsor_module_checkout_fail_title'), organizerSync.reason);
         return;
       }
 
@@ -3350,7 +3427,7 @@ function App() {
     }
 
     if (!organizerRemoteId) {
-      Alert.alert(t('sponsor_module_checkout_fail_title'), t('organizer_not_found_message'));
+      showAppAlert(t('sponsor_module_checkout_fail_title'), t('organizer_not_found_message'));
       return;
     }
 
@@ -3359,7 +3436,7 @@ function App() {
     });
 
     if (!checkout.ok) {
-      Alert.alert(t('sponsor_module_checkout_fail_title'), checkout.reason);
+      showAppAlert(t('sponsor_module_checkout_fail_title'), checkout.reason);
       return;
     }
 
@@ -3372,29 +3449,23 @@ function App() {
     }
 
     if (!checkout.data.checkoutUrl) {
-      Alert.alert(
+      showAppAlert(
         t('sponsor_module_checkout_fail_title'),
         t('sponsor_module_checkout_url_missing')
       );
       return;
     }
 
-    let opened = false;
-    try {
-      const canOpen = await Linking.canOpenURL(checkout.data.checkoutUrl);
-      if (canOpen) {
-        await Linking.openURL(checkout.data.checkoutUrl);
-        opened = true;
-      }
-    } catch {
-      opened = false;
+    const openResult = await openHostedFlowUrl(checkout.data.checkoutUrl);
+    if (openResult === 'redirected') {
+      return;
     }
 
-    Alert.alert(
+    showAppAlert(
       t('sponsor_module_checkout_opened_title'),
       t('sponsor_module_checkout_opened_message', {
         url: checkout.data.checkoutUrl,
-        openResult: opened
+        openResult: openResult === 'opened'
           ? t('sponsor_module_checkout_opened_ok')
           : t('sponsor_module_checkout_opened_manual'),
       })
@@ -3449,10 +3520,89 @@ function App() {
     }));
   };
 
+  const syncStripeConnectForOrganizerState = async (
+    organizerId: string
+  ): Promise<
+    | {
+        ok: true;
+        state: 'not_connected' | 'onboarding' | 'ready';
+        requirements: string[];
+      }
+    | {
+        ok: false;
+        reason: string;
+      }
+  > => {
+    const organizer = appData.organizers.find((entry) => entry.id === organizerId);
+    if (!organizer) {
+      return {
+        ok: false,
+        reason: t('organizer_not_found_message'),
+      };
+    }
+
+    const securityReady = await refreshOrganizerSecurityState(true);
+    if (!securityReady) {
+      return {
+        ok: false,
+        reason: t('organizer_security_required_message'),
+      };
+    }
+
+    let organizerRemoteId = organizer.remoteId;
+    if (!organizerRemoteId) {
+      const organizerSync = await upsertOrganizerInSupabase(organizer);
+      if (!organizerSync.ok) {
+        return {
+          ok: false,
+          reason: organizerSync.reason,
+        };
+      }
+      organizerRemoteId = organizerSync.data.id;
+      patchOrganizerRemoteId(organizer.id, organizerRemoteId);
+      if (organizer.email !== organizerSync.data.email) {
+        patchOrganizerEmail(organizer.id, organizerSync.data.email);
+      }
+    }
+
+    if (!organizerRemoteId) {
+      return {
+        ok: false,
+        reason: t('organizer_not_found_message'),
+      };
+    }
+
+    const syncResult = await syncStripeConnectStatus({
+      organizerId: organizerRemoteId,
+    });
+
+    if (!syncResult.ok) {
+      return {
+        ok: false,
+        reason: syncResult.reason,
+      };
+    }
+
+    applyStripeConnectState(organizer.id, {
+      accountId: syncResult.data.accountId,
+      chargesEnabled: syncResult.data.chargesEnabled,
+      payoutsEnabled: syncResult.data.payoutsEnabled,
+      detailsSubmitted: syncResult.data.detailsSubmitted,
+      requirements: syncResult.data.requirements,
+      status: syncResult.data.state,
+    });
+
+    return {
+      ok: true,
+      state: syncResult.data.state,
+      requirements: syncResult.data.requirements ?? [],
+    };
+  };
+
   const startStripeConnectForOrganizer = async (organizerId: string) => {
     const organizer = appData.organizers.find((entry) => entry.id === organizerId);
     if (!organizer) {
-      Alert.alert(t('organizer_not_found_title'), t('organizer_not_found_message'));
+      showAppAlert(t('organizer_not_found_title'), t('organizer_not_found_message'));
       return;
     }
 
@@ -3465,7 +3615,7 @@ function App() {
     if (!organizerRemoteId) {
       const organizerSync = await upsertOrganizerInSupabase(organizer);
       if (!organizerSync.ok) {
-        Alert.alert(t('stripe_connect_error_title'), organizerSync.reason);
+        showAppAlert(t('stripe_connect_error_title'), organizerSync.reason);
         return;
       }
 
@@ -3477,16 +3627,17 @@ function App() {
     }
 
     if (!organizerRemoteId) {
-      Alert.alert(t('stripe_connect_error_title'), t('organizer_not_found_message'));
+      showAppAlert(t('stripe_connect_error_title'), t('organizer_not_found_message'));
       return;
     }
 
     const connect = await startStripeConnectOnboarding({
       organizerId: organizerRemoteId,
+      localOrganizerId: organizer.id,
     });
 
     if (!connect.ok) {
-      Alert.alert(t('stripe_connect_error_title'), connect.reason);
+      showAppAlert(t('stripe_connect_error_title'), connect.reason);
       return;
     }
 
@@ -3500,31 +3651,25 @@ function App() {
     });
 
     if (connect.data.state === 'ready' && !connect.data.onboardingUrl) {
-      Alert.alert(t('stripe_connect_ready_title'), t('stripe_connect_ready_message'));
+      showAppAlert(t('stripe_connect_ready_title'), t('stripe_connect_ready_message'));
       return;
     }
 
     if (!connect.data.onboardingUrl) {
-      Alert.alert(t('stripe_connect_error_title'), t('stripe_connect_url_missing'));
+      showAppAlert(t('stripe_connect_error_title'), t('stripe_connect_url_missing'));
       return;
     }
 
-    let opened = false;
-    try {
-      const canOpen = await Linking.canOpenURL(connect.data.onboardingUrl);
-      if (canOpen) {
-        await Linking.openURL(connect.data.onboardingUrl);
-        opened = true;
-      }
-    } catch {
-      opened = false;
+    const openResult = await openHostedFlowUrl(connect.data.onboardingUrl);
+    if (openResult === 'redirected') {
+      return;
     }
 
-    Alert.alert(
+    showAppAlert(
       t('stripe_connect_onboarding_opened_title'),
       t('stripe_connect_onboarding_opened_message', {
         url: connect.data.onboardingUrl,
-        openResult: opened
+        openResult: openResult === 'opened'
           ? t('stripe_connect_onboarding_opened_ok')
           : t('stripe_connect_onboarding_opened_manual'),
       })
@@ -3532,68 +3677,119 @@ function App() {
   };
 
   const syncStripeConnectForOrganizer = async (organizerId: string, showAlert = true) => {
-    const organizer = appData.organizers.find((entry) => entry.id === organizerId);
-    if (!organizer) {
-      Alert.alert(t('organizer_not_found_title'), t('organizer_not_found_message'));
-      return;
-    }
-
-    const securityReady = await refreshOrganizerSecurityState(true);
-    if (!securityReady) {
-      return;
-    }
-
-    let organizerRemoteId = organizer.remoteId;
-    if (!organizerRemoteId) {
-      const organizerSync = await upsertOrganizerInSupabase(organizer);
-      if (!organizerSync.ok) {
-        Alert.alert(t('stripe_connect_error_title'), organizerSync.reason);
-        return;
-      }
-      organizerRemoteId = organizerSync.data.id;
-      patchOrganizerRemoteId(organizer.id, organizerRemoteId);
-      if (organizer.email !== organizerSync.data.email) {
-        patchOrganizerEmail(organizer.id, organizerSync.data.email);
-      }
-    }
-
-    if (!organizerRemoteId) {
-      Alert.alert(t('stripe_connect_error_title'), t('organizer_not_found_message'));
-      return;
-    }
-
-    const syncResult = await syncStripeConnectStatus({
-      organizerId: organizerRemoteId,
-    });
-
+    const syncResult = await syncStripeConnectForOrganizerState(organizerId);
     if (!syncResult.ok) {
-      Alert.alert(t('stripe_connect_error_title'), syncResult.reason);
+      showAppAlert(t('stripe_connect_error_title'), syncResult.reason);
       return;
     }
-
-    applyStripeConnectState(organizer.id, {
-      accountId: syncResult.data.accountId,
-      chargesEnabled: syncResult.data.chargesEnabled,
-      payoutsEnabled: syncResult.data.payoutsEnabled,
-      detailsSubmitted: syncResult.data.detailsSubmitted,
-      requirements: syncResult.data.requirements,
-      status: syncResult.data.state,
-    });
 
     if (showAlert) {
-      Alert.alert(
+      showAppAlert(
         t('stripe_connect_sync_title'),
-        t('stripe_connect_sync_message', {
+        `${t('stripe_connect_sync_message', {
           status:
-            syncResult.data.state === 'ready'
+            syncResult.state === 'ready'
               ? t('stripe_connect_status_ready')
-              : syncResult.data.state === 'onboarding'
+              : syncResult.state === 'onboarding'
                 ? t('stripe_connect_status_pending')
                 : t('stripe_connect_status_not_connected'),
-        })
+        })}${formatStripeConnectRequirementsMessage(syncResult.requirements)}`
       );
     }
   };
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || !isReady) {
+      return;
+    }
+
+    const currentUrl = window.location.href;
+    const callback = parseStripeConnectCallbackUrl(currentUrl);
+    if (!callback.hasStripeConnectCallback) {
+      handledStripeConnectCallbackRef.current = null;
+      pendingStripeConnectSecurityRef.current = null;
+      return;
+    }
+
+    if (!callback.action) {
+      handledStripeConnectCallbackRef.current = currentUrl;
+      clearWebStripeConnectCallbackUrl();
+      showAppAlert(t('stripe_connect_error_title'), t('stripe_connect_url_missing'));
+      return;
+    }
+
+    if (handledStripeConnectCallbackRef.current === currentUrl) {
+      return;
+    }
+
+    const matchingOrganizer =
+      appData.organizers.find((entry) => entry.id === callback.organizerId) ??
+      appData.organizers.find((entry) => {
+        const currentUserId = cleanText(organizerSecurity?.userId ?? '');
+        const currentEmail = cleanText(organizerSecurity?.email ?? '').toLowerCase();
+        if (currentUserId && entry.userId && entry.userId === currentUserId) {
+          return true;
+        }
+        if (currentEmail && entry.email.toLowerCase() === currentEmail) {
+          return true;
+        }
+        return false;
+      });
+
+    if (!matchingOrganizer) {
+      if (!organizerSecurity?.securityReady) {
+        if (pendingStripeConnectSecurityRef.current !== currentUrl) {
+          pendingStripeConnectSecurityRef.current = currentUrl;
+          void refreshOrganizerSecurityState();
+        }
+        return;
+      }
+
+      handledStripeConnectCallbackRef.current = currentUrl;
+      pendingStripeConnectSecurityRef.current = null;
+      clearWebStripeConnectCallbackUrl();
+      showAppAlert(t('stripe_connect_error_title'), t('organizer_not_found_message'));
+      return;
+    }
+
+    handledStripeConnectCallbackRef.current = currentUrl;
+    pendingStripeConnectSecurityRef.current = null;
+    clearWebStripeConnectCallbackUrl();
+
+    void (async () => {
+      setScreen({ name: 'organizerDashboard', organizerId: matchingOrganizer.id });
+
+      if (callback.action === 'refresh') {
+        await startStripeConnectForOrganizer(matchingOrganizer.id);
+        return;
+      }
+
+      const syncResult = await syncStripeConnectForOrganizerState(matchingOrganizer.id);
+      if (!syncResult.ok) {
+        showAppAlert(t('stripe_connect_error_title'), syncResult.reason);
+        return;
+      }
+
+      showAppAlert(
+        t('stripe_connect_sync_title'),
+        `${t('stripe_connect_sync_message', {
+          status:
+            syncResult.state === 'ready'
+              ? t('stripe_connect_status_ready')
+              : syncResult.state === 'onboarding'
+                ? t('stripe_connect_status_pending')
+                : t('stripe_connect_status_not_connected'),
+        })}${formatStripeConnectRequirementsMessage(syncResult.requirements)}`
+      );
+    })();
+  }, [
+    appData.organizers,
+    isReady,
+    organizerSecurity?.email,
+    organizerSecurity?.securityReady,
+    organizerSecurity?.userId,
+    t,
+  ]);
 
   const toggleEventActive = async (eventId: string) => {
     const sourceData = appData;
@@ -4450,7 +4646,7 @@ function App() {
         registrationRemoteId: remoteRegistrationId,
       });
       if (!checkout.ok) {
-        Alert.alert(t('payment_error_title'), checkout.reason);
+        showAppAlert(t('payment_error_title'), checkout.reason);
         return;
       }
 
@@ -4505,26 +4701,20 @@ function App() {
 
       if (remote.state === 'checkout') {
         if (!remote.checkoutUrl) {
-          Alert.alert(t('payment_error_title'), t('payment_checkout_url_missing'));
+          showAppAlert(t('payment_error_title'), t('payment_checkout_url_missing'));
           return;
         }
 
-        let opened = false;
-        try {
-          const canOpen = await Linking.canOpenURL(remote.checkoutUrl);
-          if (canOpen) {
-            await Linking.openURL(remote.checkoutUrl);
-            opened = true;
-          }
-        } catch {
-          opened = false;
+        const openResult = await openHostedFlowUrl(remote.checkoutUrl);
+        if (openResult === 'redirected') {
+          return;
         }
 
-        Alert.alert(
+        showAppAlert(
           t('payment_checkout_opened_title'),
           t('payment_checkout_opened_message', {
             url: remote.checkoutUrl,
-            openResult: opened
+            openResult: openResult === 'opened'
               ? t('payment_checkout_opened_ok')
               : t('payment_checkout_opened_manual'),
           })

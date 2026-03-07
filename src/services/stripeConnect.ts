@@ -1,4 +1,5 @@
 import { EVENT_WEB_BASE_URL, STRIPE_CONNECT_SYNC_URL, STRIPE_CONNECT_URL } from '../constants';
+import { cleanText } from '../utils/format';
 import { supabase } from './supabaseClient';
 import { ensureSupabaseUser } from './supabaseData';
 
@@ -23,6 +24,14 @@ export type StripeConnectState = {
   detailsSubmitted?: boolean;
   requirements?: string[];
   onboardingUrl?: string;
+};
+
+export type StripeConnectCallbackAction = 'return' | 'refresh';
+
+export type ParsedStripeConnectCallback = {
+  hasStripeConnectCallback: boolean;
+  action: StripeConnectCallbackAction | null;
+  organizerId: string | null;
 };
 
 const normalizeBaseUrl = (value?: string): string | null => {
@@ -53,14 +62,64 @@ const runtimeWebBaseUrl = (): string | null => {
 
 const resolvePublicWebBaseUrl = (): string | null => runtimeWebBaseUrl() ?? normalizeBaseUrl(EVENT_WEB_BASE_URL);
 
-const defaultReturnUrl = (): string | undefined => {
-  const base = resolvePublicWebBaseUrl();
-  return base ? `${base}/?stripeConnect=return` : undefined;
+export const buildStripeConnectCallbackUrl = (params: {
+  action: StripeConnectCallbackAction;
+  organizerId?: string | null;
+  runtimeUrl?: string | null;
+}): string | undefined => {
+  const base =
+    normalizeBaseUrl(params.runtimeUrl ?? undefined) ?? resolvePublicWebBaseUrl();
+  if (!base) {
+    return undefined;
+  }
+
+  const url = new URL(`${base}/`);
+  url.searchParams.set('stripeConnect', params.action);
+
+  const organizerId = cleanText(params.organizerId ?? '');
+  if (organizerId) {
+    url.searchParams.set('organizer', organizerId);
+  }
+
+  return url.toString();
 };
 
-const defaultRefreshUrl = (): string | undefined => {
-  const base = resolvePublicWebBaseUrl();
-  return base ? `${base}/?stripeConnect=refresh` : undefined;
+const defaultReturnUrl = (organizerId?: string): string | undefined =>
+  buildStripeConnectCallbackUrl({
+    action: 'return',
+    organizerId,
+  });
+
+const defaultRefreshUrl = (organizerId?: string): string | undefined =>
+  buildStripeConnectCallbackUrl({
+    action: 'refresh',
+    organizerId,
+  });
+
+export const parseStripeConnectCallbackUrl = (
+  url: string
+): ParsedStripeConnectCallback => {
+  try {
+    const parsed = new URL(url);
+    const actionRaw = cleanText(parsed.searchParams.get('stripeConnect') ?? '');
+    const organizerId = cleanText(parsed.searchParams.get('organizer') ?? '');
+    const action =
+      actionRaw === 'return' || actionRaw === 'refresh'
+        ? actionRaw
+        : null;
+
+    return {
+      hasStripeConnectCallback: Boolean(actionRaw),
+      action,
+      organizerId: organizerId || null,
+    };
+  } catch {
+    return {
+      hasStripeConnectCallback: false,
+      action: null,
+      organizerId: null,
+    };
+  }
 };
 
 const requestStripeConnect = async (
@@ -146,11 +205,12 @@ const requestStripeConnect = async (
 
 export const startStripeConnectOnboarding = async (payload: {
   organizerId: string;
+  localOrganizerId?: string;
 }): Promise<SyncResult<StripeConnectState>> =>
   requestStripeConnect(STRIPE_CONNECT_URL, {
     organizerId: payload.organizerId,
-    returnUrl: defaultReturnUrl(),
-    refreshUrl: defaultRefreshUrl(),
+    returnUrl: defaultReturnUrl(payload.localOrganizerId),
+    refreshUrl: defaultRefreshUrl(payload.localOrganizerId),
   });
 
 export const syncStripeConnectStatus = async (payload: {
