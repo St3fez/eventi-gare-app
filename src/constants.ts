@@ -119,6 +119,7 @@ export const ADMOB_TEST_MODE = admobTestFromEnv ?? IS_DEMO_CHANNEL;
 
 export const PAID_FEATURE_UNLOCK_CONTACT =
   expoPublicEnv.PAID_FEATURE_UNLOCK_CONTACT ?? 'profstefanoferrari';
+export const SPONSOR_SLOT_FIXED_EUR = 25;
 export const SPONSOR_MODULE_ACTIVATION_EUR = 25;
 export const ADMIN_CONTACT_EMAIL =
   expoPublicEnv.ADMIN_CONTACT_EMAIL ?? 'profstefanoferrari@gmail.com';
@@ -181,7 +182,7 @@ export const createDefaultData = (): AppData => {
           sponsorUrl: 'https://example.org',
           sponsorLogoUrl: '',
           packageDays: 20,
-          amount: 120,
+          amount: SPONSOR_SLOT_FIXED_EUR,
           currency: 'EUR',
           contractTerms: {
             it: 'Contratto demo sponsor attivo.',

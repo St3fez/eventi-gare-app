@@ -284,7 +284,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     sponsor_name_it_optional: 'Nome sponsor IT (opzionale)',
     sponsor_name_en_optional: 'Nome sponsor EN (opzionale)',
     sponsor_days_label: 'Durata pacchetto (giorni)',
-    sponsor_amount_label: 'Importo sponsor (EUR)',
+    sponsor_amount_label: 'Prezzo sponsor fisso',
     sponsor_email_optional: 'Email sponsor (opzionale)',
     sponsor_url_optional: 'Sito sponsor (opzionale)',
     sponsor_logo_optional: 'Logo sponsor (file immagine opzionale)',
@@ -752,7 +752,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     sync_local_registration: 'Iscrizione salvata solo in locale: {reason}',
     payment_not_available_title: 'Pagamento non disponibile',
     payment_not_available_message:
-      "L'organizzatore non e verificato/sbloccato per ricevere pagamenti in sicurezza.",
+      "L'organizzatore deve collegare o completare Stripe Connect per ricevere le quote dei partecipanti.",
     existing_pending_title: 'Sessione pagamento gia aperta',
     existing_pending_message:
       'Esiste gia una sessione pending per questa email. Prosegui con la sessione esistente.',
@@ -1288,7 +1288,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     sponsor_name_it_optional: 'Sponsor name IT (optional)',
     sponsor_name_en_optional: 'Sponsor name EN (optional)',
     sponsor_days_label: 'Package duration (days)',
-    sponsor_amount_label: 'Sponsor amount (EUR)',
+    sponsor_amount_label: 'Fixed sponsor price',
     sponsor_email_optional: 'Sponsor email (optional)',
     sponsor_url_optional: 'Sponsor website (optional)',
     sponsor_logo_optional: 'Sponsor logo (optional image file)',
@@ -1757,7 +1757,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     sync_local_registration: 'Registration saved locally only: {reason}',
     payment_not_available_title: 'Payment not available',
     payment_not_available_message:
-      'Organizer is not verified/unlocked to receive payments securely.',
+      'The organizer must connect or complete Stripe Connect before receiving participant fees.',
     existing_pending_title: 'Payment session already open',
     existing_pending_message:
       'A pending session already exists for this email. Continue with existing session.',

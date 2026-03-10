@@ -23,6 +23,7 @@ import {
   COMMISSION_RATE,
   MAX_IMAGE_UPLOAD_BYTES,
   SPONSOR_MODULE_ACTIVATION_EUR,
+  SPONSOR_SLOT_FIXED_EUR,
 } from '../constants';
 import { AppLanguage, Translator } from '../i18n';
 import {
@@ -48,7 +49,6 @@ import {
   estimateDataUrlBytes,
   formatDate,
   formatEventSchedule,
-  parseEuro,
   toMoney,
 } from '../utils/format';
 
@@ -114,7 +114,6 @@ type Props = {
     sponsorLogoUrl?: string;
     sponsorEmail?: string;
     packageDays: number;
-    amount: number;
   }) => Promise<void>;
   onRefreshAdminUsers: () => Promise<void>;
   onGrantAdmin: (email: string, canManageAdmins: boolean) => Promise<void>;
@@ -175,7 +174,6 @@ export function OrganizerDashboardScreen({
   const [sponsorLogoUrl, setSponsorLogoUrl] = useState('');
   const [sponsorLogoFileName, setSponsorLogoFileName] = useState('');
   const [sponsorDays, setSponsorDays] = useState('1');
-  const [sponsorAmount, setSponsorAmount] = useState('');
   const [organizationName, setOrganizationName] = useState(organizer.organizationName ?? '');
   const [organizationRole, setOrganizationRole] = useState<OrganizerRole>(
     organizer.organizationRole ?? 'altro'
@@ -644,12 +642,6 @@ export function OrganizerDashboardScreen({
       return;
     }
 
-    const parsedAmount = parseEuro(sponsorAmount);
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      Alert.alert(t('missing_data_title'), t('sponsor_amount_invalid'));
-      return;
-    }
-
     void onCreateSponsorCheckout({
       eventId: selectedEvent.id,
       sponsorName,
@@ -659,7 +651,6 @@ export function OrganizerDashboardScreen({
       sponsorLogoUrl,
       sponsorEmail,
       packageDays: parsedDays,
-      amount: parsedAmount,
     }).then(() => {
       setSponsorName('');
       setSponsorNameIt('');
@@ -669,7 +660,6 @@ export function OrganizerDashboardScreen({
       setSponsorLogoUrl('');
       setSponsorLogoFileName('');
       setSponsorDays('1');
-      setSponsorAmount('');
     });
   };
 
@@ -1591,12 +1581,8 @@ export function OrganizerDashboardScreen({
                   onChangeText={setSponsorDays}
                   keyboardType='decimal-pad'
                 />
-                <TextField
-                  label={t('sponsor_amount_label')}
-                  value={sponsorAmount}
-                  onChangeText={setSponsorAmount}
-                  keyboardType='decimal-pad'
-                />
+                <Text style={styles.fieldLabel}>{t('sponsor_amount_label')}</Text>
+                <Text style={styles.helperText}>{toMoney(SPONSOR_SLOT_FIXED_EUR)}</Text>
                 <TextField
                   label={t('sponsor_email_optional')}
                   value={sponsorEmail}

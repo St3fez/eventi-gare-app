@@ -11,8 +11,6 @@ type SponsorCheckoutPayload = {
   sponsorUrl?: string;
   sponsorLogoUrl?: string;
   packageDays?: number;
-  amount?: number;
-  currency?: string;
   sponsorEmail?: string;
 };
 
@@ -97,19 +95,6 @@ const resolveAllowedOrigins = (
 const isOriginAllowed = (origin: string, allowedOrigins: Set<string>): boolean =>
   allowedOrigins.size === 0 || allowedOrigins.has(origin);
 
-const asPositiveNumber = (value: unknown): number => {
-  const parsed = typeof value === 'number' ? value : Number.parseFloat(String(value ?? ''));
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return 0;
-  }
-  return parsed;
-};
-
-const normalizeCurrency = (value: unknown, fallback = 'EUR'): string => {
-  const text = cleanText(value).toUpperCase();
-  return text || fallback;
-};
-
 const asPositiveInt = (value: unknown): number => {
   const parsed = Number.parseInt(String(value ?? ''), 10);
   if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -117,6 +102,9 @@ const asPositiveInt = (value: unknown): number => {
   }
   return parsed;
 };
+
+const FIXED_SPONSOR_AMOUNT_EUR = 25;
+const FIXED_SPONSOR_CURRENCY = 'EUR';
 
 const buildContractTerms = (params: {
   sponsorNameIt: string;
@@ -158,7 +146,6 @@ Deno.serve(async (req: Request) => {
     [Deno.env.get('SPONSOR_ALLOWED_ORIGINS'), sponsorCancelUrl].filter(Boolean).join(',')
   );
   const requestOrigin = cleanText(req.headers.get('origin'));
-  const defaultCurrency = Deno.env.get('SPONSOR_DEFAULT_CURRENCY') ?? 'EUR';
 
   if (!supabaseUrl || !supabaseServiceRoleKey || !stripeSecretKey) {
     return json(
@@ -196,15 +183,15 @@ Deno.serve(async (req: Request) => {
   const sponsorUrl = cleanText(payload.sponsorUrl);
   const sponsorLogoUrl = cleanText(payload.sponsorLogoUrl);
   const sponsorEmail = cleanText(payload.sponsorEmail).toLowerCase();
-  const amount = asPositiveNumber(payload.amount);
   const packageDays = asPositiveInt(payload.packageDays);
-  const currency = normalizeCurrency(payload.currency, defaultCurrency);
+  const amount = FIXED_SPONSOR_AMOUNT_EUR;
+  const currency = FIXED_SPONSOR_CURRENCY;
 
-  if (!eventId || !sponsorName || !sponsorNameIt || !sponsorNameEn || !amount || !packageDays) {
+  if (!eventId || !sponsorName || !sponsorNameIt || !sponsorNameEn || !packageDays) {
     return json(
       {
         error: 'Missing required fields',
-        required: ['eventId', 'sponsorName', 'packageDays', 'amount'],
+        required: ['eventId', 'sponsorName', 'packageDays'],
       },
       400
     );

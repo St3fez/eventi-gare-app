@@ -24,6 +24,7 @@ import {
   PAID_FEATURE_UNLOCK_CONTACT,
   PAYMENT_SESSION_MINUTES,
   SPONSOR_MODULE_ACTIVATION_EUR,
+  SPONSOR_SLOT_FIXED_EUR,
   STRIPE_PROVIDER_FEE_FIXED,
   STRIPE_PROVIDER_FEE_RATE,
   createDefaultData,
@@ -357,6 +358,17 @@ const localSponsorText = (value?: string): string => {
     return '';
   }
   return normalized;
+};
+
+const normalizeParticipantCheckoutReason = (reason: string, fallbackMessage: string): string => {
+  const normalized = cleanText(reason).toLowerCase();
+  if (
+    normalized.includes('organizer stripe account not configured') ||
+    normalized.includes('organizer stripe payouts not enabled')
+  ) {
+    return fallbackMessage;
+  }
+  return reason;
 };
 
 const addYearsIso = (isoDate: string, years: number): string => {
@@ -3241,7 +3253,6 @@ function App() {
     sponsorLogoUrl?: string;
     sponsorEmail?: string;
     packageDays: number;
-    amount: number;
   }) => {
     const securityReady = await ensureOrganizerSecurityForProtectedAction();
     if (!securityReady) {
@@ -3308,7 +3319,6 @@ function App() {
       sponsorLogoUrl: payload.sponsorLogoUrl,
       sponsorEmail: payload.sponsorEmail,
       packageDays: payload.packageDays,
-      amount: payload.amount,
       currency: 'EUR',
     });
 
@@ -4901,7 +4911,10 @@ function App() {
         registrationRemoteId: remoteRegistrationId,
       });
       if (!checkout.ok) {
-        showAppAlert(t('payment_error_title'), checkout.reason);
+        showAppAlert(
+          t('payment_error_title'),
+          normalizeParticipantCheckoutReason(checkout.reason, t('payment_not_available_message'))
+        );
         return;
       }
 
