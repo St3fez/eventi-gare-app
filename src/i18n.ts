@@ -275,6 +275,10 @@ const translations: Record<AppLanguage, Record<string, string>> = {
       'Completa la verifica nel browser:\n{url}\n{openResult}\nDopo la verifica, torna in app e aggiorna lo stato.',
     stripe_connect_onboarding_opened_ok: 'Browser aperto automaticamente.',
     stripe_connect_onboarding_opened_manual: 'Apri manualmente il link se il browser non si e avviato.',
+    stripe_connect_manual_action_title: 'Azione richiesta su Stripe',
+    stripe_connect_manual_action_message:
+      'Abbiamo aperto Stripe in una nuova scheda:\n{url}\nCompleta questo passaggio, poi torna in app e premi di nuovo Collega/Completa Stripe o Aggiorna stato Stripe.',
+    stripe_connect_window_loading: 'Apertura Stripe Connect in corso...',
     stripe_connect_sync_title: 'Stato Stripe Connect',
     stripe_connect_sync_message: 'Stato attuale: {status}',
     stripe_connect_ready_title: 'Stripe Connect attivo',
@@ -1279,6 +1283,10 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     stripe_connect_onboarding_opened_ok: 'Browser opened automatically.',
     stripe_connect_onboarding_opened_manual:
       'Open the link manually if the browser did not start.',
+    stripe_connect_manual_action_title: 'Action required on Stripe',
+    stripe_connect_manual_action_message:
+      'We opened Stripe in a new tab:\n{url}\nComplete this step, then return to the app and press Connect/Complete Stripe or Refresh Stripe status again.',
+    stripe_connect_window_loading: 'Opening Stripe Connect...',
     stripe_connect_sync_title: 'Stripe Connect status',
     stripe_connect_sync_message: 'Current status: {status}',
     stripe_connect_ready_title: 'Stripe Connect active',

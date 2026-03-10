@@ -92,6 +92,7 @@ import {
 } from './src/services/sponsorSupabase';
 import {
   parseStripeConnectCallbackUrl,
+  extractStripeConnectActionUrl,
   startStripeConnectOnboarding,
   syncStripeConnectStatus,
 } from './src/services/stripeConnect';
@@ -2434,6 +2435,63 @@ function App() {
     }
   };
 
+  const openPendingWebWindow = (title: string, message: string): Window | null => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof window.open !== 'function') {
+      return null;
+    }
+
+    try {
+      const child = window.open('', '_blank');
+      if (!child) {
+        return null;
+      }
+      child.document.title = title;
+      child.document.body.innerHTML = `<p style="font-family: sans-serif; padding: 24px;">${message}</p>`;
+      return child;
+    } catch {
+      return null;
+    }
+  };
+
+  const closePendingWebWindow = (child: Window | null) => {
+    if (!child) {
+      return;
+    }
+    try {
+      child.close();
+    } catch {
+      // noop
+    }
+  };
+
+  const openUrlInWebWindow = (url: string, child: Window | null): boolean => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') {
+      return false;
+    }
+
+    const targetUrl = cleanText(url);
+    if (!targetUrl) {
+      return false;
+    }
+
+    try {
+      if (child && !child.closed) {
+        child.location.href = targetUrl;
+        child.focus();
+        return true;
+      }
+
+      const opened = window.open(targetUrl, '_blank');
+      if (!opened) {
+        return false;
+      }
+      opened.focus();
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const clearWebStripeConnectCallbackUrl = () => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') {
       return;
@@ -3769,8 +3827,15 @@ function App() {
       return;
     }
 
+    // Open a placeholder window immediately on web so later Stripe redirects are not blocked.
+    const pendingWebWindow = openPendingWebWindow(
+      t('stripe_connect_title'),
+      t('stripe_connect_window_loading')
+    );
+
     const securityReady = await refreshOrganizerSecurityState(true);
     if (!securityReady) {
+      closePendingWebWindow(pendingWebWindow);
       return;
     }
 
@@ -3778,6 +3843,7 @@ function App() {
     if (!organizerRemoteId) {
       const organizerSync = await upsertOrganizerInSupabase(organizer);
       if (!organizerSync.ok) {
+        closePendingWebWindow(pendingWebWindow);
         showAppAlert(t('stripe_connect_error_title'), organizerSync.reason);
         return;
       }
@@ -3790,6 +3856,7 @@ function App() {
     }
 
     if (!organizerRemoteId) {
+      closePendingWebWindow(pendingWebWindow);
       showAppAlert(t('stripe_connect_error_title'), t('organizer_not_found_message'));
       return;
     }
@@ -3800,6 +3867,15 @@ function App() {
     });
 
     if (!connect.ok) {
+      const manualUrl = extractStripeConnectActionUrl(connect.reason);
+      if (manualUrl && openUrlInWebWindow(manualUrl, pendingWebWindow)) {
+        showAppAlert(
+          t('stripe_connect_manual_action_title'),
+          t('stripe_connect_manual_action_message', { url: manualUrl })
+        );
+        return;
+      }
+      closePendingWebWindow(pendingWebWindow);
       showAppAlert(t('stripe_connect_error_title'), connect.reason);
       return;
     }
@@ -3814,15 +3890,22 @@ function App() {
     });
 
     if (connect.data.state === 'ready' && !connect.data.onboardingUrl) {
+      closePendingWebWindow(pendingWebWindow);
       showAppAlert(t('stripe_connect_ready_title'), t('stripe_connect_ready_message'));
       return;
     }
 
     if (!connect.data.onboardingUrl) {
+      closePendingWebWindow(pendingWebWindow);
       showAppAlert(t('stripe_connect_error_title'), t('stripe_connect_url_missing'));
       return;
     }
 
+    if (openUrlInWebWindow(connect.data.onboardingUrl, pendingWebWindow)) {
+      return;
+    }
+
+    closePendingWebWindow(pendingWebWindow);
     const openResult = await openHostedFlowUrl(connect.data.onboardingUrl);
     if (openResult === 'redirected') {
       return;

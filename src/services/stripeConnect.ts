@@ -122,6 +122,31 @@ export const parseStripeConnectCallbackUrl = (
   }
 };
 
+export const extractStripeConnectActionUrl = (
+  message: string | null | undefined
+): string | undefined => {
+  const text = cleanText(message ?? '');
+  if (!text) {
+    return undefined;
+  }
+
+  const match = text.match(/https?:\/\/[^\s"'<>]+/i);
+  if (!match) {
+    return undefined;
+  }
+
+  const candidate = match[0].replace(/[),.;:!?]+$/, '');
+  try {
+    const parsed = new URL(candidate);
+    if (!/^https?:$/i.test(parsed.protocol)) {
+      return undefined;
+    }
+    return parsed.toString();
+  } catch {
+    return undefined;
+  }
+};
+
 const requestStripeConnect = async (
   endpoint: string | undefined,
   payload: Record<string, unknown>

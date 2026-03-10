@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   buildStripeConnectCallbackUrl,
+  extractStripeConnectActionUrl,
   parseStripeConnectCallbackUrl,
 } from '../src/services/stripeConnect';
 
@@ -37,4 +38,20 @@ test('parseStripeConnectCallbackUrl ignores unrelated urls', () => {
   assert.equal(parsed.hasStripeConnectCallback, false);
   assert.equal(parsed.action, null);
   assert.equal(parsed.organizerId, null);
+});
+
+test('extractStripeConnectActionUrl reads a manual Stripe dashboard url from error text', () => {
+  const url = extractStripeConnectActionUrl(
+    'Stripe Connect request failed: Completa prima il profilo piattaforma Stripe Connect: apri https://dashboard.stripe.com/settings/connect/platform-profile, conferma le responsabilita e salva.'
+  );
+
+  assert.equal(url, 'https://dashboard.stripe.com/settings/connect/platform-profile');
+});
+
+test('extractStripeConnectActionUrl returns undefined when no url is present', () => {
+  const url = extractStripeConnectActionUrl(
+    'Stripe Connect request failed: endpoint not reachable.'
+  );
+
+  assert.equal(url, undefined);
 });
