@@ -22,11 +22,15 @@ import {
   ADMIN_CONTACT_EMAIL,
   COMMISSION_RATE,
   MAX_IMAGE_UPLOAD_BYTES,
-  ORGANIZER_TEST_MODE,
   SPONSOR_MODULE_ACTIVATION_EUR,
 } from '../constants';
 import { AppLanguage, Translator } from '../i18n';
-import { organizerCanUsePaidSection, verificationStatusLabel } from '../services/fraud';
+import {
+  isPaidEventClaimApproved,
+  isPaidEventClaimPending,
+  isPaidEventClaimRejected,
+} from '../services/eventClaims';
+import { verificationStatusLabel } from '../services/fraud';
 import { styles } from '../styles';
 import {
   AdminUser,
@@ -96,9 +100,10 @@ type Props = {
     adminContactMessage: string;
     attachments: OrganizerComplianceAttachment[];
   }) => Promise<void>;
-  onRequestPaidUnlock: (organizerId: string) => Promise<void>;
   onStartStripeConnect: (organizerId: string) => Promise<void>;
   onSyncStripeConnect: (organizerId: string) => Promise<void>;
+  onApproveEventClaim: (eventId: string) => Promise<void>;
+  onRejectEventClaim: (eventId: string) => Promise<void>;
   onActivateSponsorModule: (organizerId: string) => Promise<void>;
   onCreateSponsorCheckout: (payload: {
     eventId: string;
@@ -146,9 +151,10 @@ export function OrganizerDashboardScreen({
   getEventPublicUrl,
   onUpdateCompliance,
   onSendComplianceEmail,
-  onRequestPaidUnlock,
   onStartStripeConnect,
   onSyncStripeConnect,
+  onApproveEventClaim,
+  onRejectEventClaim,
   onActivateSponsorModule,
   onCreateSponsorCheckout,
   onRefreshAdminUsers,
@@ -249,8 +255,16 @@ export function OrganizerDashboardScreen({
     selectedEvent &&
       selectedEvent.active &&
       selectedEvent.visibility === 'public' &&
+      isPaidEventClaimApproved(selectedEvent) &&
       !selectedEvent.closedAt
   );
+  const selectedEventClaimStatusLabel = !selectedEvent || selectedEvent.isFree
+    ? t('event_claim_status_not_required')
+    : isPaidEventClaimApproved(selectedEvent)
+      ? t('event_claim_status_approved')
+      : isPaidEventClaimRejected(selectedEvent)
+        ? t('event_claim_status_rejected')
+        : t('event_claim_status_pending');
 
   const eventRegistrations = useMemo(() => {
     if (!selectedEvent) {
@@ -300,7 +314,6 @@ export function OrganizerDashboardScreen({
   );
   const grossRevenue = organizerRegistrations.reduce((sum, entry) => sum + entry.paymentAmount, 0);
   const totalCommission = organizerRegistrations.reduce((sum, entry) => sum + entry.commissionAmount, 0);
-  const canCreatePaidEvents = organizerCanUsePaidSection(organizer, ORGANIZER_TEST_MODE);
   const eventById = useMemo(
     () => new Map(events.map((event) => [event.id, event])),
     [events]
@@ -391,6 +404,33 @@ export function OrganizerDashboardScreen({
       return;
     }
     await onReopenEvent(event.id);
+  };
+
+  const confirmApproveEventClaim = async (event: EventItem) => {
+    const confirmed = await requestHumanConfirmation({
+      title: t('event_claim_approve_confirm_title'),
+      message: t('event_claim_approve_confirm_message', { name: event.name }),
+      confirmLabel: t('event_claim_approve_button'),
+      cancelLabel: t('close'),
+    });
+    if (!confirmed) {
+      return;
+    }
+    await onApproveEventClaim(event.id);
+  };
+
+  const confirmRejectEventClaim = async (event: EventItem) => {
+    const confirmed = await requestHumanConfirmation({
+      title: t('event_claim_reject_confirm_title'),
+      message: t('event_claim_reject_confirm_message', { name: event.name }),
+      confirmLabel: t('event_claim_reject_button'),
+      cancelLabel: t('close'),
+      destructive: true,
+    });
+    if (!confirmed) {
+      return;
+    }
+    await onRejectEventClaim(event.id);
   };
 
   const confirmCashRegistration = async (entry: RegistrationRecord) => {
@@ -839,23 +879,7 @@ export function OrganizerDashboardScreen({
                 {t('risk_flags', { flags: organizer.riskFlags.join(' | ') })}
               </Text>
             ) : null}
-            <Text style={styles.helperText}>
-              {t('paid_unlock_status', {
-                status: organizer.paidFeatureUnlocked
-                  ? t('paid_unlock_enabled')
-                  : t('paid_unlock_waiting'),
-              })}
-            </Text>
-            {organizer.paidFeatureUnlockRequestedAt ? (
-              <Text style={styles.helperText}>
-                {t('paid_unlock_requested_at', {
-                  date: formatDate(organizer.paidFeatureUnlockRequestedAt.slice(0, 10)),
-                })}
-              </Text>
-            ) : null}
-            {!canCreatePaidEvents ? (
-              <Text style={styles.helperText}>{t('paid_disabled')}</Text>
-            ) : null}
+            <Text style={styles.helperText}>{t('event_claim_intro_short')}</Text>
 
             <View style={styles.blockSpacing}>
               <Text style={styles.fieldLabel}>{t('stripe_connect_title')}</Text>
@@ -910,16 +934,6 @@ export function OrganizerDashboardScreen({
             <Pressable style={styles.primaryButton} onPress={onNewEvent}>
               <Text style={styles.primaryButtonText}>{t('create_new_event')}</Text>
             </Pressable>
-            {!organizer.paidFeatureUnlocked ? (
-              <Pressable
-                style={styles.secondaryButton}
-                onPress={() => {
-                  void onRequestPaidUnlock(organizer.id);
-                }}
-              >
-                <Text style={styles.secondaryButtonText}>{t('request_paid_unlock')}</Text>
-              </Pressable>
-            ) : null}
             <Pressable style={styles.secondaryButton} onPress={onBack}>
               <Text style={styles.secondaryButtonText}>{t('back_home')}</Text>
             </Pressable>
@@ -975,6 +989,18 @@ export function OrganizerDashboardScreen({
                             }
                             tone={event.isFree ? 'success' : 'warning'}
                           />
+                          {!event.isFree ? (
+                            <StatusBadge
+                              label={
+                                isPaidEventClaimApproved(event)
+                                  ? t('event_claim_status_approved')
+                                  : isPaidEventClaimRejected(event)
+                                    ? t('event_claim_status_rejected')
+                                    : t('event_claim_status_pending')
+                              }
+                              tone={isPaidEventClaimApproved(event) ? 'success' : 'warning'}
+                            />
+                          ) : null}
                         </View>
                         <Text style={styles.listTitle}>{event.name}</Text>
                         <Text style={styles.listSubText}>
@@ -1027,6 +1053,17 @@ export function OrganizerDashboardScreen({
                               base: toMoney(event.baseFeeAmount),
                               participant: toMoney(event.feeAmount),
                               net: toMoney(event.organizerNetAmount),
+                            })}
+                          </Text>
+                        ) : null}
+                        {!event.isFree ? (
+                          <Text style={styles.listSubText}>
+                            {t('event_claim_status_line', {
+                              status: isPaidEventClaimApproved(event)
+                                ? t('event_claim_status_approved')
+                                : isPaidEventClaimRejected(event)
+                                  ? t('event_claim_status_rejected')
+                                  : t('event_claim_status_pending'),
                             })}
                           </Text>
                         ) : null}
@@ -1132,6 +1169,88 @@ export function OrganizerDashboardScreen({
         </View>
 
         <View style={[styles.screenSplitColumn, isDesktopLayout ? styles.screenSplitColumnSide : undefined]}>
+          <SectionCard title={t('event_claim_section_title')} delayMs={120}>
+            {!selectedEvent ? (
+              <Text style={styles.helperText}>{t('select_event_for_list')}</Text>
+            ) : selectedEvent.isFree ? (
+              <Text style={styles.helperText}>{t('event_claim_not_required_message')}</Text>
+            ) : (
+              <>
+                <Text style={styles.cardParagraph}>
+                  {t('event_claim_status_line', { status: selectedEventClaimStatusLabel })}
+                </Text>
+                <Text style={styles.helperText}>
+                  {t('event_claim_contact_line', { email: ADMIN_CONTACT_EMAIL })}
+                </Text>
+                {selectedEvent.claimSubmissionMethod === 'official_email' ? (
+                  <Text style={styles.helperText}>
+                    {t('event_claim_official_email_line', {
+                      email: selectedEvent.claimOfficialEmail || '-',
+                    })}
+                  </Text>
+                ) : (
+                  <Text style={styles.helperText}>
+                    {t('event_claim_social_line', {
+                      handle: selectedEvent.claimSocialHandle || '-',
+                    })}
+                  </Text>
+                )}
+                <Text style={styles.helperText}>
+                  {t('event_claim_proof_line', {
+                    file: selectedEvent.claimEvidenceFileName || t('document_not_selected'),
+                  })}
+                </Text>
+                {selectedEvent.claimRequestedAt ? (
+                  <Text style={styles.helperText}>
+                    {t('event_claim_requested_at_line', {
+                      date: formatDate(selectedEvent.claimRequestedAt.slice(0, 10)),
+                    })}
+                  </Text>
+                ) : null}
+                {selectedEvent.claimApprovedAt ? (
+                  <Text style={styles.helperText}>
+                    {t('event_claim_approved_at_line', {
+                      date: formatDate(selectedEvent.claimApprovedAt.slice(0, 10)),
+                      reviewer: selectedEvent.claimApprovedBy || 'admin',
+                    })}
+                  </Text>
+                ) : null}
+                {selectedEvent.claimRejectedReason ? (
+                  <Text style={styles.helperText}>
+                    {t('event_claim_rejected_reason_line', {
+                      reason: selectedEvent.claimRejectedReason,
+                    })}
+                  </Text>
+                ) : null}
+                {!isPaidEventClaimApproved(selectedEvent) ? (
+                  <Text style={styles.helperText}>{t('event_claim_publish_blocked')}</Text>
+                ) : (
+                  <Text style={styles.helperText}>{t('event_claim_publish_ready')}</Text>
+                )}
+                {isAdmin && isPaidEventClaimPending(selectedEvent) ? (
+                  <>
+                    <Pressable
+                      style={styles.primaryButton}
+                      onPress={() => {
+                        void confirmApproveEventClaim(selectedEvent);
+                      }}
+                    >
+                      <Text style={styles.primaryButtonText}>{t('event_claim_approve_button')}</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.secondaryButton}
+                      onPress={() => {
+                        void confirmRejectEventClaim(selectedEvent);
+                      }}
+                    >
+                      <Text style={styles.secondaryButtonText}>{t('event_claim_reject_button')}</Text>
+                    </Pressable>
+                  </>
+                ) : null}
+              </>
+            )}
+          </SectionCard>
+
           <SectionCard title={t('event_public_tools')} delayMs={130}>
             {!selectedEvent ? (
               <Text style={styles.helperText}>{t('select_event_for_list')}</Text>

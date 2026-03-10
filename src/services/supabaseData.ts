@@ -76,6 +76,16 @@ const buildEventExtendedPayload = (event: EventItem, organizerRemoteId: string) 
   event_time: nullableTime(event.startTime),
   participant_auth_mode: event.participantAuthMode,
   participant_phone_required: event.participantPhoneRequired,
+  claim_status: event.claimStatus,
+  claim_submission_method: event.claimSubmissionMethod ?? null,
+  claim_official_email: nullableText(event.claimOfficialEmail),
+  claim_social_handle: nullableText(event.claimSocialHandle),
+  claim_evidence_file_name: nullableText(event.claimEvidenceFileName),
+  claim_requested_at: event.claimRequestedAt ?? null,
+  claim_approved_at: event.claimApprovedAt ?? null,
+  claim_approved_by: nullableText(event.claimApprovedBy),
+  claim_rejected_at: event.claimRejectedAt ?? null,
+  claim_rejected_reason: nullableText(event.claimRejectedReason),
   cash_payment_enabled: event.cashPaymentEnabled,
   cash_payment_instructions: nullableText(event.cashPaymentInstructions),
   cash_payment_deadline: event.cashPaymentDeadline ?? null,
@@ -87,7 +97,7 @@ const buildEventExtendedPayload = (event: EventItem, organizerRemoteId: string) 
 });
 
 const isUnsupportedEventFieldError = (message: string): boolean =>
-  /event_end_date|event_time|participant_auth_mode|participant_phone_required|cash_payment_enabled|cash_payment_instructions|cash_payment_deadline|registrations_open|closed_at|definitive_published_at|season_version|last_participants_reset_at/i.test(
+  /event_end_date|event_time|participant_auth_mode|participant_phone_required|claim_status|claim_submission_method|claim_official_email|claim_social_handle|claim_evidence_file_name|claim_requested_at|claim_approved_at|claim_approved_by|claim_rejected_at|claim_rejected_reason|cash_payment_enabled|cash_payment_instructions|cash_payment_deadline|registrations_open|closed_at|definitive_published_at|season_version|last_participants_reset_at/i.test(
     message
   );
 
@@ -149,6 +159,16 @@ export type OrganizerCatalogEventRow = OrganizerCatalogEventLegacyRow & {
   event_time?: string | null;
   participant_auth_mode?: EventItem['participantAuthMode'] | null;
   participant_phone_required?: boolean;
+  claim_status?: EventItem['claimStatus'] | null;
+  claim_submission_method?: EventItem['claimSubmissionMethod'] | null;
+  claim_official_email?: string | null;
+  claim_social_handle?: string | null;
+  claim_evidence_file_name?: string | null;
+  claim_requested_at?: string | null;
+  claim_approved_at?: string | null;
+  claim_approved_by?: string | null;
+  claim_rejected_at?: string | null;
+  claim_rejected_reason?: string | null;
   cash_payment_enabled?: boolean;
   cash_payment_instructions?: string | null;
   cash_payment_deadline?: string | null;
@@ -166,7 +186,7 @@ const ORGANIZER_CATALOG_SELECT_LEGACY =
   'id,user_id,email,fiscal_data,bank_account,verification_status,payout_enabled,created_at,updated_at';
 
 const EVENT_CATALOG_SELECT_EXTENDED =
-  'id,organizer_id,name,location,event_date,event_end_date,event_time,is_free,fee_amount,privacy_text,logo_url,local_sponsor,assign_numbers,participant_auth_mode,participant_phone_required,cash_payment_enabled,cash_payment_instructions,cash_payment_deadline,registrations_open,closed_at,definitive_published_at,season_version,last_participants_reset_at,active,created_at,updated_at';
+  'id,organizer_id,name,location,event_date,event_end_date,event_time,is_free,fee_amount,privacy_text,logo_url,local_sponsor,assign_numbers,participant_auth_mode,participant_phone_required,claim_status,claim_submission_method,claim_official_email,claim_social_handle,claim_evidence_file_name,claim_requested_at,claim_approved_at,claim_approved_by,claim_rejected_at,claim_rejected_reason,cash_payment_enabled,cash_payment_instructions,cash_payment_deadline,registrations_open,closed_at,definitive_published_at,season_version,last_participants_reset_at,active,created_at,updated_at';
 
 const EVENT_CATALOG_SELECT_LEGACY =
   'id,organizer_id,name,location,event_date,is_free,fee_amount,privacy_text,logo_url,local_sponsor,assign_numbers,active,created_at,updated_at';

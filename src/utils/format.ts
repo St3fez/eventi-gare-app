@@ -15,6 +15,7 @@ import {
   STRIPE_PROVIDER_FEE_FIXED,
   STRIPE_PROVIDER_FEE_RATE,
 } from '../constants';
+import { normalizeEventClaimStatus } from '../services/eventClaims';
 
 export const randomId = (prefix: string): string =>
   `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -328,6 +329,19 @@ const normalizeEvent = (value: Partial<EventItem>): EventItem => {
     baseFeeAmount: isFree ? 0 : baseFeeAmount,
     feePolicy: value.feePolicy ?? 'organizer_absorbs_fees',
     paymentChannel: value.paymentChannel === 'bank' ? 'stripe' : value.paymentChannel ?? 'stripe',
+    claimStatus: normalizeEventClaimStatus(
+      (value as { claimStatus?: string }).claimStatus,
+      isFree
+    ),
+    claimSubmissionMethod: value.claimSubmissionMethod,
+    claimOfficialEmail: value.claimOfficialEmail ?? '',
+    claimSocialHandle: value.claimSocialHandle ?? '',
+    claimEvidenceFileName: value.claimEvidenceFileName ?? '',
+    claimRequestedAt: value.claimRequestedAt,
+    claimApprovedAt: value.claimApprovedAt,
+    claimApprovedBy: value.claimApprovedBy ?? '',
+    claimRejectedAt: value.claimRejectedAt,
+    claimRejectedReason: value.claimRejectedReason ?? '',
     cashPaymentEnabled: value.cashPaymentEnabled ?? false,
     cashPaymentInstructions: value.cashPaymentInstructions ?? '',
     cashPaymentDeadline: value.cashPaymentDeadline,

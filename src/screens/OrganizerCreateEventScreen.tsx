@@ -4,18 +4,19 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 
 import {
+  ADMIN_CONTACT_EMAIL,
   COMMISSION_RATE,
   DEFAULT_PRIVACY_TEXT,
   MAX_IMAGE_UPLOAD_BYTES,
-  ORGANIZER_TEST_MODE,
   STRIPE_PROVIDER_FEE_FIXED,
   STRIPE_PROVIDER_FEE_RATE,
 } from '../constants';
 import { SectionCard, StatusBadge, SwitchRow, TextField } from '../components/Common';
 import { AppLanguage, Translator } from '../i18n';
-import { organizerCanUsePaidSection, verificationStatusLabel } from '../services/fraud';
+import { verificationStatusLabel } from '../services/fraud';
 import { styles } from '../styles';
 import {
+  EventClaimAttachment,
   EventItem,
   EventFeePolicy,
   EventPaymentChannel,
@@ -86,7 +87,13 @@ type Props = {
     logoUrl?: string;
     localSponsor?: string;
     assignNumbers: boolean;
-  }) => void;
+    claimSubmissionMethod?: EventItem['claimSubmissionMethod'];
+    claimOfficialEmail?: string;
+    claimSocialHandle?: string;
+    claimEvidenceFileName?: string;
+    claimNote?: string;
+    claimAttachment?: EventClaimAttachment | null;
+  }) => Promise<void>;
   t: Translator;
   language: AppLanguage;
 };
@@ -153,6 +160,20 @@ export function OrganizerCreateEventScreen({
   });
   const [localSponsorFileName, setLocalSponsorFileName] = useState('');
   const [assignNumbers, setAssignNumbers] = useState(initialEvent?.assignNumbers ?? true);
+  const [claimSubmissionMethod, setClaimSubmissionMethod] = useState<
+    EventItem['claimSubmissionMethod']
+  >(initialEvent?.claimSubmissionMethod ?? 'official_email');
+  const [claimOfficialEmail, setClaimOfficialEmail] = useState(
+    initialEvent?.claimOfficialEmail ?? ''
+  );
+  const [claimSocialHandle, setClaimSocialHandle] = useState(
+    initialEvent?.claimSocialHandle ?? ''
+  );
+  const [claimEvidenceFileName, setClaimEvidenceFileName] = useState(
+    initialEvent?.claimEvidenceFileName ?? ''
+  );
+  const [claimAttachment, setClaimAttachment] = useState<EventClaimAttachment | null>(null);
+  const [claimNote, setClaimNote] = useState('');
 
   useEffect(() => {
     setName(initialEvent?.name ?? '');
@@ -184,6 +205,12 @@ export function OrganizerCreateEventScreen({
     }
     setLocalSponsorFileName('');
     setAssignNumbers(initialEvent?.assignNumbers ?? true);
+    setClaimSubmissionMethod(initialEvent?.claimSubmissionMethod ?? 'official_email');
+    setClaimOfficialEmail(initialEvent?.claimOfficialEmail ?? '');
+    setClaimSocialHandle(initialEvent?.claimSocialHandle ?? '');
+    setClaimEvidenceFileName(initialEvent?.claimEvidenceFileName ?? '');
+    setClaimAttachment(null);
+    setClaimNote('');
   }, [initialEvent?.id, todayIso]);
 
   const pickEventLogo = async () => {
@@ -253,7 +280,31 @@ export function OrganizerCreateEventScreen({
     }
   };
 
-  const canCreatePaid = organizerCanUsePaidSection(organizer, ORGANIZER_TEST_MODE);
+  const pickClaimProof = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      multiple: false,
+      type: ['application/pdf', 'image/*'],
+    });
+
+    if (result.canceled || !result.assets?.length) {
+      return;
+    }
+
+    const file = result.assets[0];
+    if (!file.uri || !file.name) {
+      return;
+    }
+
+    setClaimAttachment({
+      kind: 'event_claim_proof',
+      uri: file.uri,
+      fileName: file.name,
+      mimeType: file.mimeType ?? 'application/octet-stream',
+    });
+    setClaimEvidenceFileName(file.name);
+  };
+
   const baseFeeValue = parseEuro(baseFeeAmount);
   const providerRate = STRIPE_PROVIDER_FEE_RATE;
   const providerFixed = STRIPE_PROVIDER_FEE_FIXED;
@@ -271,6 +322,8 @@ export function OrganizerCreateEventScreen({
       : Number.parseFloat(
           Math.max(0, baseFeeValue - commissionPreview - providerPreview).toFixed(2)
         );
+  const claimStatus =
+    isFree ? 'not_required' : initialEvent?.claimStatus ?? 'pending_review';
   const normalizedEventTime = toIsoTime(startTime);
   const missingRequiredLabels = useMemo(() => {
     const missing: string[] = [];
@@ -304,12 +357,37 @@ export function OrganizerCreateEventScreen({
     if (!isFree && cashPaymentEnabled && !cleanText(cashPaymentDeadline)) {
       missing.push(t('cash_payment_deadline_label'));
     }
+    if (!isFree && claimStatus !== 'approved') {
+      if (!claimSubmissionMethod) {
+        missing.push(t('event_claim_method_label'));
+      }
+      if (
+        claimSubmissionMethod === 'official_email' &&
+        !cleanText(claimOfficialEmail)
+      ) {
+        missing.push(t('event_claim_official_email_label'));
+      }
+      if (
+        claimSubmissionMethod === 'social_profile' &&
+        !cleanText(claimSocialHandle)
+      ) {
+        missing.push(t('event_claim_social_label'));
+      }
+      if (!cleanText(claimEvidenceFileName)) {
+        missing.push(t('event_claim_proof_label'));
+      }
+    }
     return missing;
   }, [
     baseFeeValue,
     cashPaymentDeadline,
     cashPaymentEnabled,
     cashPaymentInstructions,
+    claimEvidenceFileName,
+    claimOfficialEmail,
+    claimSocialHandle,
+    claimStatus,
+    claimSubmissionMethod,
     date,
     endDate,
     isFree,
@@ -321,6 +399,20 @@ export function OrganizerCreateEventScreen({
     t,
   ]);
   const canSubmit = missingRequiredLabels.length === 0;
+  const claimStatusLabel =
+    claimStatus === 'approved'
+      ? t('event_claim_status_approved')
+      : claimStatus === 'rejected'
+        ? t('event_claim_status_rejected')
+        : claimStatus === 'pending_review'
+          ? t('event_claim_status_pending')
+          : t('event_claim_status_not_required');
+
+  useEffect(() => {
+    if (!isFree && claimStatus !== 'approved' && visibility === 'public') {
+      setVisibility('hidden');
+    }
+  }, [claimStatus, isFree, visibility]);
 
   const handlePaidToggle = (nextValue: boolean) => {
     if (nextValue) {
@@ -328,34 +420,11 @@ export function OrganizerCreateEventScreen({
       return;
     }
 
-    if (!canCreatePaid) {
-      Alert.alert(
-        t('payments_blocked_title'),
-        t('payments_blocked_unlock_required')
-      );
-      setIsFree(true);
-      return;
-    }
-
     setIsFree(false);
+    setVisibility('hidden');
   };
 
   const submit = async () => {
-    if (!isFree && !cleanText(organizer.bankAccount ?? '')) {
-      Alert.alert(t('iban_missing_title'), t('iban_missing_message'));
-      return;
-    }
-
-    if (!isFree && !cleanText(organizer.fiscalData ?? '')) {
-      Alert.alert(t('missing_data_title'), t('fiscal_required_message'));
-      return;
-    }
-
-    if (!isFree && !canCreatePaid) {
-      Alert.alert(t('payments_blocked_title'), t('payments_profile_blocked'));
-      return;
-    }
-
     const normalizedRegistrationOpenDate = toIsoDate(registrationOpenDate);
     const normalizedEventDate = toIsoDate(date);
     const normalizedEventEndDate = toIsoDate(endDate);
@@ -412,7 +481,22 @@ export function OrganizerCreateEventScreen({
       }
     }
 
-    onCreate({
+    if (!isFree && claimSubmissionMethod === 'official_email' && !cleanText(claimOfficialEmail)) {
+      Alert.alert(t('event_claim_title'), t('event_claim_official_email_required'));
+      return;
+    }
+
+    if (!isFree && claimSubmissionMethod === 'social_profile' && !cleanText(claimSocialHandle)) {
+      Alert.alert(t('event_claim_title'), t('event_claim_social_required'));
+      return;
+    }
+
+    if (!isFree && !cleanText(claimEvidenceFileName)) {
+      Alert.alert(t('event_claim_title'), t('event_claim_proof_required'));
+      return;
+    }
+
+    await onCreate({
       eventId: initialEvent?.id,
       name,
       location,
@@ -435,6 +519,12 @@ export function OrganizerCreateEventScreen({
       logoUrl,
       localSponsor: localSponsorLogoUrl || localSponsorText,
       assignNumbers,
+      claimSubmissionMethod: isFree ? undefined : claimSubmissionMethod,
+      claimOfficialEmail: isFree ? '' : cleanText(claimOfficialEmail).toLowerCase(),
+      claimSocialHandle: isFree ? '' : cleanText(claimSocialHandle),
+      claimEvidenceFileName: isFree ? '' : cleanText(claimEvidenceFileName),
+      claimNote: isFree ? '' : cleanText(claimNote),
+      claimAttachment,
     });
   };
 
@@ -448,10 +538,7 @@ export function OrganizerCreateEventScreen({
             payout: organizer.payoutEnabled ? t('payout_active') : t('payout_inactive'),
           })}
         </Text>
-
-        {!canCreatePaid ? (
-          <Text style={styles.helperText}>{t('paid_unlock_required_message')}</Text>
-        ) : null}
+        <Text style={styles.helperText}>{t('event_claim_intro_short')}</Text>
         <View style={styles.registrationCard}>
           <Text style={styles.fieldLabel}>{t('guided_event_checklist_title')}</Text>
           <Text style={styles.helperText}>{t('guided_event_checklist_intro')}</Text>
@@ -547,8 +634,19 @@ export function OrganizerCreateEventScreen({
         <SwitchRow
           label={t('event_visibility_public')}
           value={visibility === 'public'}
-          onValueChange={(next) => setVisibility(next ? 'public' : 'hidden')}
-          helper={t('event_visibility_helper')}
+          onValueChange={(next) => {
+            if (!isFree && claimStatus !== 'approved' && next) {
+              Alert.alert(t('event_claim_title'), t('event_claim_visibility_locked'));
+              setVisibility('hidden');
+              return;
+            }
+            setVisibility(next ? 'public' : 'hidden');
+          }}
+          helper={
+            !isFree && claimStatus !== 'approved'
+              ? t('event_claim_visibility_helper')
+              : t('event_visibility_helper')
+          }
         />
 
         <View style={styles.formSectionCard}>
@@ -660,6 +758,108 @@ export function OrganizerCreateEventScreen({
             <Text style={styles.helperText}>
               {t('organizer_net_preview', { value: toMoney(organizerNetPreview) })}
             </Text>
+            <View style={styles.formSectionCard}>
+              <Text style={styles.sectionHeaderTitle}>{t('event_claim_title')}</Text>
+              <Text style={styles.helperText}>
+                {t('event_claim_intro', { email: ADMIN_CONTACT_EMAIL })}
+              </Text>
+              <View style={styles.statusBadgeRow}>
+                <StatusBadge
+                  label={claimStatusLabel}
+                  tone={
+                    claimStatus === 'approved'
+                      ? 'success'
+                      : claimStatus === 'rejected'
+                        ? 'warning'
+                        : 'neutral'
+                  }
+                />
+                <StatusBadge label={t('event_visibility_hidden_short')} />
+              </View>
+              {initialEvent?.claimRejectedReason ? (
+                <Text style={styles.helperText}>
+                  {t('event_claim_rejected_reason_line', {
+                    reason: initialEvent.claimRejectedReason,
+                  })}
+                </Text>
+              ) : null}
+              <Text style={styles.fieldLabel}>{t('event_claim_method_label')}</Text>
+              <View style={styles.methodRow}>
+                <Pressable
+                  style={[
+                    styles.methodChip,
+                    claimSubmissionMethod === 'official_email'
+                      ? styles.methodChipActive
+                      : undefined,
+                  ]}
+                  onPress={() => setClaimSubmissionMethod('official_email')}
+                >
+                  <Text
+                    style={[
+                      styles.methodChipText,
+                      claimSubmissionMethod === 'official_email'
+                        ? styles.methodChipTextActive
+                        : undefined,
+                    ]}
+                  >
+                    {t('event_claim_method_official_email')}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.methodChip,
+                    claimSubmissionMethod === 'social_profile'
+                      ? styles.methodChipActive
+                      : undefined,
+                  ]}
+                  onPress={() => setClaimSubmissionMethod('social_profile')}
+                >
+                  <Text
+                    style={[
+                      styles.methodChipText,
+                      claimSubmissionMethod === 'social_profile'
+                        ? styles.methodChipTextActive
+                        : undefined,
+                    ]}
+                  >
+                    {t('event_claim_method_social')}
+                  </Text>
+                </Pressable>
+              </View>
+              {claimSubmissionMethod === 'official_email' ? (
+                <TextField
+                  label={t('event_claim_official_email_label')}
+                  value={claimOfficialEmail}
+                  onChangeText={setClaimOfficialEmail}
+                  keyboardType='email-address'
+                  placeholder={t('event_claim_official_email_placeholder')}
+                />
+              ) : (
+                <TextField
+                  label={t('event_claim_social_label')}
+                  value={claimSocialHandle}
+                  onChangeText={setClaimSocialHandle}
+                  placeholder={t('event_claim_social_placeholder')}
+                />
+              )}
+              <Text style={styles.fieldLabel}>{t('event_claim_proof_label')}</Text>
+              <Text style={styles.helperText}>
+                {claimEvidenceFileName || t('document_not_selected')}
+              </Text>
+              <Pressable style={styles.secondaryButton} onPress={() => void pickClaimProof()}>
+                <Text style={styles.secondaryButtonText}>{t('event_claim_proof_pick_button')}</Text>
+              </Pressable>
+              {claimAttachment ? (
+                <Text style={styles.helperText}>{claimAttachment.fileName}</Text>
+              ) : null}
+              <TextField
+                label={t('event_claim_note_label')}
+                value={claimNote}
+                onChangeText={setClaimNote}
+                placeholder={t('event_claim_note_placeholder')}
+                multiline
+              />
+            </View>
             <SwitchRow
               label={t('cash_payment_enabled_label')}
               value={cashPaymentEnabled}
@@ -729,7 +929,11 @@ export function OrganizerCreateEventScreen({
           disabled={!canSubmit}
         >
           <Text style={styles.primaryButtonText}>
-            {initialEvent ? t('save_event_changes') : t('publish_event')}
+            {initialEvent
+              ? t('save_event_changes')
+              : isFree
+                ? t('publish_event')
+                : t('save_paid_event_draft')}
           </Text>
         </Pressable>
         {!canSubmit ? (

@@ -35,12 +35,15 @@ import { LegalModal } from './src/components/LegalModal';
 import { ProcessingInterstitialModal } from './src/components/ProcessingInterstitialModal';
 import { AppLanguage, createTranslator } from './src/i18n';
 import { sendConfirmationEmail, sendNotificationEmail } from './src/services/email';
+import { sendEventClaimEmail } from './src/services/eventClaimEmail';
+import {
+  isPaidEventClaimApproved,
+  normalizeEventClaimStatus,
+  organizerHasStripeReadyForParticipantPayments,
+} from './src/services/eventClaims';
 import { exportEventRegistrationsCsv } from './src/services/exportCsv';
 import { exportEventRegistrationsPdf } from './src/services/exportPdf';
-import {
-  organizerCanUsePaidSection,
-  scoreOrganizerRisk,
-} from './src/services/fraud';
+import { scoreOrganizerRisk } from './src/services/fraud';
 import { sendOrganizerComplianceEmail } from './src/services/organizerComplianceEmail';
 import { createParticipantCheckout } from './src/services/participantCheckout';
 import { initAdMob, loadInterstitialAd, showInterstitialAd } from './src/services/admob';
@@ -104,6 +107,7 @@ import { styles } from './src/styles';
 import {
   AdminUser,
   AppData,
+  EventClaimAttachment,
   EventPaymentChannel,
   EventItem,
   EmailResult,
@@ -257,7 +261,7 @@ const isRegistrationWindowOpen = (event: EventItem): boolean => {
   if (todayIso > closesAt) {
     return false;
   }
-  return event.active && event.visibility === 'public';
+  return event.active && event.visibility === 'public' && isPaidEventClaimApproved(event);
 };
 
 const REGISTRATION_RETENTION_DAYS = 90;
@@ -325,6 +329,28 @@ const getEventPublicBaseUrl = (): string | null => {
 const buildEventDuplicateKey = (name: string, location: string, date: string): string =>
   `${normalizeComparableText(name)}|${normalizeComparableText(location)}|${toIsoDate(date)}`;
 
+const isPaidEventBlockedFromPublication = (event: Pick<EventItem, 'isFree' | 'claimStatus'>): boolean =>
+  !event.isFree && !isPaidEventClaimApproved(event);
+
+const hasMaterialPaidClaimChange = (
+  existingEvent: EventItem | undefined,
+  nextIdentityKey: string,
+  nextIsFree: boolean
+): boolean => {
+  if (!existingEvent || nextIsFree) {
+    return !nextIsFree;
+  }
+  if (existingEvent.isFree !== nextIsFree) {
+    return true;
+  }
+  const currentIdentityKey = buildEventDuplicateKey(
+    existingEvent.name,
+    existingEvent.location,
+    existingEvent.date
+  );
+  return currentIdentityKey !== nextIdentityKey;
+};
+
 const localSponsorText = (value?: string): string => {
   const normalized = cleanText(value ?? '');
   if (!normalized || isImageDataUrl(normalized)) {
@@ -380,6 +406,16 @@ const normalizeParticipantAuthModeFromCatalog = (
     value === 'social_verified' ||
     value === 'flexible'
   ) {
+    return value;
+  }
+  return fallback;
+};
+
+const normalizeEventClaimMethodFromCatalog = (
+  value: string | null | undefined,
+  fallback?: EventItem['claimSubmissionMethod']
+): EventItem['claimSubmissionMethod'] => {
+  if (value === 'official_email' || value === 'social_profile') {
     return value;
   }
   return fallback;
@@ -656,6 +692,31 @@ const mergeOrganizerCatalogFromSupabase = (
       baseFeeAmount: existing?.baseFeeAmount ?? Number(row.fee_amount ?? 0),
       feePolicy: existing?.feePolicy ?? (row.is_free ? 'organizer_absorbs_fees' : 'participant_pays_fees'),
       paymentChannel: existing?.paymentChannel ?? 'stripe',
+      claimStatus: normalizeEventClaimStatus(
+        row.claim_status,
+        typeof row.is_free === 'boolean' ? row.is_free : existing?.isFree ?? true,
+        existing?.claimStatus
+      ),
+      claimSubmissionMethod: normalizeEventClaimMethodFromCatalog(
+        row.claim_submission_method,
+        existing?.claimSubmissionMethod
+      ),
+      claimOfficialEmail:
+        cleanText(row.claim_official_email ?? existing?.claimOfficialEmail ?? '') || '',
+      claimSocialHandle:
+        cleanText(row.claim_social_handle ?? existing?.claimSocialHandle ?? '') || '',
+      claimEvidenceFileName:
+        cleanText(row.claim_evidence_file_name ?? existing?.claimEvidenceFileName ?? '') || '',
+      claimRequestedAt:
+        cleanText(row.claim_requested_at ?? existing?.claimRequestedAt ?? '') || undefined,
+      claimApprovedAt:
+        cleanText(row.claim_approved_at ?? existing?.claimApprovedAt ?? '') || undefined,
+      claimApprovedBy:
+        cleanText(row.claim_approved_by ?? existing?.claimApprovedBy ?? '') || '',
+      claimRejectedAt:
+        cleanText(row.claim_rejected_at ?? existing?.claimRejectedAt ?? '') || undefined,
+      claimRejectedReason:
+        cleanText(row.claim_rejected_reason ?? existing?.claimRejectedReason ?? '') || '',
       cashPaymentEnabled:
         typeof row.cash_payment_enabled === 'boolean'
           ? row.cash_payment_enabled
@@ -2866,6 +2927,12 @@ function App() {
       logoUrl?: string;
       localSponsor?: string;
       assignNumbers: boolean;
+      claimSubmissionMethod?: EventItem['claimSubmissionMethod'];
+      claimOfficialEmail?: string;
+      claimSocialHandle?: string;
+      claimEvidenceFileName?: string;
+      claimNote?: string;
+      claimAttachment?: EventClaimAttachment | null;
     }
   ) => {
     const securityReady = await ensureOrganizerSecurityForProtectedAction();
@@ -2893,20 +2960,9 @@ function App() {
       Alert.alert(t('event_not_found_title'), t('event_not_found_message'));
       return;
     }
-    const canCreatePaid = organizerCanUsePaidSection(organizer, ORGANIZER_TEST_MODE);
 
     if (!payload.isFree && payload.baseFeeAmount <= 0) {
       Alert.alert(t('fee_missing_title'), t('fee_missing_message'));
-      return;
-    }
-
-    if (!payload.isFree && !cleanText(organizer.fiscalData ?? '')) {
-      Alert.alert(t('missing_data_title'), t('fiscal_required_message'));
-      return;
-    }
-
-    if (!payload.isFree && !canCreatePaid) {
-      Alert.alert(t('payments_disabled_title'), t('payments_disabled_message'));
       return;
     }
 
@@ -2989,12 +3045,58 @@ function App() {
     }
 
     const now = new Date().toISOString();
-    const visibility = payload.visibility;
+    const claimSubmissionMethod = payload.claimSubmissionMethod;
+    const claimOfficialEmail = cleanText(payload.claimOfficialEmail ?? '').toLowerCase();
+    const claimSocialHandle = cleanText(payload.claimSocialHandle ?? '');
+    const claimEvidenceFileName = cleanText(payload.claimEvidenceFileName ?? '');
+    const claimNote = cleanText(payload.claimNote ?? '');
+    const existingClaimApproved = existingEvent
+      ? isPaidEventClaimApproved(existingEvent)
+      : false;
+    const claimNeedsReview = hasMaterialPaidClaimChange(existingEvent, nextEventKey, payload.isFree) ||
+      (!payload.isFree && !existingClaimApproved);
+
+    if (!payload.isFree && claimNeedsReview) {
+      if (claimSubmissionMethod !== 'official_email' && claimSubmissionMethod !== 'social_profile') {
+        Alert.alert(t('event_claim_title'), t('event_claim_method_required'));
+        return;
+      }
+      if (
+        claimSubmissionMethod === 'official_email' &&
+        !isValidEmailAddress(claimOfficialEmail)
+      ) {
+        Alert.alert(t('event_claim_title'), t('event_claim_official_email_required'));
+        return;
+      }
+      if (claimSubmissionMethod === 'social_profile' && !claimSocialHandle) {
+        Alert.alert(t('event_claim_title'), t('event_claim_social_required'));
+        return;
+      }
+      if (!claimEvidenceFileName) {
+        Alert.alert(t('event_claim_title'), t('event_claim_proof_required'));
+        return;
+      }
+    }
+
+    const claimStatus = normalizeEventClaimStatus(
+      payload.isFree
+        ? 'not_required'
+        : claimNeedsReview
+          ? 'pending_review'
+          : existingEvent?.claimStatus,
+      payload.isFree,
+      existingEvent?.claimStatus
+    );
+    const visibility =
+      !payload.isFree && claimStatus !== 'approved' ? 'hidden' : payload.visibility;
     const shouldBePublic = visibility === 'public';
     const closedAt = shouldBePublic ? undefined : existingEvent?.closedAt;
-    const registrationsOpen = shouldBePublic
-      ? existingEvent?.registrationsOpen ?? true
-      : existingEvent?.registrationsOpen ?? false;
+    const registrationsOpen =
+      !payload.isFree && claimStatus !== 'approved'
+        ? false
+        : shouldBePublic
+          ? existingEvent?.registrationsOpen ?? true
+          : existingEvent?.registrationsOpen ?? false;
 
     const feePreview = computeEventFeePreview({
       baseFeeAmount: payload.baseFeeAmount,
@@ -3033,6 +3135,31 @@ function App() {
       baseFeeAmount: payload.isFree ? 0 : payload.baseFeeAmount,
       feePolicy: payload.feePolicy,
       paymentChannel: 'stripe',
+      claimStatus,
+      claimSubmissionMethod: payload.isFree ? undefined : claimSubmissionMethod,
+      claimOfficialEmail: payload.isFree ? '' : claimOfficialEmail,
+      claimSocialHandle: payload.isFree ? '' : claimSocialHandle,
+      claimEvidenceFileName: payload.isFree ? '' : claimEvidenceFileName,
+      claimRequestedAt:
+        payload.isFree || claimStatus === 'approved'
+          ? undefined
+          : now,
+      claimApprovedAt:
+        payload.isFree || claimStatus !== 'approved'
+          ? undefined
+          : existingEvent?.claimApprovedAt ?? now,
+      claimApprovedBy:
+        payload.isFree || claimStatus !== 'approved'
+          ? ''
+          : existingEvent?.claimApprovedBy ?? '',
+      claimRejectedAt:
+        payload.isFree || claimStatus !== 'rejected'
+          ? undefined
+          : existingEvent?.claimRejectedAt,
+      claimRejectedReason:
+        payload.isFree || claimStatus !== 'rejected'
+          ? ''
+          : existingEvent?.claimRejectedReason ?? '',
       cashPaymentEnabled: !payload.isFree && payload.cashPaymentEnabled,
       cashPaymentInstructions: !payload.isFree && payload.cashPaymentEnabled
         ? cashPaymentInstructions
@@ -3068,10 +3195,36 @@ function App() {
     const syncNote = syncResult.ok
       ? t('event_sync_ok')
       : t('event_sync_fail', { reason: syncResult.reason });
+    let reviewNote = '';
+
+    if (!payload.isFree && claimStatus === 'pending_review' && payload.claimAttachment) {
+      const emailResult = await sendEventClaimEmail({
+        organizerEmail: organizer.email,
+        eventName: event.name,
+        eventLocation: event.location,
+        eventDate: event.date,
+        claimMethod: claimSubmissionMethod ?? 'official_email',
+        officialEmail: claimOfficialEmail,
+        socialHandle: claimSocialHandle,
+        note: claimNote,
+        attachments: [payload.claimAttachment],
+      });
+
+      reviewNote = emailResult.sent
+        ? t('event_claim_submission_sent_note', { email: ADMIN_CONTACT_EMAIL })
+        : t('event_claim_submission_pending_note', {
+            email: ADMIN_CONTACT_EMAIL,
+            reason: emailResult.detail ?? 'email_error',
+          });
+    } else if (!payload.isFree && claimStatus === 'pending_review') {
+      reviewNote = t('event_claim_private_draft_note');
+    }
+
+    const note = reviewNote ? `${syncNote}\n${reviewNote}` : syncNote;
 
     const alertMessage = existingEvent
-      ? t('event_updated_message', { name: event.name, note: syncNote })
-      : t('event_created_message', { name: event.name, note: syncNote });
+      ? t('event_updated_message', { name: event.name, note })
+      : t('event_created_message', { name: event.name, note });
     Alert.alert(
       existingEvent ? t('event_updated_title') : t('event_created_title'),
       alertMessage
@@ -3800,6 +3953,10 @@ function App() {
 
     const now = new Date().toISOString();
     const nextActive = !targetEvent.active;
+    if (nextActive && isPaidEventBlockedFromPublication(targetEvent)) {
+      Alert.alert(t('event_claim_title'), t('event_claim_publish_blocked'));
+      return;
+    }
     const updatedEvent: EventItem = {
       ...targetEvent,
       active: nextActive,
@@ -3832,6 +3989,11 @@ function App() {
       return;
     }
 
+    if (!targetEvent.registrationsOpen && isPaidEventBlockedFromPublication(targetEvent)) {
+      Alert.alert(t('event_claim_title'), t('event_claim_registrations_blocked'));
+      return;
+    }
+
     const updatedEvent: EventItem = {
       ...targetEvent,
       registrationsOpen: !targetEvent.registrationsOpen,
@@ -3849,6 +4011,91 @@ function App() {
       }
       Alert.alert(t('sync_not_completed_title'), syncResult.reason);
     }
+  };
+
+  const approveEventClaim = async (eventId: string) => {
+    const sourceData = appData;
+    const targetEvent = sourceData.events.find((entry) => entry.id === eventId);
+    if (!targetEvent || targetEvent.isFree) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const reviewer = cleanText(activeOrganizerEmail ?? organizerSecurity?.email ?? '') || 'admin';
+    const updatedEvent: EventItem = {
+      ...targetEvent,
+      claimStatus: 'approved',
+      claimApprovedAt: now,
+      claimApprovedBy: reviewer,
+      claimRejectedAt: undefined,
+      claimRejectedReason: '',
+      active: false,
+      visibility: 'hidden',
+      registrationsOpen: false,
+      closedAt: undefined,
+    };
+
+    const nextData: AppData = {
+      ...sourceData,
+      events: sourceData.events.map((entry) => (entry.id === eventId ? updatedEvent : entry)),
+    };
+    setAppData(nextData);
+
+    const syncResult = await syncEventRecord(nextData, updatedEvent);
+    if (!syncResult.ok) {
+      if (STRICT_SUPABASE_MODE) {
+        setAppData(sourceData);
+      }
+      Alert.alert(t('sync_not_completed_title'), syncResult.reason);
+      return;
+    }
+
+    Alert.alert(
+      t('event_claim_approved_title'),
+      t('event_claim_approved_message', { name: targetEvent.name })
+    );
+  };
+
+  const rejectEventClaim = async (eventId: string) => {
+    const sourceData = appData;
+    const targetEvent = sourceData.events.find((entry) => entry.id === eventId);
+    if (!targetEvent || targetEvent.isFree) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const updatedEvent: EventItem = {
+      ...targetEvent,
+      claimStatus: 'rejected',
+      claimApprovedAt: undefined,
+      claimApprovedBy: '',
+      claimRejectedAt: now,
+      claimRejectedReason: t('event_claim_rejected_default_reason'),
+      active: false,
+      visibility: 'hidden',
+      registrationsOpen: false,
+      closedAt: undefined,
+    };
+
+    const nextData: AppData = {
+      ...sourceData,
+      events: sourceData.events.map((entry) => (entry.id === eventId ? updatedEvent : entry)),
+    };
+    setAppData(nextData);
+
+    const syncResult = await syncEventRecord(nextData, updatedEvent);
+    if (!syncResult.ok) {
+      if (STRICT_SUPABASE_MODE) {
+        setAppData(sourceData);
+      }
+      Alert.alert(t('sync_not_completed_title'), syncResult.reason);
+      return;
+    }
+
+    Alert.alert(
+      t('event_claim_rejected_title'),
+      t('event_claim_rejected_message', { name: targetEvent.name })
+    );
   };
 
   const closeEventCompletely = async (eventId: string) => {
@@ -4276,7 +4523,15 @@ function App() {
     }
 
     const organizer = sourceData.organizers.find((entry) => entry.id === event.organizerId);
-    if (!organizer || !organizerCanUsePaidSection(organizer, ORGANIZER_TEST_MODE)) {
+    if (!organizer) {
+      Alert.alert(t('payment_not_available_title'), t('payment_not_available_message'));
+      return;
+    }
+    if (!isPaidEventClaimApproved(event)) {
+      Alert.alert(t('payment_not_available_title'), t('event_claim_payment_blocked'));
+      return;
+    }
+    if (!organizerHasStripeReadyForParticipantPayments(organizer)) {
       Alert.alert(t('payment_not_available_title'), t('payment_not_available_message'));
       return;
     }
@@ -5353,9 +5608,10 @@ function App() {
             getEventPublicUrl={buildPublicEventUrl}
             onUpdateCompliance={updateOrganizerCompliance}
             onSendComplianceEmail={sendOrganizerComplianceToAdmin}
-            onRequestPaidUnlock={requestPaidFeatureUnlock}
             onStartStripeConnect={startStripeConnectForOrganizer}
             onSyncStripeConnect={syncStripeConnectForOrganizer}
+            onApproveEventClaim={approveEventClaim}
+            onRejectEventClaim={rejectEventClaim}
             onActivateSponsorModule={activateSponsorModuleForOrganizer}
             onCreateSponsorCheckout={createSponsorCheckoutForEvent}
             onRefreshAdminUsers={async () => {

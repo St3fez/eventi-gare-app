@@ -177,6 +177,41 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     event_summary_name_placeholder: 'Nuovo evento non ancora nominato',
     free_event_switch: 'Evento gratuito',
     free_event_helper: 'Se disattivo, il partecipante paghera quota iscrizione.',
+    event_claim_section_title: 'Claim evento a pagamento',
+    event_claim_title: 'Claim evento a pagamento',
+    event_claim_intro:
+      'Per eventi a pagamento salviamo prima una bozza privata. Invia prova di titolarita a {email} con email da dominio ufficiale o ID social verificabile.',
+    event_claim_intro_short:
+      'Eventi a pagamento: bozza privata + claim manuale. Pubblicazione e pagamenti restano bloccati finche la claim non e approvata.',
+    event_claim_not_required_message: 'Evento gratuito: claim manuale non richiesta.',
+    event_claim_method_label: "Come verifichi l'organizzatore?",
+    event_claim_method_official_email: 'Email dominio ufficiale',
+    event_claim_method_social: 'ID social ufficiale',
+    event_claim_official_email_label: 'Email dominio ufficiale *',
+    event_claim_official_email_placeholder: 'info@nomeevento.it',
+    event_claim_social_label: 'ID social ufficiale *',
+    event_claim_social_placeholder: '@profiloufficiale o link profilo',
+    event_claim_proof_label: 'Prova / lettera firmata *',
+    event_claim_proof_pick_button: 'Carica prova claim',
+    event_claim_note_label: 'Note per sviluppatore (opzionale)',
+    event_claim_note_placeholder: 'Link sito, contatti ufficiali, dettagli utili...',
+    event_claim_status_not_required: 'Claim non richiesta',
+    event_claim_status_pending: 'Claim in revisione',
+    event_claim_status_approved: 'Claim approvata',
+    event_claim_status_rejected: 'Claim rifiutata',
+    event_claim_status_line: 'Stato claim: {status}',
+    event_claim_contact_line: 'Invio review manuale: {email}',
+    event_claim_official_email_line: 'Email ufficiale: {email}',
+    event_claim_social_line: 'ID social: {handle}',
+    event_claim_proof_line: 'Prova caricata: {file}',
+    event_claim_requested_at_line: 'Claim inviata il: {date}',
+    event_claim_approved_at_line: 'Approvata il {date} da {reviewer}',
+    event_claim_rejected_reason_line: 'Motivo ultimo rifiuto: {reason}',
+    event_claim_visibility_locked:
+      'Gli eventi a pagamento restano privati finche la claim non e approvata.',
+    event_claim_visibility_helper:
+      'Evento a pagamento in bozza privata finche la claim non e approvata.',
+    save_paid_event_draft: 'Salva bozza claim',
     fee_label: 'Quota iscrizione (EUR)',
     base_fee_label: 'Quota base evento (EUR)',
     payment_channel_label: 'Canale pagamento',
@@ -922,6 +957,43 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     organizer_documents_email_mode_sent: 'inviata',
     organizer_documents_email_ok:
       'Documentazione inviata a {email} ({mode}).',
+    event_claim_method_required:
+      'Scegli email da dominio ufficiale o ID social ufficiale.',
+    event_claim_official_email_required:
+      "Inserisci un'email valida del dominio ufficiale dell'evento o dell'ente.",
+    event_claim_social_required:
+      'Inserisci un ID social ufficiale verificabile.',
+    event_claim_proof_required:
+      'Carica almeno una prova firmata o una lettera intestata.',
+    event_claim_private_draft_note:
+      'Evento a pagamento salvato come bozza privata. Pubblicazione e pagamenti restano bloccati finche la claim non viene approvata.',
+    event_claim_submission_sent_note:
+      'Claim inviata a {email}. Evento mantenuto in bozza privata.',
+    event_claim_submission_pending_note:
+      'Bozza privata salvata. Invio claim a {email} non riuscito: {reason}',
+    event_claim_publish_blocked:
+      'Claim non approvata: pubblicazione pubblica bloccata.',
+    event_claim_registrations_blocked:
+      'Claim non approvata: apertura iscrizioni bloccata.',
+    event_claim_publish_ready:
+      "Claim approvata: puoi pubblicare l'evento quando vuoi.",
+    event_claim_payment_blocked:
+      'Pagamento non disponibile: la claim manuale di questo evento non e ancora approvata.',
+    event_claim_approve_button: 'Approva claim',
+    event_claim_reject_button: 'Rifiuta claim',
+    event_claim_approve_confirm_title: 'Approva claim evento',
+    event_claim_approve_confirm_message:
+      'Vuoi approvare la claim manuale per {name}?',
+    event_claim_reject_confirm_title: 'Rifiuta claim evento',
+    event_claim_reject_confirm_message:
+      'Vuoi rifiutare la claim manuale per {name}?',
+    event_claim_approved_title: 'Claim approvata',
+    event_claim_approved_message:
+      "Claim manuale approvata per {name}. L'evento resta in bozza privata finche l'organizzatore non lo pubblica.",
+    event_claim_rejected_title: 'Claim rifiutata',
+    event_claim_rejected_message:
+      'Claim manuale rifiutata per {name}. Evento mantenuto in bozza privata.',
+    event_claim_rejected_default_reason: 'Claim rifiutata da amministratore',
     request_paid_unlock_title: 'Richiesta sblocco quote inviata',
     request_paid_unlock_message:
       'Richiesta registrata e inviata a {contact}.{sync}',
@@ -1107,6 +1179,41 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     event_summary_name_placeholder: 'New event without a name yet',
     free_event_switch: 'Free event',
     free_event_helper: 'If disabled, participant will pay an entry fee.',
+    event_claim_section_title: 'Paid event claim',
+    event_claim_title: 'Paid event claim',
+    event_claim_intro:
+      'Paid events are first saved as a private draft. Send proof of ownership to {email} with an official-domain email or a verifiable social profile.',
+    event_claim_intro_short:
+      'Paid events use a private draft plus manual claim review. Publication and payments stay blocked until the claim is approved.',
+    event_claim_not_required_message: 'Free event: no manual claim required.',
+    event_claim_method_label: 'How do you verify the organizer?',
+    event_claim_method_official_email: 'Official domain email',
+    event_claim_method_social: 'Official social ID',
+    event_claim_official_email_label: 'Official domain email *',
+    event_claim_official_email_placeholder: 'info@eventname.com',
+    event_claim_social_label: 'Official social ID *',
+    event_claim_social_placeholder: '@officialprofile or profile link',
+    event_claim_proof_label: 'Proof / signed letter *',
+    event_claim_proof_pick_button: 'Upload claim proof',
+    event_claim_note_label: 'Developer note (optional)',
+    event_claim_note_placeholder: 'Website links, official contacts, useful review details...',
+    event_claim_status_not_required: 'No claim required',
+    event_claim_status_pending: 'Claim pending review',
+    event_claim_status_approved: 'Claim approved',
+    event_claim_status_rejected: 'Claim rejected',
+    event_claim_status_line: 'Claim status: {status}',
+    event_claim_contact_line: 'Manual review email: {email}',
+    event_claim_official_email_line: 'Official email: {email}',
+    event_claim_social_line: 'Social ID: {handle}',
+    event_claim_proof_line: 'Uploaded proof: {file}',
+    event_claim_requested_at_line: 'Claim sent on: {date}',
+    event_claim_approved_at_line: 'Approved on {date} by {reviewer}',
+    event_claim_rejected_reason_line: 'Latest rejection reason: {reason}',
+    event_claim_visibility_locked:
+      'Paid events stay private until the claim is approved.',
+    event_claim_visibility_helper:
+      'Paid event kept as a private draft until claim approval.',
+    save_paid_event_draft: 'Save claim draft',
     fee_label: 'Entry fee (EUR)',
     base_fee_label: 'Base event fee (EUR)',
     payment_channel_label: 'Payment channel',
@@ -1855,6 +1962,43 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     organizer_documents_email_mode_sent: 'sent',
     organizer_documents_email_ok:
       'Documentation sent to {email} ({mode}).',
+    event_claim_method_required:
+      'Choose an official-domain email or an official social ID.',
+    event_claim_official_email_required:
+      'Enter a valid email from the official event or organization domain.',
+    event_claim_social_required:
+      'Enter a verifiable official social ID.',
+    event_claim_proof_required:
+      'Upload at least one signed proof or official letterhead.',
+    event_claim_private_draft_note:
+      'Paid event saved as a private draft. Publication and payments stay blocked until claim approval.',
+    event_claim_submission_sent_note:
+      'Claim sent to {email}. Event kept as a private draft.',
+    event_claim_submission_pending_note:
+      'Private draft saved. Claim delivery to {email} failed: {reason}',
+    event_claim_publish_blocked:
+      'Claim not approved: public publication is blocked.',
+    event_claim_registrations_blocked:
+      'Claim not approved: opening registrations is blocked.',
+    event_claim_publish_ready:
+      'Claim approved: you can publish the event whenever you want.',
+    event_claim_payment_blocked:
+      'Payment unavailable: this event claim has not been approved yet.',
+    event_claim_approve_button: 'Approve claim',
+    event_claim_reject_button: 'Reject claim',
+    event_claim_approve_confirm_title: 'Approve event claim',
+    event_claim_approve_confirm_message:
+      'Approve the manual claim for {name}?',
+    event_claim_reject_confirm_title: 'Reject event claim',
+    event_claim_reject_confirm_message:
+      'Reject the manual claim for {name}?',
+    event_claim_approved_title: 'Claim approved',
+    event_claim_approved_message:
+      'Manual claim approved for {name}. The event stays private until the organizer publishes it.',
+    event_claim_rejected_title: 'Claim rejected',
+    event_claim_rejected_message:
+      'Manual claim rejected for {name}. Event kept as a private draft.',
+    event_claim_rejected_default_reason: 'Claim rejected by administrator',
     request_paid_unlock_title: 'Paid unlock request sent',
     request_paid_unlock_message:
       'Request recorded and sent to {contact}.{sync}',

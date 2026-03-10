@@ -41,6 +41,14 @@ export type EventFeePolicy = 'organizer_absorbs_fees' | 'participant_pays_fees';
 
 export type EventPaymentChannel = 'stripe' | 'bank';
 
+export type EventClaimStatus =
+  | 'not_required'
+  | 'pending_review'
+  | 'approved'
+  | 'rejected';
+
+export type EventClaimMethod = 'official_email' | 'social_profile';
+
 export type ParticipantAuthMode =
   | 'anonymous'
   | 'email'
@@ -66,6 +74,13 @@ export type OrganizerComplianceAttachmentKind =
 
 export type OrganizerComplianceAttachment = {
   kind: OrganizerComplianceAttachmentKind;
+  uri: string;
+  fileName: string;
+  mimeType?: string;
+};
+
+export type EventClaimAttachment = {
+  kind: 'event_claim_proof';
   uri: string;
   fileName: string;
   mimeType?: string;
@@ -159,6 +174,16 @@ export type EventItem = {
   baseFeeAmount: number;
   feePolicy: EventFeePolicy;
   paymentChannel: EventPaymentChannel;
+  claimStatus: EventClaimStatus;
+  claimSubmissionMethod?: EventClaimMethod;
+  claimOfficialEmail?: string;
+  claimSocialHandle?: string;
+  claimEvidenceFileName?: string;
+  claimRequestedAt?: string;
+  claimApprovedAt?: string;
+  claimApprovedBy?: string;
+  claimRejectedAt?: string;
+  claimRejectedReason?: string;
   cashPaymentEnabled: boolean;
   cashPaymentInstructions?: string;
   cashPaymentDeadline?: string;

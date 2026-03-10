@@ -19,13 +19,18 @@ const json = (payload: Record<string, unknown>, status = 200): Response =>
   });
 
 type ComplianceAttachment = {
-  kind: 'identity_document' | 'organization_document' | 'payment_authorization_document';
+  kind:
+    | 'identity_document'
+    | 'organization_document'
+    | 'payment_authorization_document'
+    | 'event_claim_proof';
   fileName: string;
   mimeType?: string;
   base64: string;
 };
 
 type CompliancePayload = {
+  workflow?: 'organizer_compliance' | 'event_claim';
   adminEmail?: string;
   organizerEmail?: string;
   organizationName?: string;
@@ -35,6 +40,12 @@ type CompliancePayload = {
   officialPhone?: string;
   fiscalData?: string;
   bankAccount?: string;
+  eventName?: string;
+  eventLocation?: string;
+  eventDate?: string;
+  claimMethod?: 'official_email' | 'social_profile';
+  officialEmail?: string;
+  socialHandle?: string;
   adminContactMessage?: string;
   attachments?: ComplianceAttachment[];
 };
@@ -174,6 +185,8 @@ const attachmentLabel = (kind: ComplianceAttachment['kind']): string => {
       return 'Documento ente';
     case 'payment_authorization_document':
       return 'Documento abilitazione quote';
+    case 'event_claim_proof':
+      return 'Prova titolarita evento';
     default:
       return kind;
   }
@@ -253,24 +266,47 @@ Deno.serve(async (req: Request) => {
     .map((entry) => `- ${attachmentLabel(entry.kind)}: ${entry.fileName}`)
     .join('\n');
 
-  const subject = `Richiesta verifica organizer - ${payload.organizerEmail}`;
+  const workflow = payload.workflow === 'event_claim' ? 'event_claim' : 'organizer_compliance';
 
-  const bodyText = [
-    'Nuova richiesta compliance organizer',
-    '',
-    `Email organizer: ${payload.organizerEmail}`,
-    `Ente: ${payload.organizationName ?? '-'}`,
-    `Ruolo: ${payload.organizationRole ?? '-'} ${payload.organizationRoleLabel ?? ''}`.trim(),
-    `Legale rappresentante: ${payload.legalRepresentative ?? '-'}`,
-    `Telefono ufficiale: ${payload.officialPhone ?? '-'}`,
-    `Dati fiscali: ${payload.fiscalData ?? '-'}`,
-    `IBAN: ${payload.bankAccount ?? '-'}`,
-    '',
-    `Messaggio amministratore: ${payload.adminContactMessage ?? '-'}`,
-    '',
-    'Allegati:',
-    attachmentSummary || '- Nessun allegato',
-  ].join('\n');
+  const subject =
+    workflow === 'event_claim'
+      ? `Claim evento a pagamento - ${payload.eventName ?? 'Evento senza nome'}`
+      : `Richiesta verifica organizer - ${payload.organizerEmail}`;
+
+  const bodyText =
+    workflow === 'event_claim'
+      ? [
+          'Nuova claim evento a pagamento',
+          '',
+          `Email organizer login: ${payload.organizerEmail ?? '-'}`,
+          `Evento: ${payload.eventName ?? '-'}`,
+          `Luogo: ${payload.eventLocation ?? '-'}`,
+          `Data evento: ${payload.eventDate ?? '-'}`,
+          `Metodo verifica: ${payload.claimMethod ?? '-'}`,
+          `Email dominio ufficiale: ${payload.officialEmail ?? '-'}`,
+          `ID social ufficiale: ${payload.socialHandle ?? '-'}`,
+          '',
+          `Messaggio organizzatore: ${payload.adminContactMessage ?? '-'}`,
+          '',
+          'Allegati:',
+          attachmentSummary || '- Nessun allegato',
+        ].join('\n')
+      : [
+          'Nuova richiesta compliance organizer',
+          '',
+          `Email organizer: ${payload.organizerEmail}`,
+          `Ente: ${payload.organizationName ?? '-'}`,
+          `Ruolo: ${payload.organizationRole ?? '-'} ${payload.organizationRoleLabel ?? ''}`.trim(),
+          `Legale rappresentante: ${payload.legalRepresentative ?? '-'}`,
+          `Telefono ufficiale: ${payload.officialPhone ?? '-'}`,
+          `Dati fiscali: ${payload.fiscalData ?? '-'}`,
+          `IBAN: ${payload.bankAccount ?? '-'}`,
+          '',
+          `Messaggio amministratore: ${payload.adminContactMessage ?? '-'}`,
+          '',
+          'Allegati:',
+          attachmentSummary || '- Nessun allegato',
+        ].join('\n');
 
   const transporter = nodemailer.createTransport({
     host: smtpConfig.host,
@@ -303,7 +339,10 @@ Deno.serve(async (req: Request) => {
     return json({
       sent: true,
       mode: 'webhook',
-      detail: `Email compliance inviata a ${adminEmail}`,
+      detail:
+        workflow === 'event_claim'
+          ? `Email claim evento inviata a ${adminEmail}`
+          : `Email compliance inviata a ${adminEmail}`,
     });
   } catch (error) {
     const smtpError = error as

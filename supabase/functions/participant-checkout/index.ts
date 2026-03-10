@@ -67,6 +67,12 @@ type OrganizerRow = {
   payout_enabled: boolean;
 };
 
+type EventRow = {
+  id: string;
+  is_free: boolean;
+  claim_status?: 'not_required' | 'pending_review' | 'approved' | 'rejected' | null;
+};
+
 const PARTICIPANT_SESSION_MINUTES = 15;
 
 const corsHeaders = {
@@ -285,6 +291,56 @@ Deno.serve(async (req: Request) => {
 
   if (registration.participant_user_id !== userId) {
     return json({ error: 'Forbidden: registration does not belong to current participant' }, 403);
+  }
+
+  let eventData: EventRow | null = null;
+  const eventExtended = await supabaseAdmin
+    .from('events')
+    .select('id,is_free,claim_status')
+    .eq('id', registration.event_id)
+    .maybeSingle<EventRow>();
+
+  if (eventExtended.error) {
+    if (/claim_status/i.test(eventExtended.error.message)) {
+      const eventLegacy = await supabaseAdmin
+        .from('events')
+        .select('id,is_free')
+        .eq('id', registration.event_id)
+        .maybeSingle<EventRow>();
+      if (eventLegacy.error) {
+        return json(
+          {
+            error: 'Event lookup failed',
+            detail: eventLegacy.error.message,
+          },
+          500
+        );
+      }
+      eventData = eventLegacy.data ?? null;
+    } else {
+      return json(
+        {
+          error: 'Event lookup failed',
+          detail: eventExtended.error.message,
+        },
+        500
+      );
+    }
+  } else {
+    eventData = eventExtended.data ?? null;
+  }
+
+  if (!eventData) {
+    return json({ error: 'Event not found' }, 404);
+  }
+
+  if (!eventData.is_free && eventData.claim_status && eventData.claim_status !== 'approved') {
+    return json(
+      {
+        error: 'Paid event claim not approved',
+      },
+      409
+    );
   }
 
   const organizerResult = await supabaseAdmin
