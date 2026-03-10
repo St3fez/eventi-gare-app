@@ -65,6 +65,7 @@ export type OrganizerComplianceDocuments = {
   organizationDocumentUrl?: string;
   paymentAuthorizationDocumentUrl?: string;
   adminContactMessage?: string;
+  antifraudProofDocuments?: string[];
 };
 
 export type OrganizerComplianceAttachmentKind =

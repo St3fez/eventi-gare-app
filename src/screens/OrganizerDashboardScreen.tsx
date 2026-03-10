@@ -54,6 +54,7 @@ import {
 
 type Props = {
   organizer: OrganizerProfile;
+  organizers: OrganizerProfile[];
   isAdmin: boolean;
   canManageAdmins: boolean;
   adminUsers: AdminUser[];
@@ -87,6 +88,7 @@ type Props = {
     organizationDocumentUrl: string;
     paymentAuthorizationDocumentUrl: string;
     adminContactMessage?: string;
+    antifraudProofDocuments?: string[];
   }) => Promise<void>;
   onSendComplianceEmail: (payload: {
     organizerId: string;
@@ -122,12 +124,37 @@ type Props = {
   language: AppLanguage;
 };
 
+const normalizeDocumentNames = (values: Array<string | undefined>): string[] => {
+  const seen = new Set<string>();
+  return values
+    .map((entry) => cleanText(entry))
+    .filter(Boolean)
+    .filter((entry) => {
+      if (seen.has(entry)) {
+        return false;
+      }
+      seen.add(entry);
+      return true;
+    });
+};
+
+const collectOrganizerDocumentNames = (
+  documents: OrganizerProfile['complianceDocuments']
+): string[] =>
+  normalizeDocumentNames([
+    documents.identityDocumentUrl,
+    documents.organizationDocumentUrl,
+    documents.paymentAuthorizationDocumentUrl,
+    ...(documents.antifraudProofDocuments ?? []),
+  ]);
+
 type QrCodeHandle = {
   toDataURL: (callback: (base64: string) => void) => void;
 };
 
 export function OrganizerDashboardScreen({
   organizer,
+  organizers,
   isAdmin,
   canManageAdmins,
   adminUsers,
@@ -174,6 +201,10 @@ export function OrganizerDashboardScreen({
   const [sponsorLogoUrl, setSponsorLogoUrl] = useState('');
   const [sponsorLogoFileName, setSponsorLogoFileName] = useState('');
   const [sponsorDays, setSponsorDays] = useState('1');
+  const [organizerAntifraudProofDocuments, setOrganizerAntifraudProofDocuments] = useState<string[]>(
+    organizer.complianceDocuments.antifraudProofDocuments ?? []
+  );
+  const [selectedComplianceOrganizerId, setSelectedComplianceOrganizerId] = useState(organizer.id);
   const [organizationName, setOrganizationName] = useState(organizer.organizationName ?? '');
   const [organizationRole, setOrganizationRole] = useState<OrganizerRole>(
     organizer.organizationRole ?? 'altro'
@@ -208,6 +239,8 @@ export function OrganizerDashboardScreen({
   const [paymentAttachment, setPaymentAttachment] = useState<OrganizerComplianceAttachment | null>(
     null
   );
+  const [selectedComplianceAntifraudProofDocuments, setSelectedComplianceAntifraudProofDocuments] =
+    useState<string[]>(organizer.complianceDocuments.antifraudProofDocuments ?? []);
   const [registrationQuery, setRegistrationQuery] = useState('');
   const [registrationStatusFilter, setRegistrationStatusFilter] = useState<
     'all' | 'pending_payment' | 'pending_cash' | 'paid' | 'payment_failed' | 'cancelled' | 'refunded'
@@ -228,24 +261,58 @@ export function OrganizerDashboardScreen({
   }, [events, selectedEventId]);
 
   useEffect(() => {
-    setOrganizationName(organizer.organizationName ?? '');
-    setOrganizationRole(organizer.organizationRole ?? 'altro');
-    setOrganizationRoleLabel(organizer.organizationRoleLabel ?? '');
-    setLegalRepresentative(organizer.legalRepresentative ?? '');
-    setOfficialPhone(organizer.officialPhone ?? '');
-    setFiscalData(organizer.fiscalData ?? '');
-    setBankAccount(organizer.bankAccount ?? '');
-    setIdentityDocumentUrl(organizer.complianceDocuments.identityDocumentUrl ?? '');
-    setOrganizationDocumentUrl(organizer.complianceDocuments.organizationDocumentUrl ?? '');
-    setPaymentAuthorizationDocumentUrl(
-      organizer.complianceDocuments.paymentAuthorizationDocumentUrl ?? ''
+    setOrganizerAntifraudProofDocuments(organizer.complianceDocuments.antifraudProofDocuments ?? []);
+    setSponsorLogoFileName('');
+  }, [organizer]);
+
+  const editableComplianceOrganizers = useMemo(() => {
+    const currentOrganizer =
+      organizers.find((entry) => entry.id === organizer.id) ?? organizer;
+    const others = organizers
+      .filter((entry) => entry.id !== currentOrganizer.id)
+      .slice()
+      .sort((first, second) => {
+        const firstLabel = cleanText(first.organizationName ?? first.email).toLowerCase();
+        const secondLabel = cleanText(second.organizationName ?? second.email).toLowerCase();
+        return firstLabel.localeCompare(secondLabel);
+      });
+    return [currentOrganizer, ...others];
+  }, [organizer, organizers]);
+
+  useEffect(() => {
+    if (!editableComplianceOrganizers.some((entry) => entry.id === selectedComplianceOrganizerId)) {
+      setSelectedComplianceOrganizerId(organizer.id);
+    }
+  }, [editableComplianceOrganizers, organizer.id, selectedComplianceOrganizerId]);
+
+  const selectedComplianceOrganizer =
+    editableComplianceOrganizers.find((entry) => entry.id === selectedComplianceOrganizerId) ??
+    editableComplianceOrganizers[0] ??
+    organizer;
+
+  useEffect(() => {
+    setOrganizationName(selectedComplianceOrganizer.organizationName ?? '');
+    setOrganizationRole(selectedComplianceOrganizer.organizationRole ?? 'altro');
+    setOrganizationRoleLabel(selectedComplianceOrganizer.organizationRoleLabel ?? '');
+    setLegalRepresentative(selectedComplianceOrganizer.legalRepresentative ?? '');
+    setOfficialPhone(selectedComplianceOrganizer.officialPhone ?? '');
+    setFiscalData(selectedComplianceOrganizer.fiscalData ?? '');
+    setBankAccount(selectedComplianceOrganizer.bankAccount ?? '');
+    setIdentityDocumentUrl(selectedComplianceOrganizer.complianceDocuments.identityDocumentUrl ?? '');
+    setOrganizationDocumentUrl(
+      selectedComplianceOrganizer.complianceDocuments.organizationDocumentUrl ?? ''
     );
-    setAdminContactMessage(organizer.complianceDocuments.adminContactMessage ?? '');
+    setPaymentAuthorizationDocumentUrl(
+      selectedComplianceOrganizer.complianceDocuments.paymentAuthorizationDocumentUrl ?? ''
+    );
+    setAdminContactMessage(selectedComplianceOrganizer.complianceDocuments.adminContactMessage ?? '');
+    setSelectedComplianceAntifraudProofDocuments(
+      selectedComplianceOrganizer.complianceDocuments.antifraudProofDocuments ?? []
+    );
     setIdentityAttachment(null);
     setOrganizationAttachment(null);
     setPaymentAttachment(null);
-    setSponsorLogoFileName('');
-  }, [organizer]);
+  }, [selectedComplianceOrganizer]);
 
   const selectedEvent = events.find((event) => event.id === selectedEventId);
   const selectedEventPublicUrl = selectedEvent ? getEventPublicUrl(selectedEvent) : null;
@@ -263,6 +330,33 @@ export function OrganizerDashboardScreen({
       : isPaidEventClaimRejected(selectedEvent)
         ? t('event_claim_status_rejected')
         : t('event_claim_status_pending');
+
+  const organizerUploadedDocuments = useMemo(
+    () =>
+      collectOrganizerDocumentNames({
+        ...organizer.complianceDocuments,
+        antifraudProofDocuments: organizerAntifraudProofDocuments,
+      }),
+    [organizer.complianceDocuments, organizerAntifraudProofDocuments]
+  );
+
+  const selectedComplianceOrganizerDocuments = useMemo(
+    () =>
+      collectOrganizerDocumentNames({
+        ...selectedComplianceOrganizer.complianceDocuments,
+        identityDocumentUrl,
+        organizationDocumentUrl,
+        paymentAuthorizationDocumentUrl,
+        antifraudProofDocuments: selectedComplianceAntifraudProofDocuments,
+      }),
+    [
+      identityDocumentUrl,
+      organizationDocumentUrl,
+      paymentAuthorizationDocumentUrl,
+      selectedComplianceAntifraudProofDocuments,
+      selectedComplianceOrganizer.complianceDocuments,
+    ]
+  );
 
   const eventRegistrations = useMemo(() => {
     if (!selectedEvent) {
@@ -665,7 +759,7 @@ export function OrganizerDashboardScreen({
 
   const saveComplianceData = () => {
     void onUpdateCompliance({
-      organizerId: organizer.id,
+      organizerId: selectedComplianceOrganizer.id,
       organizationName,
       organizationRole,
       organizationRoleLabel,
@@ -677,6 +771,26 @@ export function OrganizerDashboardScreen({
       organizationDocumentUrl,
       paymentAuthorizationDocumentUrl,
       adminContactMessage,
+      antifraudProofDocuments: selectedComplianceAntifraudProofDocuments,
+    });
+  };
+
+  const saveOrganizerAntifraudDocuments = () => {
+    void onUpdateCompliance({
+      organizerId: organizer.id,
+      organizationName: organizer.organizationName ?? '',
+      organizationRole: organizer.organizationRole,
+      organizationRoleLabel: organizer.organizationRoleLabel ?? '',
+      legalRepresentative: organizer.legalRepresentative ?? '',
+      officialPhone: organizer.officialPhone ?? '',
+      fiscalData: organizer.fiscalData ?? '',
+      bankAccount: organizer.bankAccount ?? '',
+      identityDocumentUrl: organizer.complianceDocuments.identityDocumentUrl ?? '',
+      organizationDocumentUrl: organizer.complianceDocuments.organizationDocumentUrl ?? '',
+      paymentAuthorizationDocumentUrl:
+        organizer.complianceDocuments.paymentAuthorizationDocumentUrl ?? '',
+      adminContactMessage: organizer.complianceDocuments.adminContactMessage ?? '',
+      antifraudProofDocuments: organizerAntifraudProofDocuments,
     });
   };
 
@@ -707,6 +821,27 @@ export function OrganizerDashboardScreen({
       mimeType: file.mimeType ?? 'application/octet-stream',
     });
     setName(file.name);
+  };
+
+  const pickAntifraudProofDocument = async (
+    setDocuments: React.Dispatch<React.SetStateAction<string[]>>
+  ) => {
+    const result = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      multiple: false,
+      type: ['application/pdf', 'image/*'],
+    });
+
+    if (result.canceled || !result.assets?.length) {
+      return;
+    }
+
+    const file = result.assets[0];
+    if (!file.uri || !file.name) {
+      return;
+    }
+
+    setDocuments((current) => normalizeDocumentNames([...current, file.name]));
   };
 
   const assetToDataUrl = async (asset: DocumentPicker.DocumentPickerAsset): Promise<string> => {
@@ -773,7 +908,7 @@ export function OrganizerDashboardScreen({
     );
 
     void onSendComplianceEmail({
-      organizerId: organizer.id,
+      organizerId: selectedComplianceOrganizer.id,
       organizationName,
       organizationRole,
       organizationRoleLabel,
@@ -1287,173 +1422,249 @@ export function OrganizerDashboardScreen({
           </SectionCard>
 
           <SectionCard title={t('organizer_compliance_section')} delayMs={150}>
-            <Text style={styles.cardParagraph}>{t('organizer_compliance_intro')}</Text>
-            <TextField
-              label={t('organization_name_label')}
-              value={organizationName}
-              onChangeText={setOrganizationName}
-            />
-            <Text style={styles.fieldLabel}>{t('organization_role_label')}</Text>
-            <View style={styles.methodRow}>
-              <Pressable
-                style={[
-                  styles.methodChip,
-                  organizationRole === 'presidente_fondazione' ? styles.methodChipActive : undefined,
-                ]}
-                onPress={() => setOrganizationRole('presidente_fondazione')}
-              >
-                <Text
-                  style={[
-                    styles.methodChipText,
-                    organizationRole === 'presidente_fondazione'
-                      ? styles.methodChipTextActive
-                      : undefined,
-                  ]}
-                >
-                  {t('organization_role_president')}
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[
-                  styles.methodChip,
-                  organizationRole === 'segretario_associazione'
-                    ? styles.methodChipActive
-                    : undefined,
-                ]}
-                onPress={() => setOrganizationRole('segretario_associazione')}
-              >
-                <Text
-                  style={[
-                    styles.methodChipText,
-                    organizationRole === 'segretario_associazione'
-                      ? styles.methodChipTextActive
-                      : undefined,
-                  ]}
-                >
-                  {t('organization_role_secretary')}
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.methodChip, organizationRole === 'altro' ? styles.methodChipActive : undefined]}
-                onPress={() => setOrganizationRole('altro')}
-              >
-                <Text
-                  style={[
-                    styles.methodChipText,
-                    organizationRole === 'altro' ? styles.methodChipTextActive : undefined,
-                  ]}
-                >
-                  {t('organization_role_other')}
-                </Text>
-              </Pressable>
-            </View>
-            {organizationRole === 'altro' ? (
-              <TextField
-                label={t('organization_role_other_label')}
-                value={organizationRoleLabel}
-                onChangeText={setOrganizationRoleLabel}
-              />
-            ) : null}
-            <TextField
-              label={t('legal_representative_label')}
-              value={legalRepresentative}
-              onChangeText={setLegalRepresentative}
-            />
-            <TextField
-              label={t('official_phone_label')}
-              value={officialPhone}
-              onChangeText={setOfficialPhone}
-              keyboardType='phone-pad'
-            />
-            <TextField
-              label={t('fiscal_optional')}
-              value={fiscalData}
-              onChangeText={setFiscalData}
-            />
-            <TextField
-              label={t('bank_label')}
-              value={bankAccount}
-              onChangeText={setBankAccount}
-            />
-            <Text style={styles.fieldLabel}>{t('identity_document_name_label')}</Text>
-            <Text style={styles.helperText}>
-              {identityDocumentUrl || t('document_not_selected')}
-            </Text>
-            <Text style={styles.fieldLabel}>{t('organization_document_name_label')}</Text>
-            <Text style={styles.helperText}>
-              {organizationDocumentUrl || t('document_not_selected')}
-            </Text>
-            <Text style={styles.fieldLabel}>{t('payment_authorization_document_name_label')}</Text>
-            <Text style={styles.helperText}>
-              {paymentAuthorizationDocumentUrl || t('document_not_selected')}
-            </Text>
+            <Text style={styles.cardParagraph}>{t('organizer_antifraud_intro')}</Text>
             <Pressable
               style={styles.secondaryButton}
               onPress={() => {
-                void pickAttachment('identity_document', setIdentityAttachment, setIdentityDocumentUrl);
+                void pickAntifraudProofDocument(setOrganizerAntifraudProofDocuments);
               }}
             >
-              <Text style={styles.secondaryButtonText}>
-                {t('pick_identity_document')}
-              </Text>
+              <Text style={styles.secondaryButtonText}>{t('organizer_antifraud_upload')}</Text>
             </Pressable>
-            {identityAttachment ? (
-              <Text style={styles.helperText}>{identityAttachment.fileName}</Text>
-            ) : null}
-            <Pressable
-              style={styles.secondaryButton}
-              onPress={() => {
-                void pickAttachment(
-                  'organization_document',
-                  setOrganizationAttachment,
-                  setOrganizationDocumentUrl
-                );
-              }}
-            >
-              <Text style={styles.secondaryButtonText}>
-                {t('pick_organization_document')}
-              </Text>
-            </Pressable>
-            {organizationAttachment ? (
-              <Text style={styles.helperText}>{organizationAttachment.fileName}</Text>
-            ) : null}
-            <Pressable
-              style={styles.secondaryButton}
-              onPress={() => {
-                void pickAttachment(
-                  'payment_authorization_document',
-                  setPaymentAttachment,
-                  setPaymentAuthorizationDocumentUrl
-                );
-              }}
-            >
-              <Text style={styles.secondaryButtonText}>
-                {t('pick_payment_authorization_document')}
-              </Text>
-            </Pressable>
-            {paymentAttachment ? (
-              <Text style={styles.helperText}>{paymentAttachment.fileName}</Text>
-            ) : null}
-            <TextField
-              label={t('admin_contact_message_label')}
-              value={adminContactMessage}
-              onChangeText={setAdminContactMessage}
-              multiline
-            />
-            <Pressable style={styles.primaryButton} onPress={saveComplianceData}>
+            <Text style={styles.fieldLabel}>{t('uploaded_documents_title')}</Text>
+            {organizerUploadedDocuments.length === 0 ? (
+              <Text style={styles.helperText}>{t('uploaded_documents_empty')}</Text>
+            ) : (
+              organizerUploadedDocuments.map((entry, index) => (
+                <Text key={`${entry}_${index}`} style={styles.helperText}>
+                  {entry}
+                </Text>
+              ))
+            )}
+            <Pressable style={styles.primaryButton} onPress={saveOrganizerAntifraudDocuments}>
               <Text style={styles.primaryButtonText}>{t('save_organizer_documents')}</Text>
-            </Pressable>
-            <Pressable style={styles.secondaryButton} onPress={sendComplianceEmail}>
-              <Text style={styles.secondaryButtonText}>
-                {t('send_documents_admin', {
-                  email: ADMIN_CONTACT_EMAIL,
-                })}
-              </Text>
             </Pressable>
           </SectionCard>
 
           {isAdmin ? (
-            <SectionCard title={t('admin_access_section')} delayMs={165}>
+            <SectionCard title={t('admin_organizer_documents_section')} delayMs={165}>
+              <Text style={styles.cardParagraph}>{t('admin_organizer_documents_intro')}</Text>
+              <Text style={styles.fieldLabel}>{t('admin_select_organizer_label')}</Text>
+              <View style={styles.methodRow}>
+                {editableComplianceOrganizers.map((entry) => {
+                  const label = cleanText(entry.organizationName ?? '') || entry.email;
+                  return (
+                    <Pressable
+                      key={entry.id}
+                      style={[
+                        styles.methodChip,
+                        selectedComplianceOrganizer.id === entry.id
+                          ? styles.methodChipActive
+                          : undefined,
+                      ]}
+                      onPress={() => setSelectedComplianceOrganizerId(entry.id)}
+                    >
+                      <Text
+                        style={[
+                          styles.methodChipText,
+                          selectedComplianceOrganizer.id === entry.id
+                            ? styles.methodChipTextActive
+                            : undefined,
+                        ]}
+                      >
+                        {label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={styles.helperText}>{selectedComplianceOrganizer.email}</Text>
+              <TextField
+                label={t('organization_name_label')}
+                value={organizationName}
+                onChangeText={setOrganizationName}
+              />
+              <Text style={styles.fieldLabel}>{t('organization_role_label')}</Text>
+              <View style={styles.methodRow}>
+                <Pressable
+                  style={[
+                    styles.methodChip,
+                    organizationRole === 'presidente_fondazione'
+                      ? styles.methodChipActive
+                      : undefined,
+                  ]}
+                  onPress={() => setOrganizationRole('presidente_fondazione')}
+                >
+                  <Text
+                    style={[
+                      styles.methodChipText,
+                      organizationRole === 'presidente_fondazione'
+                        ? styles.methodChipTextActive
+                        : undefined,
+                    ]}
+                  >
+                    {t('organization_role_president')}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.methodChip,
+                    organizationRole === 'segretario_associazione'
+                      ? styles.methodChipActive
+                      : undefined,
+                  ]}
+                  onPress={() => setOrganizationRole('segretario_associazione')}
+                >
+                  <Text
+                    style={[
+                      styles.methodChipText,
+                      organizationRole === 'segretario_associazione'
+                        ? styles.methodChipTextActive
+                        : undefined,
+                    ]}
+                  >
+                    {t('organization_role_secretary')}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.methodChip,
+                    organizationRole === 'altro' ? styles.methodChipActive : undefined,
+                  ]}
+                  onPress={() => setOrganizationRole('altro')}
+                >
+                  <Text
+                    style={[
+                      styles.methodChipText,
+                      organizationRole === 'altro' ? styles.methodChipTextActive : undefined,
+                    ]}
+                  >
+                    {t('organization_role_other')}
+                  </Text>
+                </Pressable>
+              </View>
+              {organizationRole === 'altro' ? (
+                <TextField
+                  label={t('organization_role_other_label')}
+                  value={organizationRoleLabel}
+                  onChangeText={setOrganizationRoleLabel}
+                />
+              ) : null}
+              <TextField
+                label={t('legal_representative_label')}
+                value={legalRepresentative}
+                onChangeText={setLegalRepresentative}
+              />
+              <TextField
+                label={t('official_phone_label')}
+                value={officialPhone}
+                onChangeText={setOfficialPhone}
+                keyboardType='phone-pad'
+              />
+              <TextField
+                label={t('fiscal_optional')}
+                value={fiscalData}
+                onChangeText={setFiscalData}
+              />
+              <TextField
+                label={t('bank_label')}
+                value={bankAccount}
+                onChangeText={setBankAccount}
+              />
+              <Text style={styles.fieldLabel}>{t('identity_document_name_label')}</Text>
+              <Text style={styles.helperText}>
+                {identityDocumentUrl || t('document_not_selected')}
+              </Text>
+              <Text style={styles.fieldLabel}>{t('organization_document_name_label')}</Text>
+              <Text style={styles.helperText}>
+                {organizationDocumentUrl || t('document_not_selected')}
+              </Text>
+              <Text style={styles.fieldLabel}>{t('payment_authorization_document_name_label')}</Text>
+              <Text style={styles.helperText}>
+                {paymentAuthorizationDocumentUrl || t('document_not_selected')}
+              </Text>
+              <Pressable
+                style={styles.secondaryButton}
+                onPress={() => {
+                  void pickAttachment('identity_document', setIdentityAttachment, setIdentityDocumentUrl);
+                }}
+              >
+                <Text style={styles.secondaryButtonText}>{t('pick_identity_document')}</Text>
+              </Pressable>
+              {identityAttachment ? (
+                <Text style={styles.helperText}>{identityAttachment.fileName}</Text>
+              ) : null}
+              <Pressable
+                style={styles.secondaryButton}
+                onPress={() => {
+                  void pickAttachment(
+                    'organization_document',
+                    setOrganizationAttachment,
+                    setOrganizationDocumentUrl
+                  );
+                }}
+              >
+                <Text style={styles.secondaryButtonText}>{t('pick_organization_document')}</Text>
+              </Pressable>
+              {organizationAttachment ? (
+                <Text style={styles.helperText}>{organizationAttachment.fileName}</Text>
+              ) : null}
+              <Pressable
+                style={styles.secondaryButton}
+                onPress={() => {
+                  void pickAttachment(
+                    'payment_authorization_document',
+                    setPaymentAttachment,
+                    setPaymentAuthorizationDocumentUrl
+                  );
+                }}
+              >
+                <Text style={styles.secondaryButtonText}>
+                  {t('pick_payment_authorization_document')}
+                </Text>
+              </Pressable>
+              {paymentAttachment ? (
+                <Text style={styles.helperText}>{paymentAttachment.fileName}</Text>
+              ) : null}
+              <Pressable
+                style={styles.secondaryButton}
+                onPress={() => {
+                  void pickAntifraudProofDocument(setSelectedComplianceAntifraudProofDocuments);
+                }}
+              >
+                <Text style={styles.secondaryButtonText}>{t('organizer_antifraud_upload')}</Text>
+              </Pressable>
+              <Text style={styles.fieldLabel}>{t('uploaded_documents_title')}</Text>
+              {selectedComplianceOrganizerDocuments.length === 0 ? (
+                <Text style={styles.helperText}>{t('uploaded_documents_empty')}</Text>
+              ) : (
+                selectedComplianceOrganizerDocuments.map((entry, index) => (
+                  <Text key={`${selectedComplianceOrganizer.id}_${entry}_${index}`} style={styles.helperText}>
+                    {entry}
+                  </Text>
+                ))
+              )}
+              <TextField
+                label={t('admin_contact_message_label')}
+                value={adminContactMessage}
+                onChangeText={setAdminContactMessage}
+                multiline
+              />
+              <Pressable style={styles.primaryButton} onPress={saveComplianceData}>
+                <Text style={styles.primaryButtonText}>{t('save_organizer_documents')}</Text>
+              </Pressable>
+              <Pressable style={styles.secondaryButton} onPress={sendComplianceEmail}>
+                <Text style={styles.secondaryButtonText}>
+                  {t('send_documents_admin', {
+                    email: ADMIN_CONTACT_EMAIL,
+                  })}
+                </Text>
+              </Pressable>
+            </SectionCard>
+          ) : null}
+
+          {isAdmin ? (
+            <SectionCard title={t('admin_access_section')} delayMs={175}>
               <Text style={styles.cardParagraph}>{t('admin_access_intro')}</Text>
               <Text style={styles.helperText}>
                 {t('admin_access_role_line', {

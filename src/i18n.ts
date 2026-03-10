@@ -348,6 +348,11 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     organizer_compliance_section: 'Dati ente e documenti',
     organizer_compliance_intro:
       'Compila i dati ufficiali dell ente (presidente/segretario) e carica i documenti richiesti.',
+    organizer_antifraud_intro:
+      'Carica documenti di prova antifrode e controlla i file gia associati al tuo profilo organizer.',
+    organizer_antifraud_upload: 'Carica documenti di prova antifrode',
+    uploaded_documents_title: 'Documenti caricati',
+    uploaded_documents_empty: 'Nessun documento caricato.',
     identity_document_name_label: 'Documento identita (nome file)',
     organization_document_name_label: 'Statuto/delega associazione (nome file)',
     payment_authorization_document_name_label:
@@ -359,6 +364,10 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     admin_contact_message_label: 'Contatta amministratore',
     send_documents_admin: 'Invia documenti a {email}',
     save_organizer_documents: 'Salva dati e documenti',
+    admin_organizer_documents_section: 'Documenti organizer',
+    admin_organizer_documents_intro:
+      'Seleziona un organizer e modifica la documentazione completa collegata al suo profilo.',
+    admin_select_organizer_label: 'Organizer da modificare',
     admin_access_section: 'Accessi amministratore',
     admin_access_intro:
       'Gestione account amministratori piattaforma. Gli admin possono intervenire su tutti i dati organizzatore/evento.',
@@ -1356,6 +1365,11 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     organizer_compliance_section: 'Organization data and documents',
     organizer_compliance_intro:
       'Fill official organization data (president/secretary) and upload required documents.',
+    organizer_antifraud_intro:
+      'Upload anti-fraud proof documents and review the files already linked to this organizer profile.',
+    organizer_antifraud_upload: 'Upload anti-fraud proof documents',
+    uploaded_documents_title: 'Uploaded documents',
+    uploaded_documents_empty: 'No uploaded documents.',
     identity_document_name_label: 'Identity document (file name)',
     organization_document_name_label: 'Organization statute/delegation (file name)',
     payment_authorization_document_name_label:
@@ -1368,6 +1382,10 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     admin_contact_message_label: 'Contact administrator',
     send_documents_admin: 'Send documents to {email}',
     save_organizer_documents: 'Save data and documents',
+    admin_organizer_documents_section: 'Organizer documents',
+    admin_organizer_documents_intro:
+      'Select an organizer and edit the full document set linked to that organizer profile.',
+    admin_select_organizer_label: 'Organizer to edit',
     admin_access_section: 'Administrator access',
     admin_access_intro:
       'Manage platform administrator accounts. Admins can operate on all organizer/event data.',

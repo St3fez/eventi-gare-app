@@ -250,6 +250,11 @@ const normalizeOrganizer = (value: Partial<OrganizerProfile>): OrganizerProfile 
       paymentAuthorizationDocumentUrl:
         value.complianceDocuments?.paymentAuthorizationDocumentUrl ?? '',
       adminContactMessage: value.complianceDocuments?.adminContactMessage ?? '',
+      antifraudProofDocuments: Array.isArray(value.complianceDocuments?.antifraudProofDocuments)
+        ? value.complianceDocuments?.antifraudProofDocuments
+            .map((entry) => cleanText(entry))
+            .filter(Boolean)
+        : [],
     },
     complianceSubmittedAt: value.complianceSubmittedAt,
     verificationStatus: value.verificationStatus ?? 'pending_review',

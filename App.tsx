@@ -523,6 +523,11 @@ const mergeOrganizerCatalogFromSupabase = (
             existing?.complianceDocuments.adminContactMessage ??
             ''
         ),
+        antifraudProofDocuments: Array.isArray(complianceSource?.antifraudProofDocuments)
+          ? complianceSource.antifraudProofDocuments
+              .map((entry) => cleanText(entry))
+              .filter(Boolean)
+          : existing?.complianceDocuments.antifraudProofDocuments ?? [],
       },
       complianceSubmittedAt: cleanText(
         row.compliance_submitted_at ?? existing?.complianceSubmittedAt ?? ''
@@ -941,6 +946,7 @@ const mergeParticipantRegistrationsFromSupabase = (
         organizationDocumentUrl: '',
         paymentAuthorizationDocumentUrl: '',
         adminContactMessage: '',
+        antifraudProofDocuments: [],
       },
       complianceSubmittedAt: undefined,
       verificationStatus: 'pending_review',
@@ -2918,6 +2924,8 @@ function App() {
         identityDocumentUrl: '',
         organizationDocumentUrl: '',
         paymentAuthorizationDocumentUrl: '',
+        adminContactMessage: '',
+        antifraudProofDocuments: [],
       },
       complianceSubmittedAt: undefined,
       verificationStatus: 'pending_review',
@@ -3432,6 +3440,7 @@ function App() {
     organizationDocumentUrl: string;
     paymentAuthorizationDocumentUrl: string;
     adminContactMessage?: string;
+    antifraudProofDocuments?: string[];
     silent?: boolean;
   }) => {
     const now = new Date().toISOString();
@@ -3455,6 +3464,11 @@ function App() {
         organizationDocumentUrl: cleanText(payload.organizationDocumentUrl),
         paymentAuthorizationDocumentUrl: cleanText(payload.paymentAuthorizationDocumentUrl),
         adminContactMessage: cleanText(payload.adminContactMessage ?? ''),
+        antifraudProofDocuments: Array.isArray(payload.antifraudProofDocuments)
+          ? payload.antifraudProofDocuments
+              .map((entry) => cleanText(entry))
+              .filter(Boolean)
+          : updatedOrganizer.complianceDocuments.antifraudProofDocuments ?? [],
       },
       complianceSubmittedAt: now,
       updatedAt: now,
@@ -5678,6 +5692,7 @@ function App() {
         return organizerForScreen ? (
           <OrganizerDashboardScreen
             organizer={organizerForScreen}
+            organizers={appData.organizers}
             isAdmin={adminAccess.isAdmin}
             canManageAdmins={adminAccess.canManageAdmins}
             adminUsers={adminUsers}
