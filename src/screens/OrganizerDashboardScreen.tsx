@@ -17,7 +17,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import QRCode from 'react-native-qrcode-svg';
 
-import { MetricChip, SectionCard, SwitchRow, TextField } from '../components/Common';
+import { MetricChip, SectionCard, StatusBadge, SwitchRow, TextField } from '../components/Common';
 import {
   ADMIN_CONTACT_EMAIL,
   COMMISSION_RATE,
@@ -38,6 +38,7 @@ import {
   RegistrationRecord,
   SponsorSlot,
 } from '../types';
+import { requestHumanConfirmation } from '../utils/confirm';
 import {
   cleanText,
   estimateDataUrlBytes,
@@ -305,30 +306,138 @@ export function OrganizerDashboardScreen({
     [events]
   );
 
-  const confirmDeleteEventPermanently = (eventId: string, eventName: string) => {
-    const message = t('event_delete_forever_confirm_message', { name: eventName });
-    const submitDelete = () => {
-      void onDeleteEventPermanently(eventId);
-    };
-
-    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.confirm === 'function') {
-      if (window.confirm(message)) {
-        submitDelete();
-      }
+  const confirmDeleteEventPermanently = async (eventId: string, eventName: string) => {
+    const confirmed = await requestHumanConfirmation({
+      title: t('event_delete_forever_confirm_title'),
+      message: t('event_delete_forever_confirm_message', { name: eventName }),
+      confirmLabel: t('event_delete_forever'),
+      cancelLabel: t('close'),
+      destructive: true,
+    });
+    if (!confirmed) {
       return;
     }
+    await onDeleteEventPermanently(eventId);
+  };
 
-    Alert.alert(t('event_delete_forever_confirm_title'), message, [
-      {
-        text: t('close'),
-        style: 'cancel',
-      },
-      {
-        text: t('event_delete_forever'),
-        style: 'destructive',
-        onPress: submitDelete,
-      },
-    ]);
+  const confirmEditEvent = async (event: EventItem) => {
+    const confirmed = await requestHumanConfirmation({
+      title: t('event_edit_confirm_title'),
+      message: t('event_edit_confirm_message', { name: event.name }),
+      confirmLabel: t('edit_event'),
+      cancelLabel: t('close'),
+    });
+    if (!confirmed) {
+      return;
+    }
+    setSelectedEventId(event.id);
+    onEditEvent(event.id);
+  };
+
+  const confirmToggleEventRegistrations = async (event: EventItem) => {
+    const confirmed = await requestHumanConfirmation({
+      title: t('event_registrations_confirm_title'),
+      message: t('event_registrations_confirm_message', {
+        name: event.name,
+        action: event.registrationsOpen ? t('close_registrations') : t('open_registrations'),
+      }),
+      confirmLabel: event.registrationsOpen ? t('close_registrations') : t('open_registrations'),
+      cancelLabel: t('close'),
+    });
+    if (!confirmed) {
+      return;
+    }
+    await onToggleEventRegistrations(event.id);
+  };
+
+  const confirmToggleEventStatus = async (event: EventItem) => {
+    const confirmed = await requestHumanConfirmation({
+      title: t('event_status_confirm_title'),
+      message: t('event_status_confirm_message', {
+        name: event.name,
+        action: event.active ? t('deactivate') : t('activate'),
+      }),
+      confirmLabel: event.active ? t('deactivate') : t('activate'),
+      cancelLabel: t('close'),
+    });
+    if (!confirmed) {
+      return;
+    }
+    await onToggleEvent(event.id);
+  };
+
+  const confirmCloseEvent = async (event: EventItem) => {
+    const confirmed = await requestHumanConfirmation({
+      title: t('event_close_confirm_title'),
+      message: t('event_close_confirm_message', { name: event.name }),
+      confirmLabel: t('close_event'),
+      cancelLabel: t('close'),
+      destructive: true,
+    });
+    if (!confirmed) {
+      return;
+    }
+    await onCloseEvent(event.id);
+  };
+
+  const confirmReopenEvent = async (event: EventItem) => {
+    const confirmed = await requestHumanConfirmation({
+      title: t('event_reopen_confirm_title'),
+      message: t('event_reopen_confirm_message', { name: event.name }),
+      confirmLabel: t('reopen_event'),
+      cancelLabel: t('close'),
+    });
+    if (!confirmed) {
+      return;
+    }
+    await onReopenEvent(event.id);
+  };
+
+  const confirmCashRegistration = async (entry: RegistrationRecord) => {
+    const confirmed = await requestHumanConfirmation({
+      title: t('cash_payment_confirm_request_title'),
+      message: t('cash_payment_confirm_request_message', {
+        name: entry.fullName,
+        code: entry.registrationCode,
+      }),
+      confirmLabel: t('cash_payment_confirm_by_organizer'),
+      cancelLabel: t('close'),
+    });
+    if (!confirmed) {
+      return;
+    }
+    await onConfirmCashPayment(entry.id);
+  };
+
+  const confirmGrantAdmin = async () => {
+    const email = cleanText(adminEmailInput).toLowerCase();
+    const confirmed = await requestHumanConfirmation({
+      title: t('admin_grant_confirm_title'),
+      message: t('admin_grant_confirm_message', {
+        email,
+        role: adminCanManageInput ? t('admin_role_super') : t('admin_role_basic'),
+      }),
+      confirmLabel: t('admin_grant_button'),
+      cancelLabel: t('close'),
+    });
+    if (!confirmed) {
+      return;
+    }
+    await onGrantAdmin(email, adminCanManageInput);
+  };
+
+  const confirmRevokeAdmin = async (email: string) => {
+    const confirmed = await requestHumanConfirmation({
+      title: t('admin_revoke_confirm_title'),
+      message: t('admin_revoke_confirm_message', { email }),
+      confirmLabel: t('admin_revoke_button'),
+      cancelLabel: t('close'),
+      destructive: true,
+    });
+    if (!confirmed) {
+      return;
+    }
+    await onRevokeAdmin(email);
   };
 
   const roundMoney = (value: number): number => Number.parseFloat(value.toFixed(2));
@@ -821,6 +930,7 @@ export function OrganizerDashboardScreen({
               <Text style={styles.cardParagraph}>{t('no_events')}</Text>
             ) : (
               events
+                .slice()
                 .sort((first, second) => first.date.localeCompare(second.date))
                 .map((event) => {
                   const eventCount = registrations
@@ -835,6 +945,37 @@ export function OrganizerDashboardScreen({
                       ]}
                     >
                       <Pressable onPress={() => setSelectedEventId(event.id)}>
+                        <View style={styles.statusBadgeRow}>
+                          <StatusBadge
+                            label={
+                              event.active ? t('event_status_active_short') : t('event_status_inactive_short')
+                            }
+                            tone={event.active ? 'success' : 'warning'}
+                          />
+                          <StatusBadge
+                            label={
+                              event.registrationsOpen
+                                ? t('event_registrations_open_short')
+                                : t('event_registrations_closed_short')
+                            }
+                            tone={event.registrationsOpen ? 'success' : 'warning'}
+                          />
+                          <StatusBadge
+                            label={
+                              event.visibility === 'public'
+                                ? t('event_visibility_public_short')
+                                : t('event_visibility_hidden_short')
+                            }
+                          />
+                          <StatusBadge
+                            label={
+                              event.isFree
+                                ? t('free_event_label')
+                                : t('entry_fee_label', { fee: toMoney(event.feeAmount) })
+                            }
+                            tone={event.isFree ? 'success' : 'warning'}
+                          />
+                        </View>
                         <Text style={styles.listTitle}>{event.name}</Text>
                         <Text style={styles.listSubText}>
                           {event.location} | {formatEventSchedule(event)} |{' '}
@@ -842,6 +983,30 @@ export function OrganizerDashboardScreen({
                             ? t('event_free')
                             : t('event_fee', { fee: toMoney(event.feeAmount) })}
                         </Text>
+                        <View style={styles.miniMetricsGrid}>
+                          <View style={[styles.miniMetricCard, styles.miniMetricCardDense]}>
+                            <Text style={[styles.miniMetricValue, styles.miniMetricValueCompact]}>
+                              {String(eventCount)}
+                            </Text>
+                            <Text style={styles.miniMetricLabel}>{t('registered_users')}</Text>
+                          </View>
+                          <View style={[styles.miniMetricCard, styles.miniMetricCardDense]}>
+                            <Text style={[styles.miniMetricValue, styles.miniMetricValueCompact]}>
+                              {formatDate(event.registrationCloseDate)}
+                            </Text>
+                            <Text style={styles.miniMetricLabel}>
+                              {t('registration_close_date_label')}
+                            </Text>
+                          </View>
+                          <View style={[styles.miniMetricCard, styles.miniMetricCardDense]}>
+                            <Text style={[styles.miniMetricValue, styles.miniMetricValueCompact]}>
+                              {event.isFree
+                                ? t('registration_total_free_value')
+                                : toMoney(event.organizerNetAmount)}
+                            </Text>
+                            <Text style={styles.miniMetricLabel}>{t('organizer_net_total')}</Text>
+                          </View>
+                        </View>
                         <Text style={styles.listSubText}>
                           {t('registration_window_line', {
                             from: formatDate(event.registrationOpenDate),
@@ -869,14 +1034,6 @@ export function OrganizerDashboardScreen({
                           {t('subscribers_count', { count: eventCount })}
                         </Text>
                         <Text style={styles.listSubText}>
-                          {event.active ? t('event_status_active') : t('event_status_inactive')}
-                        </Text>
-                        <Text style={styles.listSubText}>
-                          {event.registrationsOpen
-                            ? t('event_registrations_open')
-                            : t('event_registrations_closed')}
-                        </Text>
-                        <Text style={styles.listSubText}>
                           {t('event_season_version', { value: event.seasonVersion || 1 })}
                         </Text>
                         {event.closedAt ? (
@@ -889,14 +1046,16 @@ export function OrganizerDashboardScreen({
                       <View style={styles.inlineActionRow}>
                         <Pressable
                           style={styles.inlineActionButton}
-                          onPress={() => onEditEvent(event.id)}
+                          onPress={() => {
+                            void confirmEditEvent(event);
+                          }}
                         >
                           <Text style={styles.inlineActionButtonText}>{t('edit_event')}</Text>
                         </Pressable>
                         <Pressable
-                          style={styles.inlineActionButton}
+                          style={[styles.inlineActionButton, styles.inlineActionButtonWarning]}
                           onPress={() => {
-                            void onToggleEventRegistrations(event.id);
+                            void confirmToggleEventRegistrations(event);
                           }}
                         >
                           <Text style={styles.inlineActionButtonText}>
@@ -906,9 +1065,14 @@ export function OrganizerDashboardScreen({
                           </Text>
                         </Pressable>
                         <Pressable
-                          style={styles.inlineActionButton}
+                          style={[
+                            styles.inlineActionButton,
+                            event.active
+                              ? styles.inlineActionButtonWarning
+                              : styles.inlineActionButtonSuccess,
+                          ]}
                           onPress={() => {
-                            void onToggleEvent(event.id);
+                            void confirmToggleEventStatus(event);
                           }}
                         >
                           <Text style={styles.inlineActionButtonText}>
@@ -916,25 +1080,27 @@ export function OrganizerDashboardScreen({
                           </Text>
                         </Pressable>
                         <Pressable
-                          style={styles.inlineActionButton}
+                          style={[styles.inlineActionButton, styles.inlineActionButtonWarning]}
                           onPress={() => {
-                            void onCloseEvent(event.id);
+                            void confirmCloseEvent(event);
                           }}
                         >
                           <Text style={styles.inlineActionButtonText}>{t('close_event')}</Text>
                         </Pressable>
                         <Pressable
-                          style={styles.inlineActionButton}
+                          style={[styles.inlineActionButton, styles.inlineActionButtonSuccess]}
                           onPress={() => {
-                            void onReopenEvent(event.id);
+                            void confirmReopenEvent(event);
                           }}
                         >
                           <Text style={styles.inlineActionButtonText}>{t('reopen_event')}</Text>
                         </Pressable>
                         {isAdmin ? (
                           <Pressable
-                            style={styles.inlineActionButton}
-                            onPress={() => confirmDeleteEventPermanently(event.id, event.name)}
+                            style={[styles.inlineActionButton, styles.inlineActionButtonDanger]}
+                            onPress={() => {
+                              void confirmDeleteEventPermanently(event.id, event.name);
+                            }}
                           >
                             <Text style={styles.inlineActionButtonText}>
                               {t('event_delete_forever')}
@@ -1207,9 +1373,9 @@ export function OrganizerDashboardScreen({
                     </Text>
                     {canManageAdmins && entry.active ? (
                       <Pressable
-                        style={styles.inlineActionButton}
+                        style={[styles.inlineActionButton, styles.inlineActionButtonDanger]}
                         onPress={() => {
-                          void onRevokeAdmin(entry.email);
+                          void confirmRevokeAdmin(entry.email);
                         }}
                       >
                         <Text style={styles.inlineActionButtonText}>{t('admin_revoke_button')}</Text>
@@ -1235,7 +1401,7 @@ export function OrganizerDashboardScreen({
                   <Pressable
                     style={styles.primaryButton}
                     onPress={() => {
-                      void onGrantAdmin(adminEmailInput, adminCanManageInput);
+                      void confirmGrantAdmin();
                     }}
                   >
                     <Text style={styles.primaryButtonText}>{t('admin_grant_button')}</Text>
@@ -1489,6 +1655,16 @@ export function OrganizerDashboardScreen({
                   .join(' | ');
                 return (
                   <View key={entry.id} style={styles.registrationCard}>
+                    <View style={styles.statusBadgeRow}>
+                      <StatusBadge label={registrationStatusLabel(entry.registrationStatus)} />
+                      <StatusBadge label={paymentStatusLabel(entry.paymentStatus)} />
+                      {typeof entry.assignedNumber === 'number' ? (
+                        <StatusBadge
+                          label={t('number_assigned_badge', { number: entry.assignedNumber })}
+                          tone='success'
+                        />
+                      ) : null}
+                    </View>
                     <Text style={styles.listTitle}>{entry.fullName}</Text>
                     <Text style={styles.listSubText}>{entry.email}</Text>
                     {entry.groupParticipantsCount > 1 ? (
@@ -1548,28 +1724,28 @@ export function OrganizerDashboardScreen({
                             {t('payment_intent_line', { id: intent.id, status: intent.status })}
                           </Text>
                         ) : null}
-                    {entry.paymentFailedReason ? (
-                      <Text style={styles.listSubText}>
-                        {t('payment_error_reason', { reason: entry.paymentFailedReason })}
-                      </Text>
+                        {entry.paymentFailedReason ? (
+                          <Text style={styles.listSubText}>
+                            {t('payment_error_reason', { reason: entry.paymentFailedReason })}
+                          </Text>
+                        ) : null}
+                      </>
                     ) : null}
-                  </>
-                ) : null}
-                {entry.registrationStatus === 'pending_cash' ? (
-                  <Pressable
-                    style={styles.inlineActionButton}
-                    onPress={() => {
-                      void onConfirmCashPayment(entry.id);
-                    }}
-                  >
-                    <Text style={styles.inlineActionButtonText}>
-                      {t('cash_payment_confirm_by_organizer')}
+                    {entry.registrationStatus === 'pending_cash' ? (
+                      <Pressable
+                        style={[styles.inlineActionButton, styles.inlineActionButtonSuccess]}
+                        onPress={() => {
+                          void confirmCashRegistration(entry);
+                        }}
+                      >
+                        <Text style={styles.inlineActionButtonText}>
+                          {t('cash_payment_confirm_by_organizer')}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                    <Text style={styles.listSubText}>
+                      {t('registration_date', { date: formatDate(entry.createdAt.slice(0, 10)) })}
                     </Text>
-                  </Pressable>
-                ) : null}
-                <Text style={styles.listSubText}>
-                  {t('registration_date', { date: formatDate(entry.createdAt.slice(0, 10)) })}
-                </Text>
                   </View>
                 );
               })

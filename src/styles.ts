@@ -513,6 +513,15 @@ export const styles = StyleSheet.create({
     flexShrink: 1,
     maxWidth: '100%',
   },
+  inlineActionButtonSuccess: {
+    backgroundColor: 'rgba(18, 105, 88, 0.92)',
+  },
+  inlineActionButtonWarning: {
+    backgroundColor: 'rgba(155, 105, 25, 0.92)',
+  },
+  inlineActionButtonDanger: {
+    backgroundColor: 'rgba(145, 52, 52, 0.92)',
+  },
   inlineActionButtonText: {
     color: '#EAF5FD',
     fontSize: 12.5,
@@ -568,6 +577,11 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 11,
   },
+  miniMetricCardDense: {
+    minWidth: 96,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
   miniMetricCardCompact: {
     minWidth: 100,
     flexBasis: '48%',
@@ -576,6 +590,9 @@ export const styles = StyleSheet.create({
     color: '#F6FBFF',
     fontSize: 18,
     fontWeight: '900',
+  },
+  miniMetricValueCompact: {
+    fontSize: 16,
   },
   miniMetricLabel: {
     color: '#A9CCDE',

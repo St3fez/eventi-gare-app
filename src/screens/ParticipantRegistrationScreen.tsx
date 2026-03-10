@@ -14,6 +14,7 @@ import { CheckboxRow, SectionCard, StatusBadge, TextField } from '../components/
 import { Translator } from '../i18n';
 import { styles } from '../styles';
 import { EventItem, RegistrationDraft } from '../types';
+import { requestHumanConfirmation } from '../utils/confirm';
 import {
   getParticipantMessageValidationIssues,
   getRegistrationMissingFields,
@@ -280,6 +281,11 @@ export function ParticipantRegistrationScreen({
     : t('registration_phone_requirement_optional');
   const emailLooksValid = !cleanText(email) || !validationIssues.includes('emailFormat');
   const birthDateLooksValid = !cleanText(birthDate) || !validationIssues.includes('birthDate');
+  const primaryActionLabel = isEditing
+    ? t('update_registration_data')
+    : event.isFree
+      ? t('confirm_free_registration')
+      : t('open_payment_session');
 
   const showValidationAlert = (
     issue:
@@ -349,10 +355,26 @@ export function ParticipantRegistrationScreen({
     };
   };
 
-  const submit = () => {
+  const submit = async () => {
     const draft = buildDraft();
     if (!draft) {
       return;
+    }
+
+    if (isEditing) {
+      const confirmed = await requestHumanConfirmation({
+        title: t('registration_update_confirm_title'),
+        message: t('registration_update_confirm_message', {
+          event: event.name,
+          participants: parsedGroupCount,
+          total: event.isFree ? t('registration_total_free_value') : toMoney(totalAmount),
+        }),
+        confirmLabel: t('confirm_action'),
+        cancelLabel: t('close'),
+      });
+      if (!confirmed) {
+        return;
+      }
     }
 
     if (event.isFree) {
@@ -361,6 +383,27 @@ export function ParticipantRegistrationScreen({
     }
 
     void onProceedPayment(draft);
+  };
+
+  const cancelRegistrationWithConfirmation = async () => {
+    if (!onCancelRegistration) {
+      return;
+    }
+
+    const confirmed = await requestHumanConfirmation({
+      title: t('registration_cancel_confirm_title'),
+      message: t('registration_cancel_confirm_message', {
+        event: event.name,
+      }),
+      confirmLabel: t('cancel_registration_action'),
+      cancelLabel: t('close'),
+      destructive: true,
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    await onCancelRegistration();
   };
 
   const sendMessageToOrganizer = () => {
@@ -507,6 +550,11 @@ export function ParticipantRegistrationScreen({
                     <StatusBadge label={summaryBadgeLabel} tone={summaryBadgeTone} />
                   </View>
                   <Text style={styles.helperText}>{t('registration_summary_hint')}</Text>
+                  <Text style={styles.helperText}>
+                    {event.isFree
+                      ? t('registration_free_flow_hint')
+                      : t('registration_paid_flow_hint')}
+                  </Text>
                   {!event.isFree ? (
                     <Text style={styles.helperText}>
                       {t('group_total_amount_line', { value: toMoney(totalAmount) })}
@@ -677,16 +725,12 @@ export function ParticipantRegistrationScreen({
 
                   <Pressable
                     style={[styles.primaryButton, !canSubmit ? styles.primaryButtonDisabled : undefined]}
-                    onPress={submit}
+                    onPress={() => {
+                      void submit();
+                    }}
                     disabled={!canSubmit}
                   >
-                    <Text style={styles.primaryButtonText}>
-                      {isEditing
-                        ? t('update_registration_data')
-                        : event.isFree
-                          ? t('confirm_free_registration')
-                          : t('open_payment_session')}
-                    </Text>
+                    <Text style={styles.primaryButtonText}>{primaryActionLabel}</Text>
                   </Pressable>
                   {!canSubmit ? (
                     <Text style={styles.helperText}>
@@ -713,7 +757,12 @@ export function ParticipantRegistrationScreen({
                     </Text>
                   ) : null}
                   {isEditing && onCancelRegistration ? (
-                    <Pressable style={styles.secondaryButton} onPress={() => void onCancelRegistration()}>
+                    <Pressable
+                      style={styles.secondaryButton}
+                      onPress={() => {
+                        void cancelRegistrationWithConfirmation();
+                      }}
+                    >
                       <Text style={styles.secondaryButtonText}>
                         {t('cancel_registration_action')}
                       </Text>

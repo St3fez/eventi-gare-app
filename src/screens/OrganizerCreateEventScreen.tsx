@@ -11,7 +11,7 @@ import {
   STRIPE_PROVIDER_FEE_FIXED,
   STRIPE_PROVIDER_FEE_RATE,
 } from '../constants';
-import { SectionCard, SwitchRow, TextField } from '../components/Common';
+import { SectionCard, StatusBadge, SwitchRow, TextField } from '../components/Common';
 import { AppLanguage, Translator } from '../i18n';
 import { organizerCanUsePaidSection, verificationStatusLabel } from '../services/fraud';
 import { styles } from '../styles';
@@ -22,6 +22,7 @@ import {
   OrganizerProfile,
   ParticipantAuthMode,
 } from '../types';
+import { requestHumanConfirmation } from '../utils/confirm';
 import {
   cleanText,
   estimateDataUrlBytes,
@@ -131,6 +132,12 @@ export function OrganizerCreateEventScreen({
   const [visibility, setVisibility] = useState<'public' | 'hidden'>(
     initialEvent?.visibility ?? 'public'
   );
+  const [participantAuthMode, setParticipantAuthMode] = useState<ParticipantAuthMode>(
+    initialEvent?.participantAuthMode ?? 'anonymous'
+  );
+  const [participantPhoneRequired, setParticipantPhoneRequired] = useState(
+    initialEvent?.participantPhoneRequired ?? false
+  );
   const [privacyText, setPrivacyText] = useState(
     initialEvent?.privacyText ?? DEFAULT_PRIVACY_TEXT
   );
@@ -162,6 +169,8 @@ export function OrganizerCreateEventScreen({
     setRegistrationOpenDate(initialEvent?.registrationOpenDate ?? todayIso);
     setRegistrationCloseDate(initialEvent?.registrationCloseDate ?? todayIso);
     setVisibility(initialEvent?.visibility ?? 'public');
+    setParticipantAuthMode(initialEvent?.participantAuthMode ?? 'anonymous');
+    setParticipantPhoneRequired(initialEvent?.participantPhoneRequired ?? false);
     setPrivacyText(initialEvent?.privacyText ?? DEFAULT_PRIVACY_TEXT);
     setLogoUrl(initialEvent?.logoUrl ?? '');
     setLogoFileName('');
@@ -314,7 +323,7 @@ export function OrganizerCreateEventScreen({
   const canSubmit = missingRequiredLabels.length === 0;
 
   const handlePaidToggle = (nextValue: boolean) => {
-    if (!nextValue) {
+    if (nextValue) {
       setIsFree(true);
       return;
     }
@@ -331,7 +340,7 @@ export function OrganizerCreateEventScreen({
     setIsFree(false);
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (!isFree && !cleanText(organizer.bankAccount ?? '')) {
       Alert.alert(t('iban_missing_title'), t('iban_missing_message'));
       return;
@@ -389,6 +398,20 @@ export function OrganizerCreateEventScreen({
       return;
     }
 
+    if (initialEvent) {
+      const confirmed = await requestHumanConfirmation({
+        title: t('event_save_changes_confirm_title'),
+        message: t('event_save_changes_confirm_message', {
+          name: cleanText(name) || initialEvent.name,
+        }),
+        confirmLabel: t('save_event_changes'),
+        cancelLabel: t('close'),
+      });
+      if (!confirmed) {
+        return;
+      }
+    }
+
     onCreate({
       eventId: initialEvent?.id,
       name,
@@ -406,8 +429,8 @@ export function OrganizerCreateEventScreen({
       registrationOpenDate: normalizedRegistrationOpenDate,
       registrationCloseDate: normalizedRegistrationCloseDate,
       visibility,
-      participantAuthMode: 'anonymous',
-      participantPhoneRequired: false,
+      participantAuthMode,
+      participantPhoneRequired,
       privacyText,
       logoUrl,
       localSponsor: localSponsorLogoUrl || localSponsorText,
@@ -446,6 +469,46 @@ export function OrganizerCreateEventScreen({
               ))}
             </>
           )}
+        </View>
+        <View style={styles.heroPanel}>
+          <Text style={styles.heroEyebrow}>
+            {initialEvent ? t('event_edit_summary_title') : t('event_create_summary_title')}
+          </Text>
+          <Text style={styles.emphasisParagraph}>
+            {cleanText(name) || t('event_summary_name_placeholder')}
+          </Text>
+          <View style={styles.statusBadgeRow}>
+            <StatusBadge
+              label={isFree ? t('free_event_label') : t('participant_search_paid')}
+              tone={isFree ? 'success' : 'warning'}
+            />
+            <StatusBadge
+              label={
+                visibility === 'public'
+                  ? t('event_visibility_public_short')
+                  : t('event_visibility_hidden_short')
+              }
+            />
+            <StatusBadge
+              label={
+                participantPhoneRequired
+                  ? t('badge_phone_short_required')
+                  : t('badge_phone_short_optional')
+              }
+            />
+            <StatusBadge
+              label={
+                participantAuthMode === 'email'
+                  ? t('participant_auth_mode_email')
+                  : participantAuthMode === 'social_verified'
+                    ? t('participant_auth_mode_social')
+                    : participantAuthMode === 'flexible'
+                      ? t('participant_auth_mode_flexible')
+                      : t('participant_auth_mode_anonymous')
+              }
+            />
+          </View>
+          <Text style={styles.helperText}>{t('guided_event_checklist_intro')}</Text>
         </View>
 
         <TextField label={t('event_name_required')} value={name} onChangeText={setName} />
@@ -488,7 +551,43 @@ export function OrganizerCreateEventScreen({
           helper={t('event_visibility_helper')}
         />
 
-        <Text style={styles.helperText}>{t('participant_access_policy_note')}</Text>
+        <View style={styles.formSectionCard}>
+          <Text style={styles.sectionHeaderTitle}>{t('participant_access_section_title')}</Text>
+          <Text style={styles.helperText}>{t('participant_access_policy_note')}</Text>
+          <Text style={styles.fieldLabel}>{t('participant_auth_mode_label')}</Text>
+          <View style={styles.methodRow}>
+            {[
+              ['anonymous', t('participant_auth_mode_anonymous')],
+              ['email', t('participant_auth_mode_email')],
+              ['social_verified', t('participant_auth_mode_social')],
+              ['flexible', t('participant_auth_mode_flexible')],
+            ].map(([value, label]) => (
+              <Pressable
+                key={value}
+                style={[
+                  styles.methodChip,
+                  participantAuthMode === value ? styles.methodChipActive : undefined,
+                ]}
+                onPress={() => setParticipantAuthMode(value as ParticipantAuthMode)}
+              >
+                <Text
+                  style={[
+                    styles.methodChipText,
+                    participantAuthMode === value ? styles.methodChipTextActive : undefined,
+                  ]}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <SwitchRow
+            label={t('participant_phone_required_label')}
+            value={participantPhoneRequired}
+            onValueChange={setParticipantPhoneRequired}
+            helper={t('participant_phone_required_helper')}
+          />
+        </View>
 
         <SwitchRow
           label={t('free_event_switch')}
@@ -624,7 +723,9 @@ export function OrganizerCreateEventScreen({
 
         <Pressable
           style={[styles.primaryButton, !canSubmit ? styles.primaryButtonDisabled : undefined]}
-          onPress={submit}
+          onPress={() => {
+            void submit();
+          }}
           disabled={!canSubmit}
         >
           <Text style={styles.primaryButtonText}>

@@ -103,6 +103,34 @@ export const getParticipantEventAvailability = (
   return 'registration_open';
 };
 
+export const getParticipantEventSortWeight = (
+  event: EventAvailabilityInput,
+  todayIso = new Date().toISOString().slice(0, 10)
+): number => {
+  const availability = getParticipantEventAvailability(event, todayIso);
+  if (availability === 'registration_open') {
+    return 0;
+  }
+  if (availability === 'registration_upcoming') {
+    return 1;
+  }
+  return 2;
+};
+
+export const compareParticipantEventsForSearch = (
+  first: Pick<EventItem, 'date'> & EventAvailabilityInput,
+  second: Pick<EventItem, 'date'> & EventAvailabilityInput,
+  todayIso = new Date().toISOString().slice(0, 10)
+): number => {
+  const availabilityDiff =
+    getParticipantEventSortWeight(first, todayIso) -
+    getParticipantEventSortWeight(second, todayIso);
+  if (availabilityDiff !== 0) {
+    return availabilityDiff;
+  }
+  return toIsoDate(first.date).localeCompare(toIsoDate(second.date));
+};
+
 export const getRegistrationMissingFields = (
   input: RegistrationMissingInput
 ): RegistrationMissingField[] => {

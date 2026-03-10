@@ -68,6 +68,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     privacy_policy_open_error_message:
       'Non riesco ad aprire il link della Privacy Policy.',
     close: 'Chiudi',
+    confirm_action: 'Conferma',
     free_done_title: 'Iscrizione completata',
     free_done_event: 'Evento: {event}',
     free_done_code: 'Codice: {code}',
@@ -170,6 +171,10 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_phone_required_label: 'Numero cellulare obbligatorio',
     participant_phone_required_helper:
       'Se attivo, il partecipante deve avere telefono verificato o inserirlo in fase iscrizione.',
+    participant_access_section_title: 'Accesso partecipanti',
+    event_create_summary_title: 'Anteprima configurazione',
+    event_edit_summary_title: 'Riepilogo modifiche',
+    event_summary_name_placeholder: 'Nuovo evento non ancora nominato',
     free_event_switch: 'Evento gratuito',
     free_event_helper: 'Se disattivo, il partecipante paghera quota iscrizione.',
     fee_label: 'Quota iscrizione (EUR)',
@@ -337,6 +342,12 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     admin_self_revoke_blocked:
       'Non puoi revocare il tuo stesso account admin attivo.',
     admin_action_error: 'Operazione admin fallita: {reason}',
+    admin_grant_confirm_title: 'Conferma nomina admin',
+    admin_grant_confirm_message:
+      'Vuoi abilitare {email} come {role}?',
+    admin_revoke_confirm_title: 'Conferma revoca admin',
+    admin_revoke_confirm_message:
+      'Vuoi revocare i permessi amministratore a {email}?',
     created_events: 'Eventi creati',
     registered_users: 'Iscritti',
     gross_revenue: 'Incasso lordo',
@@ -352,8 +363,12 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     subscribers_count: 'Iscritti: {count}',
     event_status_active: 'Stato: Attivo (ricerca attiva)',
     event_status_inactive: 'Stato: Disattivo',
+    event_status_active_short: 'Attivo',
+    event_status_inactive_short: 'Disattivo',
     event_registrations_open: 'Iscrizioni: aperte',
     event_registrations_closed: 'Iscrizioni: chiuse',
+    event_registrations_open_short: 'Iscrizioni aperte',
+    event_registrations_closed_short: 'Iscrizioni chiuse',
     event_season_version: 'Stagione: {value}',
     event_closed_at: 'Evento chiuso il: {value}',
     deactivate: 'Disattiva',
@@ -362,6 +377,24 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     open_registrations: 'Apri iscrizioni',
     close_event: 'Chiudi evento',
     reopen_event: 'Riapri evento',
+    event_edit_confirm_title: 'Conferma modifica evento',
+    event_edit_confirm_message:
+      'Aprire la scheda di modifica per "{name}"? Potrai rivedere dati, quote e visibilita prima di salvare.',
+    event_save_changes_confirm_title: 'Conferma salvataggio modifiche',
+    event_save_changes_confirm_message:
+      'Vuoi salvare le modifiche per "{name}"? Date, quote e accesso partecipanti verranno aggiornati subito.',
+    event_registrations_confirm_title: 'Conferma stato iscrizioni',
+    event_registrations_confirm_message:
+      '{action} per "{name}"?',
+    event_status_confirm_title: 'Conferma stato evento',
+    event_status_confirm_message:
+      '{action} "{name}" nella ricerca partecipanti?',
+    event_close_confirm_title: 'Conferma chiusura evento',
+    event_close_confirm_message:
+      'Chiudere "{name}" per terminare la stagione corrente? Le iscrizioni resteranno bloccate.',
+    event_reopen_confirm_title: 'Conferma riapertura evento',
+    event_reopen_confirm_message:
+      'Riaprire "{name}" per una nuova stagione e resettare la disponibilita partecipanti?',
     event_delete_forever: 'Elimina definitivamente',
     event_delete_forever_confirm_title: 'Conferma eliminazione definitiva',
     event_delete_forever_confirm_message:
@@ -397,6 +430,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     event_fee_plan_line: 'Base: {base} | Partecipante: {participant} | Netto: {net}',
     code_number_line: 'Codice: {code}{number}',
     number_suffix: ' | Numero: {number}',
+    number_assigned_badge: 'Pettorale #{number}',
     registration_payment_state: 'Iscrizione: {reg} | Pagamento: {pay}',
     amount_commission: 'Importo: {amount} | Commissione: {commission}',
     registration_split_line: 'Base: {base} | Comm.: {commission} | Stripe: {provider} | Netto: {net}',
@@ -426,6 +460,10 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_search_share_title: 'Segnala un evento mancante',
     participant_search_results_hint:
       'Ogni scheda mostra stato iscrizioni, costo, requisiti di accesso e link condivisibile.',
+    participant_search_metric_date: 'Data evento',
+    participant_search_metric_deadline: 'Scadenza iscrizioni',
+    participant_search_metric_access: 'Accesso richiesto',
+    participant_search_metric_action: 'Azione consigliata',
     search_name: 'Ricerca per nome evento',
     search_name_placeholder: 'Trail, maratona, torneo...',
     search_location: 'Ricerca per localita',
@@ -512,6 +550,10 @@ const translations: Record<AppLanguage, Record<string, string>> = {
       'Controlla la checklist finale, attiva i consensi richiesti e poi conferma.',
     registration_summary_hint:
       'La barra stato si aggiorna in tempo reale mentre compili i campi obbligatori.',
+    registration_free_flow_hint:
+      "Per gli eventi gratuiti l'iscrizione viene confermata subito dopo l'invio.",
+    registration_paid_flow_hint:
+      'Per gli eventi a quota verrai accompagnato nella sessione pagamento dopo il salvataggio dei dati.',
     guided_required_checklist_missing: 'Campi obbligatori da completare: {count}',
     guided_complete_required_fields_hint:
       'Completa i campi obbligatori elencati qui sopra, poi premi il pulsante principale.',
@@ -566,14 +608,26 @@ const translations: Record<AppLanguage, Record<string, string>> = {
       'Disclaimer: conservazione dati secondo finalita dichiarate, obblighi legali/fiscali e policy privacy pubblicata.',
     confirm_free_registration: 'Conferma iscrizione gratuita',
     update_registration_data: 'Aggiorna dati iscrizione',
+    registration_update_confirm_title: 'Conferma aggiornamento iscrizione',
+    registration_update_confirm_message:
+      'Aggiornare i dati per "{event}"? Partecipanti: {participants}. Totale: {total}.',
+    registration_cancel_confirm_title: 'Conferma annullamento iscrizione',
+    registration_cancel_confirm_message:
+      'Vuoi annullare la registrazione pending per "{event}"? La sessione pagamento corrente verra chiusa.',
     open_payment_session: 'Apri sessione pagamento',
     back_search: 'Torna alla ricerca',
     payment_title: 'Pagamento quota iscrizione',
+    payment_amount_metric: 'Importo',
+    payment_session_short_label: 'Sessione',
     amount_label: 'Importo: {value}',
     registration_code_label: 'Codice iscrizione: {value}',
     registration_status_label: 'Stato iscrizione: {value}',
     payment_session_expiry: 'Scadenza sessione: {value}',
     payment_session_expired_reason: 'Sessione pagamento scaduta',
+    payment_next_step_title: 'Cosa succede adesso',
+    payment_payer_section_title: 'Dati pagamento',
+    payment_checkout_flow_hint:
+      'Apriremo Stripe Checkout nel browser sicuro. Dopo il pagamento rientra in app per sincronizzare lo stato finale.',
     payment_webhook_helper:
       'Il pagamento viene applicato tramite webhook idempotente e aggiorna la lista in tempo reale.',
     payment_fiscal_compliance_notice:
@@ -588,6 +642,17 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     payment_reference_optional: 'Riferimento pagamento (opzionale)',
     payment_reference_placeholder: 'ID transazione / CRO',
     confirm_payment: 'Conferma pagamento',
+    payment_open_checkout_button: 'Apri checkout Stripe',
+    payment_request_cash_button: 'Invia richiesta contanti',
+    payment_checkout_confirm_title: 'Conferma apertura checkout',
+    payment_checkout_confirm_message:
+      'Vuoi aprire Stripe Checkout per "{event}" e completare il pagamento di {amount}?',
+    payment_cash_confirm_title: 'Conferma richiesta contanti',
+    payment_cash_confirm_message:
+      'Vuoi inviare la richiesta di pagamento contanti per "{event}" con scadenza {deadline}?',
+    payment_edit_confirm_title: 'Conferma ritorno alla modifica',
+    payment_edit_confirm_message:
+      'Vuoi tornare al modulo iscrizione per modificare i dati prima del pagamento?',
     back_event_detail: 'Torna al dettaglio evento',
     edit_pending_registration: 'Modifica dati iscrizione',
     cancel_pending_registration: 'Annulla iscrizione pending',
@@ -724,6 +789,9 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     cash_payment_request_message:
       'Versa la quota entro {deadline}.\nIndicazioni: {instructions}\n{sync}',
     cash_payment_confirm_by_organizer: 'Conferma contanti',
+    cash_payment_confirm_request_title: 'Conferma incasso contanti',
+    cash_payment_confirm_request_message:
+      'Vuoi confermare il pagamento contanti di {name} con codice {code}?',
     cash_payment_confirmed_title: 'Pagamento contanti confermato',
     cash_payment_confirmed_message:
       'Iscrizione confermata manualmente.\nCodice: {code}\n{number}{email}\n{sync}',
@@ -930,6 +998,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     privacy_policy_open_error_message:
       'Unable to open the Privacy Policy link.',
     close: 'Close',
+    confirm_action: 'Confirm',
     free_done_title: 'Registration completed',
     free_done_event: 'Event: {event}',
     free_done_code: 'Code: {code}',
@@ -1032,6 +1101,10 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_phone_required_label: 'Participant phone required',
     participant_phone_required_helper:
       'If enabled, participant must have verified phone or provide one at registration.',
+    participant_access_section_title: 'Participant access',
+    event_create_summary_title: 'Configuration preview',
+    event_edit_summary_title: 'Edit summary',
+    event_summary_name_placeholder: 'New event without a name yet',
     free_event_switch: 'Free event',
     free_event_helper: 'If disabled, participant will pay an entry fee.',
     fee_label: 'Entry fee (EUR)',
@@ -1202,6 +1275,12 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     admin_self_revoke_blocked:
       'You cannot revoke your own active admin account.',
     admin_action_error: 'Admin action failed: {reason}',
+    admin_grant_confirm_title: 'Confirm admin grant',
+    admin_grant_confirm_message:
+      'Grant {email} the {role} role?',
+    admin_revoke_confirm_title: 'Confirm admin revoke',
+    admin_revoke_confirm_message:
+      'Revoke administrator permissions from {email}?',
     created_events: 'Created events',
     registered_users: 'Registered users',
     gross_revenue: 'Gross revenue',
@@ -1217,8 +1296,12 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     subscribers_count: 'Registered: {count}',
     event_status_active: 'Status: Active (search visible)',
     event_status_inactive: 'Status: Inactive',
+    event_status_active_short: 'Active',
+    event_status_inactive_short: 'Inactive',
     event_registrations_open: 'Registrations: open',
     event_registrations_closed: 'Registrations: closed',
+    event_registrations_open_short: 'Registrations open',
+    event_registrations_closed_short: 'Registrations closed',
     event_season_version: 'Season: {value}',
     event_closed_at: 'Event closed on: {value}',
     deactivate: 'Disable',
@@ -1227,6 +1310,24 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     open_registrations: 'Open registrations',
     close_event: 'Close event',
     reopen_event: 'Reopen event',
+    event_edit_confirm_title: 'Confirm event edit',
+    event_edit_confirm_message:
+      'Open the edit view for "{name}"? You can review data, fees and visibility before saving.',
+    event_save_changes_confirm_title: 'Confirm save changes',
+    event_save_changes_confirm_message:
+      'Save changes for "{name}"? Dates, fees and participant access will update immediately.',
+    event_registrations_confirm_title: 'Confirm registration status',
+    event_registrations_confirm_message:
+      '{action} for "{name}"?',
+    event_status_confirm_title: 'Confirm event status',
+    event_status_confirm_message:
+      '{action} "{name}" in participant search?',
+    event_close_confirm_title: 'Confirm event closing',
+    event_close_confirm_message:
+      'Close "{name}" to end the current season? Registrations will stay blocked.',
+    event_reopen_confirm_title: 'Confirm event reopening',
+    event_reopen_confirm_message:
+      'Reopen "{name}" for a new season and reset participant availability?',
     event_delete_forever: 'Delete permanently',
     event_delete_forever_confirm_title: 'Confirm permanent deletion',
     event_delete_forever_confirm_message:
@@ -1262,6 +1363,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     event_fee_plan_line: 'Base: {base} | Participant: {participant} | Net: {net}',
     code_number_line: 'Code: {code}{number}',
     number_suffix: ' | Number: {number}',
+    number_assigned_badge: 'Bib #{number}',
     registration_payment_state: 'Registration: {reg} | Payment: {pay}',
     amount_commission: 'Amount: {amount} | Commission: {commission}',
     registration_split_line: 'Base: {base} | Comm.: {commission} | Stripe: {provider} | Net: {net}',
@@ -1291,6 +1393,10 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_search_share_title: 'Suggest a missing event',
     participant_search_results_hint:
       'Each card shows registration status, cost, access requirements and a shareable link.',
+    participant_search_metric_date: 'Event date',
+    participant_search_metric_deadline: 'Registration deadline',
+    participant_search_metric_access: 'Required access',
+    participant_search_metric_action: 'Recommended action',
     search_name: 'Search by event name',
     search_name_placeholder: 'Trail, marathon, tournament...',
     search_location: 'Search by location',
@@ -1377,6 +1483,10 @@ const translations: Record<AppLanguage, Record<string, string>> = {
       'Review the final checklist, enable required consents, then confirm.',
     registration_summary_hint:
       'The progress status updates in real time while you complete the required fields.',
+    registration_free_flow_hint:
+      'For free events the registration is confirmed immediately after submission.',
+    registration_paid_flow_hint:
+      'For paid events you will be guided into the payment session after saving the data.',
     guided_required_checklist_missing: 'Required fields to complete: {count}',
     guided_complete_required_fields_hint:
       'Complete the required fields listed above, then press the main action button.',
@@ -1431,14 +1541,26 @@ const translations: Record<AppLanguage, Record<string, string>> = {
       'Disclaimer: data retention follows declared purposes, legal/tax obligations and the published privacy policy.',
     confirm_free_registration: 'Confirm free registration',
     update_registration_data: 'Update registration data',
+    registration_update_confirm_title: 'Confirm registration update',
+    registration_update_confirm_message:
+      'Update the data for "{event}"? Participants: {participants}. Total: {total}.',
+    registration_cancel_confirm_title: 'Confirm registration cancellation',
+    registration_cancel_confirm_message:
+      'Cancel the pending registration for "{event}"? The current payment session will be closed.',
     open_payment_session: 'Open payment session',
     back_search: 'Back to search',
     payment_title: 'Registration fee payment',
+    payment_amount_metric: 'Amount',
+    payment_session_short_label: 'Session',
     amount_label: 'Amount: {value}',
     registration_code_label: 'Registration code: {value}',
     registration_status_label: 'Registration status: {value}',
     payment_session_expiry: 'Session expiry: {value}',
     payment_session_expired_reason: 'Payment session expired',
+    payment_next_step_title: 'What happens next',
+    payment_payer_section_title: 'Payment details',
+    payment_checkout_flow_hint:
+      'We will open Stripe Checkout in the secure browser. After payment, return to the app to sync the final status.',
     payment_webhook_helper:
       'Payment is applied via idempotent webhook and updates list in real time.',
     payment_fiscal_compliance_notice:
@@ -1453,6 +1575,17 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     payment_reference_optional: 'Payment reference (optional)',
     payment_reference_placeholder: 'Transaction ID / CRO',
     confirm_payment: 'Confirm payment',
+    payment_open_checkout_button: 'Open Stripe checkout',
+    payment_request_cash_button: 'Send cash request',
+    payment_checkout_confirm_title: 'Confirm checkout opening',
+    payment_checkout_confirm_message:
+      'Open Stripe Checkout for "{event}" and complete the payment of {amount}?',
+    payment_cash_confirm_title: 'Confirm cash request',
+    payment_cash_confirm_message:
+      'Send the cash payment request for "{event}" with deadline {deadline}?',
+    payment_edit_confirm_title: 'Confirm return to editing',
+    payment_edit_confirm_message:
+      'Return to the registration form to change data before payment?',
     back_event_detail: 'Back to event details',
     edit_pending_registration: 'Edit registration data',
     cancel_pending_registration: 'Cancel pending registration',
@@ -1590,6 +1723,9 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     cash_payment_request_message:
       'Pay within {deadline}.\nInstructions: {instructions}\n{sync}',
     cash_payment_confirm_by_organizer: 'Confirm cash payment',
+    cash_payment_confirm_request_title: 'Confirm cash collection',
+    cash_payment_confirm_request_message:
+      'Confirm the cash payment for {name} with code {code}?',
     cash_payment_confirmed_title: 'Cash payment confirmed',
     cash_payment_confirmed_message:
       'Registration manually confirmed.\nCode: {code}\n{number}{email}\n{sync}',

@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { EventItem } from '../src/types';
 import {
+  compareParticipantEventsForSearch,
   getParticipantEventAvailability,
   getParticipantMessageValidationIssues,
   getRegistrationMissingFields,
@@ -80,6 +81,33 @@ test('getParticipantEventAvailability closes the event after the deadline', () =
   assert.equal(
     getParticipantEventAvailability(event, '2026-04-11'),
     'registration_closed'
+  );
+});
+
+test('compareParticipantEventsForSearch prioritizes open events before upcoming and closed', () => {
+  const open = createEvent({
+    id: 'evt_open',
+    date: '2026-04-09',
+  });
+  const upcoming = createEvent({
+    id: 'evt_upcoming',
+    date: '2026-04-05',
+    registrationOpenDate: '2026-04-15',
+    registrationCloseDate: '2026-04-20',
+  });
+  const closed = createEvent({
+    id: 'evt_closed',
+    date: '2026-04-01',
+    registrationsOpen: false,
+  });
+
+  const ordered = [closed, upcoming, open].sort((first, second) =>
+    compareParticipantEventsForSearch(first, second, '2026-04-08')
+  );
+
+  assert.deepEqual(
+    ordered.map((event) => event.id),
+    ['evt_open', 'evt_upcoming', 'evt_closed']
   );
 });
 

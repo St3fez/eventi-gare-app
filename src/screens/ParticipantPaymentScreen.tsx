@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 
-import { SectionCard, TextField } from '../components/Common';
+import { MetricChip, SectionCard, StatusBadge, TextField } from '../components/Common';
 import { Translator } from '../i18n';
 import { styles } from '../styles';
 import { EventItem, PaymentInput, RegistrationRecord } from '../types';
+import { requestHumanConfirmation } from '../utils/confirm';
 import { cleanText, formatDate, formatEventSchedule, toMoney } from '../utils/format';
 
 type Props = {
@@ -51,6 +52,30 @@ export function ParticipantPaymentScreen({
         return registration.registrationStatus;
     }
   }, [registration.registrationStatus, t]);
+  const paymentStatusLabel = useMemo(() => {
+    switch (registration.paymentStatus) {
+      case 'not_required':
+        return t('payment_status_not_required');
+      case 'pending':
+        return t('payment_status_pending');
+      case 'requires_action':
+        return t('payment_status_requires_action');
+      case 'authorized':
+        return t('payment_status_authorized');
+      case 'captured':
+        return t('payment_status_captured');
+      case 'failed':
+        return t('payment_status_failed');
+      case 'expired':
+        return t('payment_status_expired');
+      case 'refunded':
+        return t('payment_status_refunded');
+      case 'cancelled':
+        return t('payment_status_cancelled');
+      default:
+        return registration.paymentStatus;
+    }
+  }, [registration.paymentStatus, t]);
 
   const sessionLabel = useMemo(() => {
     if (!registration.paymentSessionExpiresAt) {
@@ -65,7 +90,28 @@ export function ParticipantPaymentScreen({
       .slice(0, 5)}`;
   }, [registration.paymentSessionExpiresAt]);
 
-  const submit = () => {
+  const selectedMethodLabel = method === 'stripe' ? t('method_stripe') : t('method_cash');
+  const primaryActionLabel =
+    method === 'stripe'
+      ? t('payment_open_checkout_button')
+      : t('payment_request_cash_button');
+  const statusTone =
+    registration.registrationStatus === 'paid'
+      ? 'success'
+      : registration.registrationStatus === 'payment_failed' ||
+          registration.registrationStatus === 'cancelled'
+        ? 'warning'
+        : 'neutral';
+  const paymentTone =
+    registration.paymentStatus === 'captured'
+      ? 'success'
+      : registration.paymentStatus === 'failed' ||
+          registration.paymentStatus === 'expired' ||
+          registration.paymentStatus === 'cancelled'
+        ? 'warning'
+        : 'neutral';
+
+  const submit = async () => {
     if (!cleanText(payerName)) {
       Alert.alert(t('missing_payer_name_title'), t('missing_payer_name_message'));
       return;
@@ -76,6 +122,28 @@ export function ParticipantPaymentScreen({
       return;
     }
 
+    const confirmed = await requestHumanConfirmation({
+      title:
+        method === 'stripe'
+          ? t('payment_checkout_confirm_title')
+          : t('payment_cash_confirm_title'),
+      message:
+        method === 'stripe'
+          ? t('payment_checkout_confirm_message', {
+              event: event.name,
+              amount: toMoney(registration.paymentAmount),
+            })
+          : t('payment_cash_confirm_message', {
+              event: event.name,
+              deadline: cashDeadline,
+            }),
+      confirmLabel: primaryActionLabel,
+      cancelLabel: t('close'),
+    });
+    if (!confirmed) {
+      return;
+    }
+
     void onConfirm({
       method,
       payerName,
@@ -83,82 +151,152 @@ export function ParticipantPaymentScreen({
     });
   };
 
+  const confirmEditRegistration = async () => {
+    const confirmed = await requestHumanConfirmation({
+      title: t('payment_edit_confirm_title'),
+      message: t('payment_edit_confirm_message'),
+      confirmLabel: t('edit_pending_registration'),
+      cancelLabel: t('close'),
+    });
+    if (!confirmed) {
+      return;
+    }
+    onEditRegistration();
+  };
+
+  const confirmCancelRegistration = async () => {
+    const confirmed = await requestHumanConfirmation({
+      title: t('registration_cancel_confirm_title'),
+      message: t('registration_cancel_confirm_message', {
+        event: event.name,
+      }),
+      confirmLabel: t('cancel_pending_registration'),
+      cancelLabel: t('close'),
+      destructive: true,
+    });
+    if (!confirmed) {
+      return;
+    }
+    onCancel();
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
       <SectionCard title={t('payment_title')} delayMs={0}>
-        <Text style={styles.listTitle}>{event.name}</Text>
-        <Text style={styles.listSubText}>{t('date_label', { value: formatEventSchedule(event) })}</Text>
-        <Text style={styles.listSubText}>{t('amount_label', { value: toMoney(registration.paymentAmount) })}</Text>
-        {registration.groupParticipantsCount > 1 ? (
+        <View style={styles.heroPanel}>
+          <Text style={styles.heroEyebrow}>{t('payment_title')}</Text>
+          <Text style={styles.emphasisParagraph}>{event.name}</Text>
+          <View style={styles.statusBadgeRow}>
+            <StatusBadge label={registrationStatusLabel} tone={statusTone} />
+            <StatusBadge label={paymentStatusLabel} tone={paymentTone} />
+            <StatusBadge label={selectedMethodLabel} />
+          </View>
+          <View style={styles.inlineMetricRow}>
+            <MetricChip
+              label={t('payment_amount_metric')}
+              value={toMoney(registration.paymentAmount)}
+            />
+            <MetricChip
+              label={t('registration_participants_metric')}
+              value={String(Math.max(1, registration.groupParticipantsCount))}
+            />
+            <MetricChip label={t('payment_session_short_label')} value={sessionLabel} />
+          </View>
           <Text style={styles.listSubText}>
-            {t('group_participants_line', { count: registration.groupParticipantsCount })}
+            {t('date_label', { value: formatEventSchedule(event) })}
           </Text>
-        ) : null}
-        <Text style={styles.listSubText}>
-          {t('registration_code_label', { value: registration.registrationCode })}
-        </Text>
-        <Text style={styles.listSubText}>
-          {t('registration_status_label', { value: registrationStatusLabel })}
-        </Text>
-        <Text style={styles.listSubText}>{t('payment_session_expiry', { value: sessionLabel })}</Text>
-        <Text style={styles.helperText}>
-          {method === 'stripe' ? t('payment_webhook_helper') : t('cash_payment_flow_helper')}
-        </Text>
-        <Text style={styles.helperText}>{t('payment_fiscal_compliance_notice')}</Text>
-
-        <Text style={styles.fieldLabel}>{t('payment_method')}</Text>
-        <View style={styles.methodRow}>
-          {[
-            { value: 'stripe' as const, label: t('method_stripe') },
-            ...(event.cashPaymentEnabled
-              ? [{ value: 'cash' as const, label: t('method_cash') }]
-              : []),
-          ].map((entry) => (
-            <Pressable
-              key={entry.value}
-              style={[styles.methodChip, method === entry.value ? styles.methodChipActive : undefined]}
-              onPress={() => setMethod(entry.value)}
-            >
-              <Text
-                style={[
-                  styles.methodChipText,
-                  method === entry.value ? styles.methodChipTextActive : undefined,
-                ]}
-              >
-                {entry.label}
-              </Text>
-            </Pressable>
-          ))}
+          <Text style={styles.listSubText}>
+            {t('registration_code_label', { value: registration.registrationCode })}
+          </Text>
+          <Text style={styles.helperText}>
+            {method === 'stripe'
+              ? t('payment_checkout_flow_hint')
+              : t('cash_payment_flow_helper')}
+          </Text>
+          <Text style={styles.helperText}>{t('payment_fiscal_compliance_notice')}</Text>
         </View>
-        {method === 'cash' && event.cashPaymentEnabled ? (
-          <View style={styles.registrationCard}>
-            <Text style={styles.listSubText}>
-              {t('cash_payment_deadline_line', { value: cashDeadline })}
-            </Text>
-            <Text style={styles.helperText}>
-              {cashInstructions || t('cash_payment_missing_instructions')}
+
+        <View style={styles.formSectionCard}>
+          <Text style={styles.sectionHeaderTitle}>{t('payment_method')}</Text>
+          <View style={styles.methodRow}>
+            {[
+              { value: 'stripe' as const, label: t('method_stripe') },
+              ...(event.cashPaymentEnabled
+                ? [{ value: 'cash' as const, label: t('method_cash') }]
+                : []),
+            ].map((entry) => (
+              <Pressable
+                key={entry.value}
+                style={[styles.methodChip, method === entry.value ? styles.methodChipActive : undefined]}
+                onPress={() => setMethod(entry.value)}
+              >
+                <Text
+                  style={[
+                    styles.methodChipText,
+                    method === entry.value ? styles.methodChipTextActive : undefined,
+                  ]}
+                >
+                  {entry.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <View style={[styles.noticeCard, styles.noticeCardInfo]}>
+            <Text style={styles.noticeTitle}>{t('payment_next_step_title')}</Text>
+            <Text style={styles.noticeText}>
+              {method === 'stripe'
+                ? t('payment_webhook_helper')
+                : t('cash_payment_flow_helper')}
             </Text>
           </View>
-        ) : null}
+          {method === 'cash' && event.cashPaymentEnabled ? (
+            <View style={styles.registrationCard}>
+              <Text style={styles.listSubText}>
+                {t('cash_payment_deadline_line', { value: cashDeadline })}
+              </Text>
+              <Text style={styles.helperText}>
+                {cashInstructions || t('cash_payment_missing_instructions')}
+              </Text>
+            </View>
+          ) : null}
+        </View>
 
-        <TextField label={t('payer_name')} value={payerName} onChangeText={setPayerName} />
-        <TextField
-          label={t('payment_reference_optional')}
-          value={reference}
-          onChangeText={setReference}
-          placeholder={t('payment_reference_placeholder')}
-        />
+        <View style={styles.formSectionCard}>
+          <Text style={styles.sectionHeaderTitle}>{t('payment_payer_section_title')}</Text>
+          <TextField label={t('payer_name')} value={payerName} onChangeText={setPayerName} />
+          <TextField
+            label={t('payment_reference_optional')}
+            value={reference}
+            onChangeText={setReference}
+            placeholder={t('payment_reference_placeholder')}
+          />
+        </View>
 
-        <Pressable style={styles.primaryButton} onPress={submit}>
-          <Text style={styles.primaryButtonText}>{t('confirm_payment')}</Text>
+        <Pressable
+          style={styles.primaryButton}
+          onPress={() => {
+            void submit();
+          }}
+        >
+          <Text style={styles.primaryButtonText}>{primaryActionLabel}</Text>
         </Pressable>
         <Pressable style={styles.secondaryButton} onPress={onBack}>
           <Text style={styles.secondaryButtonText}>{t('back_event_detail')}</Text>
         </Pressable>
-        <Pressable style={styles.secondaryButton} onPress={onEditRegistration}>
+        <Pressable
+          style={styles.secondaryButton}
+          onPress={() => {
+            void confirmEditRegistration();
+          }}
+        >
           <Text style={styles.secondaryButtonText}>{t('edit_pending_registration')}</Text>
         </Pressable>
-        <Pressable style={styles.secondaryButton} onPress={onCancel}>
+        <Pressable
+          style={styles.secondaryButton}
+          onPress={() => {
+            void confirmCancelRegistration();
+          }}
+        >
           <Text style={styles.secondaryButtonText}>{t('cancel_pending_registration')}</Text>
         </Pressable>
       </SectionCard>

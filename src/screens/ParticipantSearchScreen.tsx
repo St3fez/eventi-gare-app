@@ -17,14 +17,16 @@ import { MetricChip, SectionCard, StatusBadge, SwitchRow, TextField } from '../c
 import { Translator } from '../i18n';
 import { styles } from '../styles';
 import { EventItem, SponsorSlot } from '../types';
-import { getParticipantEventAvailability } from '../utils/participantUx';
+import {
+  compareParticipantEventsForSearch,
+  getParticipantEventAvailability,
+} from '../utils/participantUx';
 import {
   cleanText,
   formatDate,
   formatEventSchedule,
   isValidEmailAddress,
   isImageDataUrl,
-  toIsoDate,
   toMoney,
 } from '../utils/format';
 
@@ -79,7 +81,7 @@ export function ParticipantSearchScreen({
           ? cleanText(event.location).toLowerCase().includes(normalizedLocationQuery)
           : true
       )
-      .sort((first, second) => toIsoDate(first.date).localeCompare(toIsoDate(second.date)));
+      .sort((first, second) => compareParticipantEventsForSearch(first, second));
   }, [activeOnly, events, locationQuery, nameQuery]);
 
   const visibleSponsorSlotsByEvent = useMemo(() => {
@@ -474,33 +476,49 @@ export function ParticipantSearchScreen({
                     <Text style={styles.listSubText}>
                       {eventLocation} | {formatEventSchedule(event)}
                     </Text>
+                    <View style={styles.miniMetricsGrid}>
+                      <View style={[styles.miniMetricCard, styles.miniMetricCardDense]}>
+                        <Text style={[styles.miniMetricValue, styles.miniMetricValueCompact]}>
+                          {formatDate(event.date)}
+                        </Text>
+                        <Text style={styles.miniMetricLabel}>
+                          {t('participant_search_metric_date')}
+                        </Text>
+                      </View>
+                      <View style={[styles.miniMetricCard, styles.miniMetricCardDense]}>
+                        <Text style={[styles.miniMetricValue, styles.miniMetricValueCompact]}>
+                          {formatDate(event.registrationCloseDate || event.endDate || event.date)}
+                        </Text>
+                        <Text style={styles.miniMetricLabel}>
+                          {t('participant_search_metric_deadline')}
+                        </Text>
+                      </View>
+                      <View style={[styles.miniMetricCard, styles.miniMetricCardDense]}>
+                        <Text style={[styles.miniMetricValue, styles.miniMetricValueCompact]}>
+                          {authLabel}
+                        </Text>
+                        <Text style={styles.miniMetricLabel}>
+                          {t('participant_search_metric_access')}
+                        </Text>
+                      </View>
+                      <View style={[styles.miniMetricCard, styles.miniMetricCardDense]}>
+                        <Text style={[styles.miniMetricValue, styles.miniMetricValueCompact]}>
+                          {editableEventIdSet.has(eventId)
+                            ? t('update_registration_data')
+                            : canStartRegistration
+                              ? t('subscribe')
+                              : availabilityLabel}
+                        </Text>
+                        <Text style={styles.miniMetricLabel}>
+                          {t('participant_search_metric_action')}
+                        </Text>
+                      </View>
+                    </View>
                     <Text style={styles.listSubText}>
                       {t('registration_window_line', {
                         from: formatDate(event.registrationOpenDate),
                         to: formatDate(event.registrationCloseDate || event.endDate || event.date),
                       })}
-                    </Text>
-                    <Text style={styles.listSubText}>
-                      {event.isFree
-                        ? t('free_event_label')
-                        : t('entry_fee_label', { fee: toMoney(event.feeAmount) })}
-                    </Text>
-                    <Text style={styles.listSubText}>
-                      {t('participant_auth_required_line', {
-                        mode:
-                          event.participantAuthMode === 'email'
-                            ? t('participant_auth_mode_email')
-                            : event.participantAuthMode === 'social_verified'
-                              ? t('participant_auth_mode_social')
-                              : event.participantAuthMode === 'flexible'
-                                ? t('participant_auth_mode_flexible')
-                                : t('participant_auth_mode_anonymous'),
-                      })}
-                    </Text>
-                    <Text style={styles.listSubText}>
-                      {event.participantPhoneRequired
-                        ? t('participant_phone_required_enabled')
-                        : t('participant_phone_required_disabled')}
                     </Text>
                     <View style={[styles.noticeCard, styles.noticeCardInfo]}>
                       <Text style={styles.noticeTitle}>{t('participant_search_card_hint_title')}</Text>
