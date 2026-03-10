@@ -12,6 +12,8 @@ type SponsorCheckoutPayload = {
   sponsorLogoUrl?: string;
   packageDays?: number;
   sponsorEmail?: string;
+  successUrl?: string;
+  cancelUrl?: string;
 };
 
 type EventRow = {
@@ -95,6 +97,32 @@ const resolveAllowedOrigins = (
 const isOriginAllowed = (origin: string, allowedOrigins: Set<string>): boolean =>
   allowedOrigins.size === 0 || allowedOrigins.has(origin);
 
+const normalizeRedirectUrl = (
+  value: unknown,
+  fallback: string,
+  allowedOrigins: Set<string>
+): string => {
+  const candidate = cleanText(value);
+  if (!candidate) {
+    return fallback;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    return fallback;
+  }
+
+  if (!/^https?:$/i.test(parsed.protocol)) {
+    return fallback;
+  }
+  if (allowedOrigins.size > 0 && !allowedOrigins.has(parsed.origin)) {
+    return fallback;
+  }
+  return parsed.toString();
+};
+
 const asPositiveInt = (value: unknown): number => {
   const parsed = Number.parseInt(String(value ?? ''), 10);
   if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -141,9 +169,15 @@ Deno.serve(async (req: Request) => {
     Deno.env.get('SPONSOR_CANCEL_URL') ?? 'https://eventigare.app/sponsor/cancel',
     'https://eventigare.app/sponsor/cancel'
   );
-  const allowedOrigins = resolveAllowedOrigins(
+  const configuredAllowedOrigins = resolveAllowedOrigins(
     sponsorSuccessUrl,
-    [Deno.env.get('SPONSOR_ALLOWED_ORIGINS'), sponsorCancelUrl].filter(Boolean).join(',')
+    [
+      Deno.env.get('SPONSOR_ALLOWED_REDIRECT_ORIGINS'),
+      Deno.env.get('SPONSOR_ALLOWED_ORIGINS'),
+      sponsorCancelUrl,
+    ]
+      .filter(Boolean)
+      .join(',')
   );
   const requestOrigin = cleanText(req.headers.get('origin'));
 
@@ -154,10 +188,6 @@ Deno.serve(async (req: Request) => {
       },
       500
     );
-  }
-
-  if (requestOrigin && !isOriginAllowed(requestOrigin, allowedOrigins)) {
-    return json({ error: 'Origin not allowed' }, 403);
   }
 
   if (req.method === 'OPTIONS') {
@@ -174,6 +204,19 @@ Deno.serve(async (req: Request) => {
     payload = (await req.json()) as SponsorCheckoutPayload;
   } catch {
     return json({ error: 'Invalid JSON body' }, 400);
+  }
+
+  const allowedOrigins = new Set(configuredAllowedOrigins);
+  const requestedRedirectOrigins = [payload.successUrl, payload.cancelUrl]
+    .map((entry) => toAllowedOrigin(cleanText(entry)))
+    .filter((entry): entry is string => Boolean(entry));
+
+  if (requestOrigin && requestedRedirectOrigins.includes(requestOrigin)) {
+    allowedOrigins.add(requestOrigin);
+  }
+
+  if (requestOrigin && !isOriginAllowed(requestOrigin, allowedOrigins)) {
+    return json({ error: 'Origin not allowed' }, 403);
   }
 
   const eventId = cleanText(payload.eventId);
@@ -307,13 +350,15 @@ Deno.serve(async (req: Request) => {
   const stripe = new Stripe(stripeSecretKey, {
     apiVersion: '2024-06-20',
   });
+  const successUrl = normalizeRedirectUrl(payload.successUrl, sponsorSuccessUrl, allowedOrigins);
+  const cancelUrl = normalizeRedirectUrl(payload.cancelUrl, sponsorCancelUrl, allowedOrigins);
 
   let session: { id: string; url?: string | null; payment_intent?: string | null };
   try {
     session = await stripe.checkout.sessions.create({
       mode: 'payment',
-      success_url: sponsorSuccessUrl,
-      cancel_url: sponsorCancelUrl,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       customer_email: sponsorEmail || undefined,
       metadata: {
         kind: 'sponsor_slot',

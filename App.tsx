@@ -3319,23 +3319,23 @@ function App() {
     sponsorLogoUrl?: string;
     sponsorEmail?: string;
     packageDays: number;
-  }) => {
+  }): Promise<boolean> => {
     const securityReady = await ensureOrganizerSecurityForProtectedAction();
     if (!securityReady) {
-      return;
+      return false;
     }
 
     const sourceData = withExpiredSessionsHandled(appData);
     const event = sourceData.events.find((entry) => entry.id === payload.eventId);
     if (!event) {
       Alert.alert(t('event_not_found_title'), t('event_not_found_message'));
-      return;
+      return false;
     }
 
     const organizer = sourceData.organizers.find((entry) => entry.id === event.organizerId);
     if (!organizer) {
       Alert.alert(t('organizer_not_found_title'), t('organizer_not_found_message'));
-      return;
+      return false;
     }
 
     let organizerRemoteId = organizer.remoteId;
@@ -3343,7 +3343,7 @@ function App() {
       const organizerSync = await upsertOrganizerInSupabase(organizer);
       if (!organizerSync.ok) {
         showAppAlert(t('sponsor_checkout_fail_title'), organizerSync.reason);
-        return;
+        return false;
       }
 
       organizerRemoteId = organizerSync.data.id;
@@ -3358,7 +3358,7 @@ function App() {
       const eventSync = await insertEventInSupabase(event, organizerRemoteId);
       if (!eventSync.ok) {
         showAppAlert(t('sponsor_checkout_fail_title'), eventSync.reason);
-        return;
+        return false;
       }
       eventRemoteId = eventSync.data.id;
       patchEventRemoteId(event.id, eventRemoteId);
@@ -3366,15 +3366,16 @@ function App() {
 
     if (!eventRemoteId) {
       showAppAlert(t('sponsor_checkout_fail_title'), t('sponsor_event_remote_missing'));
-      return;
+      return false;
     }
     if (!organizerRemoteId) {
       showAppAlert(t('sponsor_checkout_fail_title'), t('organizer_not_found_message'));
-      return;
+      return false;
     }
 
     const safeEventRemoteId = eventRemoteId;
     const safeOrganizerRemoteId = organizerRemoteId;
+    const sponsorCheckoutReturnUrl = buildPublicAppUrl() ?? undefined;
 
     const sponsorCheckout = await createSponsorCheckout({
       eventId: safeEventRemoteId,
@@ -3386,11 +3387,13 @@ function App() {
       sponsorEmail: payload.sponsorEmail,
       packageDays: payload.packageDays,
       currency: 'EUR',
+      successUrl: sponsorCheckoutReturnUrl,
+      cancelUrl: sponsorCheckoutReturnUrl,
     });
 
     if (!sponsorCheckout.ok) {
       showAppAlert(t('sponsor_checkout_fail_title'), sponsorCheckout.reason);
-      return;
+      return false;
     }
 
     setAppData((current) => {
@@ -3411,12 +3414,7 @@ function App() {
 
     if (!sponsorCheckout.data.checkoutUrl) {
       showAppAlert(t('sponsor_checkout_fail_title'), t('payment_checkout_url_missing'));
-      return;
-    }
-
-    const openResult = await openHostedFlowUrl(sponsorCheckout.data.checkoutUrl);
-    if (openResult === 'redirected') {
-      return;
+      return false;
     }
 
     showAppAlert(
@@ -3425,6 +3423,7 @@ function App() {
         url: sponsorCheckout.data.checkoutUrl,
       })
     );
+    return true;
   };
 
   const updateOrganizerCompliance = async (payload: {
@@ -3680,6 +3679,8 @@ function App() {
 
     const checkout = await createSponsorModuleCheckout({
       organizerId: organizerRemoteId,
+      successUrl: buildPublicAppUrl() ?? undefined,
+      cancelUrl: buildPublicAppUrl() ?? undefined,
     });
 
     if (!checkout.ok) {

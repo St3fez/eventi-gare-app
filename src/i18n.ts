@@ -311,6 +311,11 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     sponsor_slot_status: 'Stato: {status} | Active: {active}',
     sponsor_slot_period: 'Periodo: {from} - {to}',
     sponsor_slot_checkout_link: 'Checkout: {url}',
+    sponsor_checkout_open_button: 'Apri checkout Stripe',
+    sponsor_checkout_copy_button: 'Copia link Stripe',
+    sponsor_checkout_link_copied_title: 'Link Stripe copiato',
+    sponsor_checkout_link_copied_message:
+      'Il link checkout sponsor e stato copiato negli appunti.',
     sponsor_slot_contract_it: 'Contratto IT: {text}',
     sponsor_slot_contract_en: 'Contratto EN: {text}',
     sponsor_status_pending_payment: 'In attesa pagamento',
@@ -1328,6 +1333,11 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     sponsor_slot_status: 'Status: {status} | Active: {active}',
     sponsor_slot_period: 'Period: {from} - {to}',
     sponsor_slot_checkout_link: 'Checkout: {url}',
+    sponsor_checkout_open_button: 'Open Stripe checkout',
+    sponsor_checkout_copy_button: 'Copy Stripe link',
+    sponsor_checkout_link_copied_title: 'Stripe link copied',
+    sponsor_checkout_link_copied_message:
+      'The sponsor checkout link has been copied to the clipboard.',
     sponsor_slot_contract_it: 'Contract IT: {text}',
     sponsor_slot_contract_en: 'Contract EN: {text}',
     sponsor_status_pending_payment: 'Pending payment',

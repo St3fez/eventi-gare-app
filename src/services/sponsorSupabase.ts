@@ -77,6 +77,8 @@ export const createSponsorCheckout = async (payload: {
   sponsorEmail?: string;
   packageDays: number;
   currency?: string;
+  successUrl?: string;
+  cancelUrl?: string;
 }): Promise<
   SyncResult<{
     checkoutUrl?: string;

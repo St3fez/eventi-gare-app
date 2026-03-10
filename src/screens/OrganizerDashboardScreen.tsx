@@ -117,7 +117,7 @@ type Props = {
     sponsorLogoUrl?: string;
     sponsorEmail?: string;
     packageDays: number;
-  }) => Promise<void>;
+  }) => Promise<boolean>;
   onRefreshAdminUsers: () => Promise<void>;
   onGrantAdmin: (email: string, canManageAdmins: boolean) => Promise<void>;
   onRevokeAdmin: (email: string) => Promise<void>;
@@ -717,6 +717,18 @@ export function OrganizerDashboardScreen({
     await Linking.openURL(normalized);
   };
 
+  const copySponsorCheckoutUrl = async (url: string) => {
+    const value = cleanText(url);
+    if (!value) {
+      return;
+    }
+    await Clipboard.setStringAsync(value);
+    Alert.alert(
+      t('sponsor_checkout_link_copied_title'),
+      t('sponsor_checkout_link_copied_message')
+    );
+  };
+
   const submitSponsorCheckout = () => {
     if (!organizer.sponsorModuleEnabled) {
       Alert.alert(
@@ -753,7 +765,10 @@ export function OrganizerDashboardScreen({
       sponsorLogoUrl,
       sponsorEmail,
       packageDays: parsedDays,
-    }).then(() => {
+    }).then((created) => {
+      if (!created) {
+        return;
+      }
       setSponsorName('');
       setSponsorNameIt('');
       setSponsorNameEn('');
@@ -1912,9 +1927,33 @@ export function OrganizerDashboardScreen({
                     </Pressable>
                   ) : null}
                   {slot.stripePaymentLinkUrl ? (
-                    <Text style={styles.listSubText}>
-                      {t('sponsor_slot_checkout_link', { url: slot.stripePaymentLinkUrl })}
-                    </Text>
+                    <>
+                      <Text style={styles.listSubText}>
+                        {t('sponsor_slot_checkout_link', { url: slot.stripePaymentLinkUrl })}
+                      </Text>
+                      <View style={styles.methodRow}>
+                        <Pressable
+                          style={styles.inlineActionButton}
+                          onPress={() => {
+                            void openExternalUrl(slot.stripePaymentLinkUrl ?? '');
+                          }}
+                        >
+                          <Text style={styles.inlineActionButtonText}>
+                            {t('sponsor_checkout_open_button')}
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          style={styles.inlineActionButton}
+                          onPress={() => {
+                            void copySponsorCheckoutUrl(slot.stripePaymentLinkUrl ?? '');
+                          }}
+                        >
+                          <Text style={styles.inlineActionButtonText}>
+                            {t('sponsor_checkout_copy_button')}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    </>
                   ) : null}
                   {slot.contractTerms.it ? (
                     <Text style={styles.helperText}>
