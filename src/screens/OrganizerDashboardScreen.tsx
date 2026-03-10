@@ -100,6 +100,7 @@ type Props = {
     fiscalData: string;
     bankAccount: string;
     adminContactMessage: string;
+    antifraudProofDocuments?: string[];
     attachments: OrganizerComplianceAttachment[];
   }) => Promise<void>;
   onStartStripeConnect: (organizerId: string) => Promise<void>;
@@ -239,8 +240,13 @@ export function OrganizerDashboardScreen({
   const [paymentAttachment, setPaymentAttachment] = useState<OrganizerComplianceAttachment | null>(
     null
   );
+  const [organizerAntifraudAttachments, setOrganizerAntifraudAttachments] = useState<
+    OrganizerComplianceAttachment[]
+  >([]);
   const [selectedComplianceAntifraudProofDocuments, setSelectedComplianceAntifraudProofDocuments] =
     useState<string[]>(organizer.complianceDocuments.antifraudProofDocuments ?? []);
+  const [selectedComplianceAntifraudAttachments, setSelectedComplianceAntifraudAttachments] =
+    useState<OrganizerComplianceAttachment[]>([]);
   const [registrationQuery, setRegistrationQuery] = useState('');
   const [registrationStatusFilter, setRegistrationStatusFilter] = useState<
     'all' | 'pending_payment' | 'pending_cash' | 'paid' | 'payment_failed' | 'cancelled' | 'refunded'
@@ -262,6 +268,7 @@ export function OrganizerDashboardScreen({
 
   useEffect(() => {
     setOrganizerAntifraudProofDocuments(organizer.complianceDocuments.antifraudProofDocuments ?? []);
+    setOrganizerAntifraudAttachments([]);
     setSponsorLogoFileName('');
   }, [organizer]);
 
@@ -309,6 +316,7 @@ export function OrganizerDashboardScreen({
     setSelectedComplianceAntifraudProofDocuments(
       selectedComplianceOrganizer.complianceDocuments.antifraudProofDocuments ?? []
     );
+    setSelectedComplianceAntifraudAttachments([]);
     setIdentityAttachment(null);
     setOrganizationAttachment(null);
     setPaymentAttachment(null);
@@ -824,7 +832,8 @@ export function OrganizerDashboardScreen({
   };
 
   const pickAntifraudProofDocument = async (
-    setDocuments: React.Dispatch<React.SetStateAction<string[]>>
+    setDocuments: React.Dispatch<React.SetStateAction<string[]>>,
+    setAttachments: React.Dispatch<React.SetStateAction<OrganizerComplianceAttachment[]>>
   ) => {
     const result = await DocumentPicker.getDocumentAsync({
       copyToCacheDirectory: true,
@@ -842,6 +851,15 @@ export function OrganizerDashboardScreen({
     }
 
     setDocuments((current) => normalizeDocumentNames([...current, file.name]));
+    setAttachments((current) => [
+      ...current,
+      {
+        kind: 'antifraud_proof_document',
+        uri: file.uri,
+        fileName: file.name,
+        mimeType: file.mimeType ?? 'application/octet-stream',
+      },
+    ]);
   };
 
   const assetToDataUrl = async (asset: DocumentPicker.DocumentPickerAsset): Promise<string> => {
@@ -903,9 +921,12 @@ export function OrganizerDashboardScreen({
   };
 
   const sendComplianceEmail = () => {
-    const attachments = [identityAttachment, organizationAttachment, paymentAttachment].filter(
-      (entry): entry is OrganizerComplianceAttachment => Boolean(entry)
-    );
+    const attachments = [
+      identityAttachment,
+      organizationAttachment,
+      paymentAttachment,
+      ...selectedComplianceAntifraudAttachments,
+    ].filter((entry): entry is OrganizerComplianceAttachment => Boolean(entry));
 
     void onSendComplianceEmail({
       organizerId: selectedComplianceOrganizer.id,
@@ -917,7 +938,24 @@ export function OrganizerDashboardScreen({
       fiscalData,
       bankAccount,
       adminContactMessage,
+      antifraudProofDocuments: selectedComplianceAntifraudProofDocuments,
       attachments,
+    });
+  };
+
+  const sendOrganizerAntifraudEmail = () => {
+    void onSendComplianceEmail({
+      organizerId: organizer.id,
+      organizationName: organizer.organizationName ?? '',
+      organizationRole: organizer.organizationRole,
+      organizationRoleLabel: organizer.organizationRoleLabel ?? '',
+      legalRepresentative: organizer.legalRepresentative ?? '',
+      officialPhone: organizer.officialPhone ?? '',
+      fiscalData: organizer.fiscalData ?? '',
+      bankAccount: organizer.bankAccount ?? '',
+      adminContactMessage: organizer.complianceDocuments.adminContactMessage ?? '',
+      antifraudProofDocuments: organizerAntifraudProofDocuments,
+      attachments: organizerAntifraudAttachments,
     });
   };
 
@@ -1426,7 +1464,10 @@ export function OrganizerDashboardScreen({
             <Pressable
               style={styles.secondaryButton}
               onPress={() => {
-                void pickAntifraudProofDocument(setOrganizerAntifraudProofDocuments);
+                void pickAntifraudProofDocument(
+                  setOrganizerAntifraudProofDocuments,
+                  setOrganizerAntifraudAttachments
+                );
               }}
             >
               <Text style={styles.secondaryButtonText}>{t('organizer_antifraud_upload')}</Text>
@@ -1443,6 +1484,13 @@ export function OrganizerDashboardScreen({
             )}
             <Pressable style={styles.primaryButton} onPress={saveOrganizerAntifraudDocuments}>
               <Text style={styles.primaryButtonText}>{t('save_organizer_documents')}</Text>
+            </Pressable>
+            <Pressable style={styles.secondaryButton} onPress={sendOrganizerAntifraudEmail}>
+              <Text style={styles.secondaryButtonText}>
+                {t('send_documents_admin', {
+                  email: ADMIN_CONTACT_EMAIL,
+                })}
+              </Text>
             </Pressable>
           </SectionCard>
 
@@ -1629,7 +1677,10 @@ export function OrganizerDashboardScreen({
               <Pressable
                 style={styles.secondaryButton}
                 onPress={() => {
-                  void pickAntifraudProofDocument(setSelectedComplianceAntifraudProofDocuments);
+                  void pickAntifraudProofDocument(
+                    setSelectedComplianceAntifraudProofDocuments,
+                    setSelectedComplianceAntifraudAttachments
+                  );
                 }}
               >
                 <Text style={styles.secondaryButtonText}>{t('organizer_antifraud_upload')}</Text>

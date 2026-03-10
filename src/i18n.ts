@@ -963,7 +963,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     organizer_documents_saved_local:
       'Dati salvati in locale. Sync Supabase non riuscita: {reason}',
     organizer_documents_missing_for_email:
-      'Seleziona almeno documento identita e documento ente prima di inviare email.',
+      'Seleziona almeno un documento prima di inviare email.',
     organizer_documents_email_title: 'Invio documenti amministratore',
     organizer_documents_email_fail: 'Invio non riuscito: {detail}',
     organizer_documents_email_mode_simulated: 'modalita simulata',
@@ -1981,7 +1981,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     organizer_documents_saved_local:
       'Data saved locally. Supabase sync failed: {reason}',
     organizer_documents_missing_for_email:
-      'Select at least identity and organization documents before sending email.',
+      'Select at least one document before sending email.',
     organizer_documents_email_title: 'Administrator document delivery',
     organizer_documents_email_fail: 'Send failed: {detail}',
     organizer_documents_email_mode_simulated: 'simulated mode',

@@ -3512,6 +3512,7 @@ function App() {
     fiscalData: string;
     bankAccount: string;
     adminContactMessage: string;
+    antifraudProofDocuments?: string[];
     attachments: OrganizerComplianceAttachment[];
   }) => {
     const organizer = appData.organizers.find((entry) => entry.id === payload.organizerId);
@@ -3529,8 +3530,13 @@ function App() {
     const paymentAuthorizationDocument = payload.attachments.find(
       (entry) => entry.kind === 'payment_authorization_document'
     );
+    const antifraudProofDocuments = Array.isArray(payload.antifraudProofDocuments)
+      ? payload.antifraudProofDocuments
+          .map((entry) => cleanText(entry))
+          .filter(Boolean)
+      : organizer.complianceDocuments.antifraudProofDocuments ?? [];
 
-    if (!identityDocument || !organizationDocument) {
+    if (payload.attachments.length === 0) {
       Alert.alert(
         t('organizer_documents_saved_title'),
         t('organizer_documents_missing_for_email')
@@ -3547,10 +3553,16 @@ function App() {
       officialPhone: payload.officialPhone,
       fiscalData: payload.fiscalData,
       bankAccount: payload.bankAccount,
-      identityDocumentUrl: identityDocument.fileName,
-      organizationDocumentUrl: organizationDocument.fileName,
-      paymentAuthorizationDocumentUrl: paymentAuthorizationDocument?.fileName ?? '',
+      identityDocumentUrl:
+        identityDocument?.fileName ?? organizer.complianceDocuments.identityDocumentUrl ?? '',
+      organizationDocumentUrl:
+        organizationDocument?.fileName ?? organizer.complianceDocuments.organizationDocumentUrl ?? '',
+      paymentAuthorizationDocumentUrl:
+        paymentAuthorizationDocument?.fileName ??
+        organizer.complianceDocuments.paymentAuthorizationDocumentUrl ??
+        '',
       adminContactMessage: payload.adminContactMessage,
+      antifraudProofDocuments,
       silent: true,
     });
 

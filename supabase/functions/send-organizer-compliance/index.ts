@@ -23,6 +23,7 @@ type ComplianceAttachment = {
     | 'identity_document'
     | 'organization_document'
     | 'payment_authorization_document'
+    | 'antifraud_proof_document'
     | 'event_claim_proof';
   fileName: string;
   mimeType?: string;
@@ -185,6 +186,8 @@ const attachmentLabel = (kind: ComplianceAttachment['kind']): string => {
       return 'Documento ente';
     case 'payment_authorization_document':
       return 'Documento abilitazione quote';
+    case 'antifraud_proof_document':
+      return 'Documento prova antifrode';
     case 'event_claim_proof':
       return 'Prova titolarita evento';
     default:

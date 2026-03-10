@@ -71,7 +71,8 @@ export type OrganizerComplianceDocuments = {
 export type OrganizerComplianceAttachmentKind =
   | 'identity_document'
   | 'organization_document'
-  | 'payment_authorization_document';
+  | 'payment_authorization_document'
+  | 'antifraud_proof_document';
 
 export type OrganizerComplianceAttachment = {
   kind: OrganizerComplianceAttachmentKind;
