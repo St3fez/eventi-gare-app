@@ -5615,6 +5615,7 @@ function App() {
               setScreen({ name: 'participantSearch' });
             }}
             onOpenLegal={() => setShowLegalModal(true)}
+            appPublicUrl={buildPublicAppUrl()}
             language={language}
             onLanguageChange={setLanguage}
             t={t}

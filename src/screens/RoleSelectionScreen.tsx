@@ -1,4 +1,5 @@
 import React from 'react';
+import QRCode from 'react-native-qrcode-svg';
 import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 
 import { MetricChip, SectionCard } from '../components/Common';
@@ -11,6 +12,7 @@ type Props = {
   onOrganizer: () => void;
   onParticipant: () => void;
   onOpenLegal: () => void;
+  appPublicUrl: string | null;
   language: AppLanguage;
   onLanguageChange: (language: AppLanguage) => void;
   t: Translator;
@@ -22,12 +24,14 @@ export function RoleSelectionScreen({
   onOrganizer,
   onParticipant,
   onOpenLegal,
+  appPublicUrl,
   language,
   onLanguageChange,
   t,
 }: Props) {
   const { width } = useWindowDimensions();
   const isDesktopLayout = width >= 980;
+  const qrSize = isDesktopLayout ? 136 : 112;
 
   return (
     <ScrollView
@@ -64,6 +68,30 @@ export function RoleSelectionScreen({
                 <Text style={styles.flowStepText}>{t('home_flow_step_3')}</Text>
               </View>
             </View>
+
+            {appPublicUrl ? (
+              <View style={styles.formSectionCard}>
+                <Text style={styles.sectionHeaderTitle}>{t('home_mobile_qr_title')}</Text>
+                <Text style={styles.helperText}>{t('home_mobile_qr_intro')}</Text>
+                <View
+                  style={[
+                    styles.homeQrLayout,
+                    isDesktopLayout ? styles.homeQrLayoutDesktop : undefined,
+                  ]}
+                >
+                  <View style={styles.qrWrap}>
+                    <View style={styles.qrCard}>
+                      <QRCode value={appPublicUrl} size={qrSize} />
+                    </View>
+                  </View>
+                  <View style={styles.homeQrTextBlock}>
+                    <Text style={styles.fieldLabel}>{t('official_app_qr_title')}</Text>
+                    <Text style={styles.listSubText}>{t('home_mobile_qr_hint')}</Text>
+                    <Text style={styles.homeQrUrl}>{appPublicUrl}</Text>
+                  </View>
+                </View>
+              </View>
+            ) : null}
 
             <View style={styles.homeTopActions}>
               <Pressable style={styles.inlineActionButton} onPress={onOpenLegal}>

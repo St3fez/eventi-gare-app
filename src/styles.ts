@@ -611,6 +611,24 @@ export const styles = StyleSheet.create({
     backgroundColor: 'rgba(236, 248, 255, 0.96)',
     padding: 14,
   },
+  homeQrLayout: {
+    gap: 12,
+    alignItems: 'center',
+  },
+  homeQrLayoutDesktop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  homeQrTextBlock: {
+    flex: 1,
+    gap: 6,
+    minWidth: 0,
+  },
+  homeQrUrl: {
+    color: '#88F3E0',
+    fontSize: 12.5,
+    lineHeight: 18,
+  },
   sponsorLogoPreview: {
     width: '100%',
     height: 140,

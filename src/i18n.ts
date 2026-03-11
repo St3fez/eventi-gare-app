@@ -15,6 +15,11 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     home_flow_step_1: 'Scegli il ruolo con cui vuoi entrare.',
     home_flow_step_2: 'Gestisci eventi o trova subito la gara corretta.',
     home_flow_step_3: 'Completa iscrizione, pagamenti e condivisione senza passaggi inutili.',
+    home_mobile_qr_title: 'Apri subito da mobile',
+    home_mobile_qr_intro:
+      'Se stai consultando il sito da PC, scansiona il QR per continuare dallo smartphone senza cercare il link.',
+    home_mobile_qr_hint:
+      'Comodo per utenti, staff e partecipanti che vogliono entrare velocemente dal dispositivo mobile.',
     metric_total_events: 'Eventi totali',
     metric_total_registrations: 'Iscritti totali',
     enter_as_organizer: 'Entra come organizzatore',
@@ -1035,6 +1040,11 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     home_flow_step_1: 'Choose the role you want to use.',
     home_flow_step_2: 'Manage events or quickly find the right race.',
     home_flow_step_3: 'Complete registration, payment and sharing with less friction.',
+    home_mobile_qr_title: 'Open on mobile instantly',
+    home_mobile_qr_intro:
+      'If you are viewing the site on desktop, scan the QR code to continue on your phone without searching for the link.',
+    home_mobile_qr_hint:
+      'Useful for users, staff, and participants who want quick access from a mobile device.',
     metric_total_events: 'Total events',
     metric_total_registrations: 'Total registrations',
     enter_as_organizer: 'Continue as organizer',
