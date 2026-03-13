@@ -255,16 +255,38 @@ export function OrganizerDashboardScreen({
   const [adminCanManageInput, setAdminCanManageInput] = useState(false);
   const [simpleListView, setSimpleListView] = useState(true);
   const qrRef = useRef<QrCodeHandle | null>(null);
+  const sortedEvents = useMemo(
+    () =>
+      events
+        .slice()
+        .sort((first, second) => {
+          const firstWeight =
+            (first.active ? 8 : 0) +
+            (first.registrationsOpen ? 4 : 0) +
+            (first.visibility === 'public' ? 2 : 0) +
+            (!first.closedAt ? 1 : 0);
+          const secondWeight =
+            (second.active ? 8 : 0) +
+            (second.registrationsOpen ? 4 : 0) +
+            (second.visibility === 'public' ? 2 : 0) +
+            (!second.closedAt ? 1 : 0);
+          if (firstWeight !== secondWeight) {
+            return secondWeight - firstWeight;
+          }
+          return first.date.localeCompare(second.date);
+        }),
+    [events]
+  );
 
   useEffect(() => {
-    if (!events.length) {
+    if (!sortedEvents.length) {
       setSelectedEventId(undefined);
       return;
     }
-    if (!selectedEventId || !events.some((event) => event.id === selectedEventId)) {
-      setSelectedEventId(events[0].id);
+    if (!selectedEventId || !sortedEvents.some((event) => event.id === selectedEventId)) {
+      setSelectedEventId(sortedEvents[0].id);
     }
-  }, [events, selectedEventId]);
+  }, [selectedEventId, sortedEvents]);
 
   useEffect(() => {
     setOrganizerAntifraudProofDocuments(organizer.complianceDocuments.antifraudProofDocuments ?? []);
@@ -322,7 +344,7 @@ export function OrganizerDashboardScreen({
     setPaymentAttachment(null);
   }, [selectedComplianceOrganizer]);
 
-  const selectedEvent = events.find((event) => event.id === selectedEventId);
+  const selectedEvent = sortedEvents.find((event) => event.id === selectedEventId);
   const selectedEventPublicUrl = selectedEvent ? getEventPublicUrl(selectedEvent) : null;
   const selectedEventIsDefinitive = Boolean(
     selectedEvent &&
@@ -994,6 +1016,26 @@ export function OrganizerDashboardScreen({
     });
   };
 
+  const copyAppPublicUrl = async () => {
+    if (!appPublicUrl) {
+      Alert.alert(t('missing_data_title'), t('suggest_event_missing_link'));
+      return;
+    }
+    await Clipboard.setStringAsync(appPublicUrl);
+    Alert.alert(t('event_link_copied_title'), t('public_link_copied_message'));
+  };
+
+  const shareAppPublicUrl = async () => {
+    if (!appPublicUrl) {
+      Alert.alert(t('missing_data_title'), t('suggest_event_missing_link'));
+      return;
+    }
+    await Share.share({
+      message: appPublicUrl,
+      url: appPublicUrl,
+    });
+  };
+
   const downloadQrCode = async () => {
     if (!selectedEvent || !selectedEventPublicUrl) {
       Alert.alert(t('missing_data_title'), t('event_public_url_missing'));
@@ -1039,6 +1081,57 @@ export function OrganizerDashboardScreen({
     });
   };
 
+  const dashboardNextStep = useMemo(() => {
+    if (!events.length) {
+      return {
+        tone: 'info' as const,
+        message: t('organizer_dashboard_next_step_create_event'),
+        action: null as 'edit_selected' | 'copy_event_link' | null,
+      };
+    }
+
+    if (stripeConnectStatus === 'not_connected') {
+      return {
+        tone: 'warning' as const,
+        message: t('organizer_dashboard_next_step_connect_stripe'),
+        action: null as 'edit_selected' | 'copy_event_link' | null,
+      };
+    }
+
+    if (selectedEvent && !selectedEvent.isFree && !isPaidEventClaimApproved(selectedEvent)) {
+      return {
+        tone: 'warning' as const,
+        message: t('organizer_dashboard_next_step_claim_review', {
+          event: selectedEvent.name,
+        }),
+        action: 'edit_selected' as const,
+      };
+    }
+
+    if (selectedEventIsDefinitive && selectedEventPublicUrl) {
+      return {
+        tone: 'success' as const,
+        message: t('organizer_dashboard_next_step_share_event', {
+          event: selectedEvent?.name ?? '',
+        }),
+        action: 'copy_event_link' as const,
+      };
+    }
+
+    return {
+      tone: 'success' as const,
+      message: t('organizer_dashboard_next_step_ready'),
+      action: null as 'edit_selected' | 'copy_event_link' | null,
+    };
+  }, [
+    events.length,
+    selectedEvent,
+    selectedEventIsDefinitive,
+    selectedEventPublicUrl,
+    stripeConnectStatus,
+    t,
+  ]);
+
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
       <View style={[styles.screenSplit, isDesktopLayout ? styles.screenSplitDesktop : undefined]}>
@@ -1058,6 +1151,39 @@ export function OrganizerDashboardScreen({
               </Text>
             ) : null}
             <Text style={styles.helperText}>{t('event_claim_intro_short')}</Text>
+            <View
+              style={[
+                styles.noticeCard,
+                dashboardNextStep.tone === 'warning'
+                  ? styles.noticeCardWarning
+                  : dashboardNextStep.tone === 'success'
+                    ? styles.noticeCardSuccess
+                    : styles.noticeCardInfo,
+              ]}
+            >
+              <Text style={styles.noticeTitle}>{t('organizer_dashboard_next_step_title')}</Text>
+              <Text style={styles.noticeText}>{dashboardNextStep.message}</Text>
+              {!isDesktopLayout && selectedEvent ? (
+                <Text style={styles.noticeText}>
+                  {t('organizer_selected_event_line', { event: selectedEvent.name })}
+                </Text>
+              ) : null}
+            </View>
+            {dashboardNextStep.action === 'edit_selected' && selectedEvent ? (
+              <Pressable
+                style={styles.secondaryButton}
+                onPress={() => {
+                  void confirmEditEvent(selectedEvent);
+                }}
+              >
+                <Text style={styles.secondaryButtonText}>{t('edit_event')}</Text>
+              </Pressable>
+            ) : null}
+            {dashboardNextStep.action === 'copy_event_link' ? (
+              <Pressable style={styles.secondaryButton} onPress={() => void copyEventUrl()}>
+                <Text style={styles.secondaryButtonText}>{t('copy_event_link')}</Text>
+              </Pressable>
+            ) : null}
 
             <View style={styles.blockSpacing}>
               <Text style={styles.fieldLabel}>{t('stripe_connect_title')}</Text>
@@ -1121,13 +1247,11 @@ export function OrganizerDashboardScreen({
             {events.length === 0 ? (
               <Text style={styles.cardParagraph}>{t('no_events')}</Text>
             ) : (
-              events
-                .slice()
-                .sort((first, second) => first.date.localeCompare(second.date))
-                .map((event) => {
+              sortedEvents.map((event) => {
                   const eventCount = registrations
                     .filter((entry) => entry.eventId === event.id)
                     .reduce((sum, entry) => sum + Math.max(1, entry.groupParticipantsCount || 1), 0);
+                  const showEventActions = isDesktopLayout || selectedEventId === event.id;
                   return (
                     <View
                       key={event.id}
@@ -1256,89 +1380,94 @@ export function OrganizerDashboardScreen({
                             {t('event_closed_at', { value: formatDate(event.closedAt.slice(0, 10)) })}
                           </Text>
                         ) : null}
+                        {!showEventActions ? (
+                          <Text style={styles.helperText}>{t('organizer_event_card_mobile_hint')}</Text>
+                        ) : null}
                       </Pressable>
 
-                      <View style={styles.inlineActionRow}>
-                        <Pressable
-                          style={styles.inlineActionButton}
-                          onPress={() => {
-                            void confirmEditEvent(event);
-                          }}
-                        >
-                          <Text style={styles.inlineActionButtonText}>{t('edit_event')}</Text>
-                        </Pressable>
-                        <Pressable
-                          style={[styles.inlineActionButton, styles.inlineActionButtonWarning]}
-                          onPress={() => {
-                            void confirmToggleEventRegistrations(event);
-                          }}
-                        >
-                          <Text style={styles.inlineActionButtonText}>
-                            {event.registrationsOpen
-                              ? t('close_registrations')
-                              : t('open_registrations')}
-                          </Text>
-                        </Pressable>
-                        <Pressable
-                          style={[
-                            styles.inlineActionButton,
-                            event.active
-                              ? styles.inlineActionButtonWarning
-                              : styles.inlineActionButtonSuccess,
-                          ]}
-                          onPress={() => {
-                            void confirmToggleEventStatus(event);
-                          }}
-                        >
-                          <Text style={styles.inlineActionButtonText}>
-                            {event.active ? t('deactivate') : t('activate')}
-                          </Text>
-                        </Pressable>
-                        <Pressable
-                          style={[styles.inlineActionButton, styles.inlineActionButtonWarning]}
-                          onPress={() => {
-                            void confirmCloseEvent(event);
-                          }}
-                        >
-                          <Text style={styles.inlineActionButtonText}>{t('close_event')}</Text>
-                        </Pressable>
-                        <Pressable
-                          style={[styles.inlineActionButton, styles.inlineActionButtonSuccess]}
-                          onPress={() => {
-                            void confirmReopenEvent(event);
-                          }}
-                        >
-                          <Text style={styles.inlineActionButtonText}>{t('reopen_event')}</Text>
-                        </Pressable>
-                        {isAdmin ? (
+                      {showEventActions ? (
+                        <View style={styles.inlineActionRow}>
                           <Pressable
-                            style={[styles.inlineActionButton, styles.inlineActionButtonDanger]}
+                            style={styles.inlineActionButton}
                             onPress={() => {
-                              void confirmDeleteEventPermanently(event.id, event.name);
+                              void confirmEditEvent(event);
+                            }}
+                          >
+                            <Text style={styles.inlineActionButtonText}>{t('edit_event')}</Text>
+                          </Pressable>
+                          <Pressable
+                            style={[styles.inlineActionButton, styles.inlineActionButtonWarning]}
+                            onPress={() => {
+                              void confirmToggleEventRegistrations(event);
                             }}
                           >
                             <Text style={styles.inlineActionButtonText}>
-                              {t('event_delete_forever')}
+                              {event.registrationsOpen
+                                ? t('close_registrations')
+                                : t('open_registrations')}
                             </Text>
                           </Pressable>
-                        ) : null}
-                        <Pressable
-                          style={styles.inlineActionButton}
-                          onPress={() => {
-                            void onExportEvent(event.id);
-                          }}
-                        >
-                          <Text style={styles.inlineActionButtonText}>{t('export_csv')}</Text>
-                        </Pressable>
-                        <Pressable
-                          style={styles.inlineActionButton}
-                          onPress={() => {
-                            void onExportEventPdf(event.id);
-                          }}
-                        >
-                          <Text style={styles.inlineActionButtonText}>{t('export_pdf')}</Text>
-                        </Pressable>
-                      </View>
+                          <Pressable
+                            style={[
+                              styles.inlineActionButton,
+                              event.active
+                                ? styles.inlineActionButtonWarning
+                                : styles.inlineActionButtonSuccess,
+                            ]}
+                            onPress={() => {
+                              void confirmToggleEventStatus(event);
+                            }}
+                          >
+                            <Text style={styles.inlineActionButtonText}>
+                              {event.active ? t('deactivate') : t('activate')}
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            style={[styles.inlineActionButton, styles.inlineActionButtonWarning]}
+                            onPress={() => {
+                              void confirmCloseEvent(event);
+                            }}
+                          >
+                            <Text style={styles.inlineActionButtonText}>{t('close_event')}</Text>
+                          </Pressable>
+                          <Pressable
+                            style={[styles.inlineActionButton, styles.inlineActionButtonSuccess]}
+                            onPress={() => {
+                              void confirmReopenEvent(event);
+                            }}
+                          >
+                            <Text style={styles.inlineActionButtonText}>{t('reopen_event')}</Text>
+                          </Pressable>
+                          {isAdmin ? (
+                            <Pressable
+                              style={[styles.inlineActionButton, styles.inlineActionButtonDanger]}
+                              onPress={() => {
+                                void confirmDeleteEventPermanently(event.id, event.name);
+                              }}
+                            >
+                              <Text style={styles.inlineActionButtonText}>
+                                {t('event_delete_forever')}
+                              </Text>
+                            </Pressable>
+                          ) : null}
+                          <Pressable
+                            style={styles.inlineActionButton}
+                            onPress={() => {
+                              void onExportEvent(event.id);
+                            }}
+                          >
+                            <Text style={styles.inlineActionButtonText}>{t('export_csv')}</Text>
+                          </Pressable>
+                          <Pressable
+                            style={styles.inlineActionButton}
+                            onPress={() => {
+                              void onExportEventPdf(event.id);
+                            }}
+                          >
+                            <Text style={styles.inlineActionButtonText}>{t('export_pdf')}</Text>
+                          </Pressable>
+                        </View>
+                      ) : null}
                     </View>
                   );
                 })
@@ -1439,9 +1568,20 @@ export function OrganizerDashboardScreen({
                 <Text style={styles.helperText}>
                   {t('event_public_tools_intro')}
                 </Text>
+                {!isDesktopLayout ? (
+                  <Text style={styles.helperText}>{t('event_public_tools_mobile_hint')}</Text>
+                ) : null}
                 <Text style={styles.fieldLabel}>{t('official_app_qr_title')}</Text>
                 <Text style={styles.listSubText}>{appPublicUrl ?? t('event_public_url_missing')}</Text>
-                {appPublicUrl ? (
+                <View style={styles.compactActionRow}>
+                  <Pressable style={styles.secondaryButton} onPress={() => void copyAppPublicUrl()}>
+                    <Text style={styles.secondaryButtonText}>{t('copy_webapp_link')}</Text>
+                  </Pressable>
+                  <Pressable style={styles.secondaryButton} onPress={() => void shareAppPublicUrl()}>
+                    <Text style={styles.secondaryButtonText}>{t('share_webapp_link')}</Text>
+                  </Pressable>
+                </View>
+                {appPublicUrl && isDesktopLayout ? (
                   <View style={styles.registrationCard}>
                     <QRCode value={appPublicUrl} size={180} />
                   </View>
@@ -1450,7 +1590,7 @@ export function OrganizerDashboardScreen({
                 <Text style={styles.listSubText}>
                   {selectedEventPublicUrl ?? t('event_public_url_missing')}
                 </Text>
-                {selectedEventPublicUrl ? (
+                {selectedEventPublicUrl && isDesktopLayout ? (
                   <View style={styles.registrationCard}>
                     <QRCode
                       value={selectedEventPublicUrl}
@@ -1461,15 +1601,19 @@ export function OrganizerDashboardScreen({
                     />
                   </View>
                 ) : null}
-                <Pressable style={styles.secondaryButton} onPress={() => void copyEventUrl()}>
-                  <Text style={styles.secondaryButtonText}>{t('copy_event_link')}</Text>
-                </Pressable>
-                <Pressable style={styles.secondaryButton} onPress={() => void shareEventUrl()}>
-                  <Text style={styles.secondaryButtonText}>{t('share_event_link')}</Text>
-                </Pressable>
-                <Pressable style={styles.secondaryButton} onPress={() => void downloadQrCode()}>
-                  <Text style={styles.secondaryButtonText}>{t('event_qr_download')}</Text>
-                </Pressable>
+                <View style={styles.compactActionRow}>
+                  <Pressable style={styles.secondaryButton} onPress={() => void copyEventUrl()}>
+                    <Text style={styles.secondaryButtonText}>{t('copy_event_link')}</Text>
+                  </Pressable>
+                  <Pressable style={styles.secondaryButton} onPress={() => void shareEventUrl()}>
+                    <Text style={styles.secondaryButtonText}>{t('share_event_link')}</Text>
+                  </Pressable>
+                  {isDesktopLayout ? (
+                    <Pressable style={styles.secondaryButton} onPress={() => void downloadQrCode()}>
+                      <Text style={styles.secondaryButtonText}>{t('event_qr_download')}</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
               </>
             )}
           </SectionCard>

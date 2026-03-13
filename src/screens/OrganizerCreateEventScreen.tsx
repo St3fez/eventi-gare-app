@@ -596,39 +596,88 @@ export function OrganizerCreateEventScreen({
             />
           </View>
           <Text style={styles.helperText}>{t('guided_event_checklist_intro')}</Text>
+          <View
+            style={[
+              styles.noticeCard,
+              !isFree && claimStatus !== 'approved'
+                ? styles.noticeCardWarning
+                : canSubmit
+                  ? styles.noticeCardSuccess
+                  : styles.noticeCardInfo,
+            ]}
+          >
+            <Text style={styles.noticeTitle}>{t('guided_event_checklist_title')}</Text>
+            <Text style={styles.noticeText}>
+              {!isFree && claimStatus !== 'approved'
+                ? t('event_claim_publish_blocked')
+                : canSubmit
+                  ? t('guided_event_checklist_ready')
+                  : t('guided_required_checklist_missing', { count: missingRequiredLabels.length })}
+            </Text>
+          </View>
         </View>
 
-        <TextField label={t('event_name_required')} value={name} onChangeText={setName} />
-        <TextField label={t('location_required')} value={location} onChangeText={setLocation} />
+        <TextField
+          label={t('event_name_required')}
+          value={name}
+          onChangeText={setName}
+          returnKeyType='next'
+        />
+        <TextField
+          label={t('location_required')}
+          value={location}
+          onChangeText={setLocation}
+          returnKeyType='next'
+        />
         <TextField
           label={t('event_start_date_label')}
           value={date}
           onChangeText={setDate}
           placeholder={t('event_date_placeholder')}
+          autoCapitalize='none'
+          autoCorrect={false}
+          inputMode='numeric'
+          returnKeyType='next'
         />
         <TextField
           label={t('event_end_date_label')}
           value={endDate}
           onChangeText={setEndDate}
           placeholder={t('event_date_placeholder')}
+          autoCapitalize='none'
+          autoCorrect={false}
+          inputMode='numeric'
+          returnKeyType='next'
         />
         <TextField
           label={t('event_time_label')}
           value={startTime}
           onChangeText={setStartTime}
           placeholder={t('event_time_placeholder')}
+          autoCapitalize='none'
+          autoCorrect={false}
+          inputMode='numeric'
+          returnKeyType='next'
         />
         <TextField
           label={t('registration_open_date_label')}
           value={registrationOpenDate}
           onChangeText={setRegistrationOpenDate}
           placeholder={t('event_date_placeholder')}
+          autoCapitalize='none'
+          autoCorrect={false}
+          inputMode='numeric'
+          returnKeyType='next'
         />
         <TextField
           label={t('registration_close_date_label')}
           value={registrationCloseDate}
           onChangeText={setRegistrationCloseDate}
           placeholder={t('event_date_placeholder')}
+          autoCapitalize='none'
+          autoCorrect={false}
+          inputMode='numeric'
+          returnKeyType='done'
         />
 
         <SwitchRow
@@ -833,6 +882,11 @@ export function OrganizerCreateEventScreen({
                   onChangeText={setClaimOfficialEmail}
                   keyboardType='email-address'
                   placeholder={t('event_claim_official_email_placeholder')}
+                  autoCapitalize='none'
+                  autoCorrect={false}
+                  autoComplete='email'
+                  textContentType='emailAddress'
+                  inputMode='email'
                 />
               ) : (
                 <TextField
@@ -922,11 +976,10 @@ export function OrganizerCreateEventScreen({
         />
 
         <Pressable
-          style={[styles.primaryButton, !canSubmit ? styles.primaryButtonDisabled : undefined]}
+          style={styles.primaryButton}
           onPress={() => {
             void submit();
           }}
-          disabled={!canSubmit}
         >
           <Text style={styles.primaryButtonText}>
             {initialEvent

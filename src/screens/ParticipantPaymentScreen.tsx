@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { MetricChip, SectionCard, StatusBadge, TextField } from '../components/Common';
@@ -7,6 +7,10 @@ import { styles } from '../styles';
 import { EventItem, PaymentInput, RegistrationRecord } from '../types';
 import { requestHumanConfirmation } from '../utils/confirm';
 import { cleanText, formatDate, formatEventSchedule, toMoney } from '../utils/format';
+import {
+  getParticipantPaymentSessionState,
+  getPreferredParticipantPaymentMethod,
+} from '../utils/participantUx';
 
 type Props = {
   event: EventItem;
@@ -27,13 +31,41 @@ export function ParticipantPaymentScreen({
   onCancel,
   t,
 }: Props) {
-  const [method, setMethod] = useState<'stripe' | 'cash'>('stripe');
+  const [method, setMethod] = useState<'stripe' | 'cash'>(() =>
+    getPreferredParticipantPaymentMethod({
+      cashPaymentEnabled: event.cashPaymentEnabled,
+      registrationStatus: registration.registrationStatus,
+      paymentMethod: registration.paymentMethod,
+    })
+  );
   const [payerName, setPayerName] = useState(registration.fullName);
-  const [reference, setReference] = useState('');
+  const [reference, setReference] = useState(registration.paymentReference ?? '');
   const cashDeadline = event.cashPaymentDeadline
     ? formatDate(event.cashPaymentDeadline)
     : formatDate(event.registrationCloseDate);
   const cashInstructions = cleanText(event.cashPaymentInstructions ?? '');
+  const paymentSessionState = useMemo(
+    () => getParticipantPaymentSessionState(registration.paymentSessionExpiresAt),
+    [registration.paymentSessionExpiresAt]
+  );
+
+  useEffect(() => {
+    setMethod(
+      getPreferredParticipantPaymentMethod({
+        cashPaymentEnabled: event.cashPaymentEnabled,
+        registrationStatus: registration.registrationStatus,
+        paymentMethod: registration.paymentMethod,
+      })
+    );
+    setPayerName(registration.fullName);
+    setReference(registration.paymentReference ?? '');
+  }, [
+    event.cashPaymentEnabled,
+    registration.fullName,
+    registration.paymentMethod,
+    registration.paymentReference,
+    registration.registrationStatus,
+  ]);
   const registrationStatusLabel = useMemo(() => {
     switch (registration.registrationStatus) {
       case 'pending_payment':
@@ -110,6 +142,23 @@ export function ParticipantPaymentScreen({
           registration.paymentStatus === 'cancelled'
         ? 'warning'
         : 'neutral';
+  const paymentSessionNotice =
+    paymentSessionState === 'expired'
+      ? {
+          style: styles.noticeCardWarning,
+          message: t('payment_session_expired_notice'),
+        }
+      : paymentSessionState === 'expiring'
+        ? {
+            style: styles.noticeCardWarning,
+            message: t('payment_session_expiring_notice', { value: sessionLabel }),
+          }
+        : paymentSessionState === 'active'
+          ? {
+              style: styles.noticeCardInfo,
+              message: t('payment_session_active_notice', { value: sessionLabel }),
+            }
+          : null;
 
   const submit = async () => {
     if (!cleanText(payerName)) {
@@ -214,6 +263,12 @@ export function ParticipantPaymentScreen({
               : t('cash_payment_flow_helper')}
           </Text>
           <Text style={styles.helperText}>{t('payment_fiscal_compliance_notice')}</Text>
+          {paymentSessionNotice ? (
+            <View style={[styles.noticeCard, paymentSessionNotice.style]}>
+              <Text style={styles.noticeTitle}>{t('payment_session_status_title')}</Text>
+              <Text style={styles.noticeText}>{paymentSessionNotice.message}</Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.formSectionCard}>
@@ -263,12 +318,22 @@ export function ParticipantPaymentScreen({
 
         <View style={styles.formSectionCard}>
           <Text style={styles.sectionHeaderTitle}>{t('payment_payer_section_title')}</Text>
-          <TextField label={t('payer_name')} value={payerName} onChangeText={setPayerName} />
+          <TextField
+            label={t('payer_name')}
+            value={payerName}
+            onChangeText={setPayerName}
+            autoComplete='name'
+            textContentType='name'
+            returnKeyType='next'
+          />
           <TextField
             label={t('payment_reference_optional')}
             value={reference}
             onChangeText={setReference}
             placeholder={t('payment_reference_placeholder')}
+            autoCapitalize='characters'
+            autoCorrect={false}
+            returnKeyType='done'
           />
         </View>
 

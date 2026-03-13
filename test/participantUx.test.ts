@@ -6,6 +6,8 @@ import {
   compareParticipantEventsForSearch,
   getParticipantEventAvailability,
   getParticipantMessageValidationIssues,
+  getParticipantPaymentSessionState,
+  getPreferredParticipantPaymentMethod,
   getRegistrationMissingFields,
   getRegistrationProgressSummary,
   getRegistrationTotalAmount,
@@ -90,6 +92,19 @@ test('getParticipantEventAvailability closes the event after the deadline', () =
   const event = createEvent();
   assert.equal(
     getParticipantEventAvailability(event, '2026-04-11'),
+    'registration_closed'
+  );
+});
+
+test('getParticipantEventAvailability does not mark inactive future events as upcoming', () => {
+  const event = createEvent({
+    active: false,
+    registrationOpenDate: '2026-05-01',
+    registrationCloseDate: '2026-05-10',
+  });
+
+  assert.equal(
+    getParticipantEventAvailability(event, '2026-04-20'),
     'registration_closed'
   );
 });
@@ -232,4 +247,48 @@ test('getParticipantMessageValidationIssues requires valid contact data and mess
   });
 
   assert.deepEqual(result, ['fullName', 'emailFormat', 'participantMessage']);
+});
+
+test('getPreferredParticipantPaymentMethod resumes cash flows when available', () => {
+  assert.equal(
+    getPreferredParticipantPaymentMethod({
+      cashPaymentEnabled: true,
+      registrationStatus: 'pending_cash',
+      paymentMethod: undefined,
+    }),
+    'cash'
+  );
+  assert.equal(
+    getPreferredParticipantPaymentMethod({
+      cashPaymentEnabled: true,
+      registrationStatus: 'pending_payment',
+      paymentMethod: 'cash',
+    }),
+    'cash'
+  );
+  assert.equal(
+    getPreferredParticipantPaymentMethod({
+      cashPaymentEnabled: false,
+      registrationStatus: 'pending_payment',
+      paymentMethod: 'cash',
+    }),
+    'stripe'
+  );
+});
+
+test('getParticipantPaymentSessionState detects active, expiring and expired sessions', () => {
+  const now = new Date('2026-03-13T10:00:00.000Z').getTime();
+
+  assert.equal(
+    getParticipantPaymentSessionState('2026-03-13T10:20:00.000Z', now),
+    'active'
+  );
+  assert.equal(
+    getParticipantPaymentSessionState('2026-03-13T10:04:00.000Z', now),
+    'expiring'
+  );
+  assert.equal(
+    getParticipantPaymentSessionState('2026-03-13T09:59:00.000Z', now),
+    'expired'
+  );
 });

@@ -35,6 +35,7 @@ type Props = {
   onBack: () => void;
   onSelectEvent: (eventId: string) => void;
   editableEventIds?: string[];
+  resumablePaymentEventIds?: string[];
   getEventPublicUrl: (event: EventItem) => string | null;
   appPublicUrl: string | null;
   sponsorSlots: SponsorSlot[];
@@ -46,6 +47,7 @@ export function ParticipantSearchScreen({
   onBack,
   onSelectEvent,
   editableEventIds = [],
+  resumablePaymentEventIds = [],
   getEventPublicUrl,
   appPublicUrl,
   sponsorSlots,
@@ -64,6 +66,10 @@ export function ParticipantSearchScreen({
     cleanText(nameQuery) || cleanText(locationQuery) || !activeOnly
   );
   const editableEventIdSet = useMemo(() => new Set(editableEventIds), [editableEventIds]);
+  const resumablePaymentEventIdSet = useMemo(
+    () => new Set(resumablePaymentEventIds),
+    [resumablePaymentEventIds]
+  );
 
   const filtered = useMemo(() => {
     const normalizedNameQuery = cleanText(nameQuery).toLowerCase();
@@ -147,12 +153,12 @@ export function ParticipantSearchScreen({
     await Linking.openURL(normalized);
   };
 
-  const copyEventLink = async (url: string) => {
+  const copyPublicLink = async (url: string) => {
     await Clipboard.setStringAsync(url);
-    Alert.alert(t('event_link_copied_title'), t('event_link_copied_message'));
+    Alert.alert(t('event_link_copied_title'), t('public_link_copied_message'));
   };
 
-  const shareEventLink = async (url: string) => {
+  const sharePublicLink = async (url: string) => {
     await Share.share({
       message: url,
       url,
@@ -331,6 +337,26 @@ export function ParticipantSearchScreen({
                   : t('suggest_event_missing_link')}
               </Text>
               {appPublicUrl ? (
+                <View style={styles.compactActionRow}>
+                  <Pressable
+                    style={styles.secondaryButton}
+                    onPress={() => {
+                      void copyPublicLink(appPublicUrl);
+                    }}
+                  >
+                    <Text style={styles.secondaryButtonText}>{t('copy_webapp_link')}</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.secondaryButton}
+                    onPress={() => {
+                      void sharePublicLink(appPublicUrl);
+                    }}
+                  >
+                    <Text style={styles.secondaryButtonText}>{t('share_webapp_link')}</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+              {appPublicUrl && isDesktopLayout ? (
                 <>
                   <Text style={styles.fieldLabel}>{t('official_app_qr_title')}</Text>
                   <View style={styles.qrWrap}>
@@ -422,6 +448,8 @@ export function ParticipantSearchScreen({
                 const localSponsor = cleanText(event.localSponsor ?? '');
                 const eventSponsorSlots = visibleSponsorSlotsByEvent.get(eventId) ?? [];
                 const availability = getParticipantEventAvailability(event);
+                const hasResumablePayment = resumablePaymentEventIdSet.has(eventId);
+                const hasEditableRegistration = editableEventIdSet.has(eventId);
                 const availabilityTone =
                   availability === 'registration_open'
                     ? 'success'
@@ -435,7 +463,9 @@ export function ParticipantSearchScreen({
                       ? t('badge_registration_upcoming')
                       : t('badge_registration_closed');
                 const canStartRegistration =
-                  availability === 'registration_open' || editableEventIdSet.has(eventId);
+                  availability === 'registration_open' ||
+                  hasResumablePayment ||
+                  hasEditableRegistration;
                 const authLabel =
                   event.participantAuthMode === 'email'
                     ? t('participant_auth_mode_email')
@@ -444,6 +474,27 @@ export function ParticipantSearchScreen({
                       : event.participantAuthMode === 'flexible'
                         ? t('participant_auth_mode_flexible')
                         : t('participant_auth_mode_anonymous');
+                const primaryActionLabel = hasResumablePayment
+                  ? t('resume_payment_action')
+                  : hasEditableRegistration
+                    ? t('update_registration_data')
+                    : canStartRegistration
+                      ? t('subscribe')
+                      : availabilityLabel;
+                const cardHintStyle = hasResumablePayment
+                  ? styles.noticeCardWarning
+                  : hasEditableRegistration
+                    ? styles.noticeCardSuccess
+                    : styles.noticeCardInfo;
+                const cardHintText = hasResumablePayment
+                  ? t('participant_search_card_hint_resume_payment')
+                  : hasEditableRegistration
+                    ? t('participant_search_card_hint_edit_registration')
+                    : availability === 'registration_open'
+                      ? t('participant_search_card_hint_open')
+                      : availability === 'registration_upcoming'
+                        ? t('participant_search_card_hint_upcoming')
+                        : t('participant_search_card_hint_closed');
 
                 return (
                   <View key={eventId} style={styles.listCard}>
@@ -465,6 +516,12 @@ export function ParticipantSearchScreen({
                             : t('badge_phone_short_optional')
                         }
                       />
+                      {hasResumablePayment ? (
+                        <StatusBadge label={t('resume_payment_action')} tone='warning' />
+                      ) : null}
+                      {hasEditableRegistration && !hasResumablePayment ? (
+                        <StatusBadge label={t('update_registration_data')} tone='success' />
+                      ) : null}
                       {eventSponsorSlots.length > 0 ? (
                         <StatusBadge label={t('badge_sponsors_active')} tone='success' />
                       ) : null}
@@ -503,11 +560,7 @@ export function ParticipantSearchScreen({
                       </View>
                       <View style={[styles.miniMetricCard, styles.miniMetricCardDense]}>
                         <Text style={[styles.miniMetricValue, styles.miniMetricValueCompact]}>
-                          {editableEventIdSet.has(eventId)
-                            ? t('update_registration_data')
-                            : canStartRegistration
-                              ? t('subscribe')
-                              : availabilityLabel}
+                          {primaryActionLabel}
                         </Text>
                         <Text style={styles.miniMetricLabel}>
                           {t('participant_search_metric_action')}
@@ -520,16 +573,60 @@ export function ParticipantSearchScreen({
                         to: formatDate(event.registrationCloseDate || event.endDate || event.date),
                       })}
                     </Text>
-                    <View style={[styles.noticeCard, styles.noticeCardInfo]}>
+                    <View style={[styles.noticeCard, cardHintStyle]}>
                       <Text style={styles.noticeTitle}>{t('participant_search_card_hint_title')}</Text>
-                      <Text style={styles.noticeText}>
-                        {availability === 'registration_open'
-                          ? t('participant_search_card_hint_open')
-                          : availability === 'registration_upcoming'
-                            ? t('participant_search_card_hint_upcoming')
-                            : t('participant_search_card_hint_closed')}
-                      </Text>
+                      <Text style={styles.noticeText}>{cardHintText}</Text>
                     </View>
+                    <Pressable
+                      style={[
+                        styles.primaryButtonCompact,
+                        !canStartRegistration ? styles.primaryButtonDisabled : undefined,
+                      ]}
+                      onPress={() => onSelectEvent(eventId)}
+                      disabled={!canStartRegistration}
+                    >
+                      <Text style={styles.primaryButtonText}>{primaryActionLabel}</Text>
+                    </Pressable>
+                    {(() => {
+                      const publicUrl = cleanText(getEventPublicUrl(event));
+                      if (!publicUrl) {
+                        return null;
+                      }
+                      return (
+                        <View style={styles.registrationCard}>
+                          <Text style={styles.helperText}>{publicUrl}</Text>
+                          {isDesktopLayout ? (
+                            <View style={styles.qrWrap}>
+                              <View style={styles.qrCard}>
+                                <QRCode value={publicUrl} size={120} />
+                              </View>
+                            </View>
+                          ) : null}
+                          <View style={styles.compactActionRow}>
+                            <Pressable
+                              style={styles.secondaryButton}
+                              onPress={() => {
+                                void copyPublicLink(publicUrl);
+                              }}
+                            >
+                              <Text style={styles.secondaryButtonText}>
+                                {t('copy_event_link')}
+                              </Text>
+                            </Pressable>
+                            <Pressable
+                              style={styles.secondaryButton}
+                              onPress={() => {
+                                void sharePublicLink(publicUrl);
+                              }}
+                            >
+                              <Text style={styles.secondaryButtonText}>
+                                {t('share_event_link')}
+                              </Text>
+                            </Pressable>
+                          </View>
+                        </View>
+                      );
+                    })()}
                     {event.isFree && localSponsor ? (
                       isImageDataUrl(localSponsor) ? (
                         <Image source={{ uri: localSponsor }} style={styles.sponsorLogoPreview} />
@@ -573,60 +670,6 @@ export function ParticipantSearchScreen({
                         );
                       })
                     )}
-                    {(() => {
-                      const publicUrl = cleanText(getEventPublicUrl(event));
-                      if (!publicUrl) {
-                        return null;
-                      }
-                      return (
-                        <View style={styles.registrationCard}>
-                          <Text style={styles.helperText}>{publicUrl}</Text>
-                          <View style={styles.qrWrap}>
-                            <View style={styles.qrCard}>
-                              <QRCode value={publicUrl} size={120} />
-                            </View>
-                          </View>
-                          <View style={styles.compactActionRow}>
-                            <Pressable
-                              style={styles.secondaryButton}
-                              onPress={() => {
-                                void copyEventLink(publicUrl);
-                              }}
-                            >
-                              <Text style={styles.secondaryButtonText}>
-                                {t('copy_event_link')}
-                              </Text>
-                            </Pressable>
-                            <Pressable
-                              style={styles.secondaryButton}
-                              onPress={() => {
-                                void shareEventLink(publicUrl);
-                              }}
-                            >
-                              <Text style={styles.secondaryButtonText}>
-                                {t('share_event_link')}
-                              </Text>
-                            </Pressable>
-                          </View>
-                        </View>
-                      );
-                    })()}
-                    <Pressable
-                      style={[
-                        styles.primaryButtonCompact,
-                        !canStartRegistration ? styles.primaryButtonDisabled : undefined,
-                      ]}
-                      onPress={() => onSelectEvent(eventId)}
-                      disabled={!canStartRegistration}
-                    >
-                      <Text style={styles.primaryButtonText}>
-                        {editableEventIdSet.has(eventId)
-                          ? t('update_registration_data')
-                          : canStartRegistration
-                            ? t('subscribe')
-                            : availabilityLabel}
-                      </Text>
-                    </Pressable>
                   </View>
                 );
               })

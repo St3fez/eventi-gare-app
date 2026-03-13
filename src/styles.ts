@@ -277,6 +277,10 @@ export const styles = StyleSheet.create({
     backgroundColor: 'rgba(7, 30, 49, 0.85)',
     borderColor: 'rgba(118, 180, 209, 0.55)',
   },
+  noticeCardWarning: {
+    backgroundColor: 'rgba(84, 60, 18, 0.84)',
+    borderColor: 'rgba(241, 198, 92, 0.5)',
+  },
   noticeTitle: {
     color: '#F1FAFF',
     fontWeight: '800',

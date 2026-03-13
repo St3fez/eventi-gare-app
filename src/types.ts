@@ -90,6 +90,7 @@ export type EventClaimAttachment = {
 
 export type ScreenState =
   | { name: 'role' }
+  | { name: 'privacyPolicy' }
   | { name: 'organizerAuth' }
   | { name: 'organizerProfile' }
   | { name: 'organizerCreate'; organizerId: string; eventId?: string }

@@ -1,10 +1,18 @@
-import { EventItem } from '../types';
+import { EventItem, RegistrationStatus } from '../types';
 import { cleanText, isValidEmailAddress, toIsoDate, tryToIsoDate } from './format';
 
 export type ParticipantEventAvailability =
   | 'registration_open'
   | 'registration_upcoming'
   | 'registration_closed';
+
+export type ParticipantPaymentMethod = 'stripe' | 'cash';
+
+export type ParticipantPaymentSessionState =
+  | 'not_set'
+  | 'active'
+  | 'expiring'
+  | 'expired';
 
 export type RegistrationMissingField =
   | 'fullName'
@@ -83,10 +91,6 @@ export const getParticipantEventAvailability = (
       cleanText(event.date)
   );
 
-  if (todayIso < openDate) {
-    return 'registration_upcoming';
-  }
-
   if (
     !event.active ||
     event.visibility !== 'public' ||
@@ -94,6 +98,10 @@ export const getParticipantEventAvailability = (
     Boolean(cleanText(event.closedAt))
   ) {
     return 'registration_closed';
+  }
+
+  if (todayIso < openDate) {
+    return 'registration_upcoming';
   }
 
   if (todayIso > closeDate) {
@@ -255,3 +263,44 @@ export const getRegistrationTotalAmount = (
   unitAmount: number,
   groupParticipantsCountInput: string | number | undefined
 ): number => unitAmount * parseGroupParticipantsCount(groupParticipantsCountInput);
+
+export const getPreferredParticipantPaymentMethod = (input: {
+  cashPaymentEnabled: boolean;
+  registrationStatus: RegistrationStatus;
+  paymentMethod?: string;
+}): ParticipantPaymentMethod => {
+  if (
+    input.cashPaymentEnabled &&
+    (input.paymentMethod === 'cash' || input.registrationStatus === 'pending_cash')
+  ) {
+    return 'cash';
+  }
+
+  return 'stripe';
+};
+
+export const getParticipantPaymentSessionState = (
+  expiresAt?: string,
+  now = Date.now(),
+  expiringWindowMs = 5 * 60 * 1000
+): ParticipantPaymentSessionState => {
+  const normalizedExpiry = cleanText(expiresAt ?? '');
+  if (!normalizedExpiry) {
+    return 'not_set';
+  }
+
+  const expiryTimestamp = new Date(normalizedExpiry).getTime();
+  if (Number.isNaN(expiryTimestamp)) {
+    return 'not_set';
+  }
+
+  if (expiryTimestamp <= now) {
+    return 'expired';
+  }
+
+  if (expiryTimestamp - now <= expiringWindowMs) {
+    return 'expiring';
+  }
+
+  return 'active';
+};

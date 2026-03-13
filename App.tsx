@@ -104,6 +104,7 @@ import { ParticipantAuthScreen } from './src/screens/ParticipantAuthScreen';
 import { ParticipantPaymentScreen } from './src/screens/ParticipantPaymentScreen';
 import { ParticipantRegistrationScreen } from './src/screens/ParticipantRegistrationScreen';
 import { ParticipantSearchScreen } from './src/screens/ParticipantSearchScreen';
+import { PrivacyPolicyScreen } from './src/screens/PrivacyPolicyScreen';
 import { RoleSelectionScreen } from './src/screens/RoleSelectionScreen';
 import { styles } from './src/styles';
 import {
@@ -313,11 +314,70 @@ const normalizePublicBaseUrl = (value: string | undefined): string | null => {
   }
 };
 
+const normalizeWebPath = (value: string | undefined): string => {
+  const normalized = String(value ?? '')
+    .replace(/\/index\.html?$/i, '')
+    .replace(/\/+$/, '');
+  return normalized || '/';
+};
+
+const PRIVACY_POLICY_ROUTE_SEGMENT = 'privacy-policy';
+
+const getConfiguredWebBasePath = (): string => {
+  const normalizedBase = normalizePublicBaseUrl(EVENT_WEB_BASE_URL);
+  if (!normalizedBase) {
+    return '';
+  }
+
+  try {
+    return normalizeWebPath(new URL(normalizedBase).pathname);
+  } catch {
+    return '';
+  }
+};
+
+const isPrivacyPolicyWebPath = (pathname: string | undefined): boolean => {
+  const normalizedPath = normalizeWebPath(pathname);
+  const configuredBasePath = getConfiguredWebBasePath();
+  const configuredPrivacyPath = configuredBasePath
+    ? normalizeWebPath(`${configuredBasePath}/${PRIVACY_POLICY_ROUTE_SEGMENT}`)
+    : '';
+
+  return (
+    normalizedPath === normalizeWebPath(`/${PRIVACY_POLICY_ROUTE_SEGMENT}`) ||
+    (configuredPrivacyPath ? normalizedPath === configuredPrivacyPath : false)
+  );
+};
+
+const trimKnownPublicLeafPath = (pathname: string | undefined): string => {
+  const normalizedPath = normalizeWebPath(pathname);
+  const privacySuffix = `/${PRIVACY_POLICY_ROUTE_SEGMENT}`;
+  if (normalizedPath.toLowerCase().endsWith(privacySuffix)) {
+    const basePath = normalizedPath.slice(0, -privacySuffix.length);
+    return basePath || '/';
+  }
+  return normalizedPath;
+};
+
+const getInitialScreenFromUrl = (): ScreenState => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') {
+    return { name: 'role' };
+  }
+
+  if (isPrivacyPolicyWebPath(window.location.pathname)) {
+    return { name: 'privacyPolicy' };
+  }
+
+  return { name: 'role' };
+};
+
 const getRuntimeWebBaseUrl = (): string | null => {
   if (Platform.OS !== 'web' || typeof window === 'undefined' || !window.location?.origin) {
     return null;
   }
-  return normalizePublicBaseUrl(`${window.location.origin}${window.location.pathname}`);
+  return normalizePublicBaseUrl(
+    `${window.location.origin}${trimKnownPublicLeafPath(window.location.pathname)}`
+  );
 };
 
 const getEventPublicBaseUrl = (): string | null => {
@@ -1117,7 +1177,7 @@ function App() {
   const isDesktopLayout = width >= 1024;
   const [appData, setAppData] = useState<AppData>(createDefaultData);
   const [language, setLanguage] = useState<AppLanguage>('it');
-  const [screen, setScreen] = useState<ScreenState>({ name: 'role' });
+  const [screen, setScreen] = useState<ScreenState>(getInitialScreenFromUrl);
   const [isReady, setIsReady] = useState(false);
   const [showLegalModal, setShowLegalModal] = useState(false);
   const [freeInterstitial, setFreeInterstitial] = useState<FreeInterstitial | null>(null);
@@ -1152,8 +1212,11 @@ function App() {
     if (Platform.OS !== 'web' || typeof document === 'undefined') {
       return;
     }
-    document.title = t('app_name');
-  }, [language, t]);
+    document.title =
+      screen.name === 'privacyPolicy'
+        ? `${t('privacy_policy_page_title')} | ${t('app_name')}`
+        : t('app_name');
+  }, [screen.name, t]);
 
   useEffect(() => {
     let mounted = true;
@@ -1823,29 +1886,43 @@ function App() {
     () => new Set(publicEventRemoteIds),
     [publicEventRemoteIds]
   );
-  const participantEditableEventIds = useMemo(() => {
+  const participantResumablePaymentEventIds = useMemo(() => {
     if (!activeParticipantEmail) {
       return [];
     }
-    const editableStatuses = new Set<RegistrationRecord['registrationStatus']>([
-      'pending_payment',
-      'pending_cash',
-      'paid',
-    ]);
     return Array.from(
       new Set(
         appData.registrations
           .filter(
             (entry) =>
               cleanText(entry.email).toLowerCase() === activeParticipantEmail &&
-              editableStatuses.has(entry.registrationStatus)
+              (entry.registrationStatus === 'pending_payment' ||
+                entry.registrationStatus === 'pending_cash') &&
+              !isPaymentSessionExpired(entry.paymentSessionExpiresAt)
+          )
+          .map((entry) => entry.eventId)
+      )
+    );
+  }, [activeParticipantEmail, appData.registrations]);
+  const participantEditableEventIds = useMemo(() => {
+    if (!activeParticipantEmail) {
+      return [];
+    }
+    return Array.from(
+      new Set(
+        appData.registrations
+          .filter(
+            (entry) =>
+              cleanText(entry.email).toLowerCase() === activeParticipantEmail &&
+              entry.registrationStatus === 'paid'
           )
           .map((entry) => entry.eventId)
       )
     );
   }, [activeParticipantEmail, appData.registrations]);
 
-  const shouldShowMonetizationBanner = screen.name !== 'role';
+  const shouldShowMonetizationBanner =
+    screen.name !== 'role' && screen.name !== 'privacyPolicy';
 
   const monetizationBanner = useMemo(() => {
     const activeSponsorSlots = appData.sponsorSlots.filter((slot) => isSponsorSlotVisible(slot));
@@ -2692,6 +2769,19 @@ function App() {
       return null;
     }
     return `${base}/`;
+  };
+
+  const openPublicHome = () => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const targetUrl =
+        buildPublicAppUrl() ??
+        normalizePublicBaseUrl(EVENT_WEB_BASE_URL) ??
+        `${window.location.origin}/`;
+      window.location.assign(targetUrl);
+      return;
+    }
+
+    setScreen({ name: 'role' });
   };
 
   const syncEventRecord = async (sourceData: AppData, event: EventItem) => {
@@ -5579,11 +5669,17 @@ function App() {
     }
 
     const target: ParticipantPostAuthTarget = candidate
-      ? {
-          name: 'participantRegister',
-          eventId: candidate.eventId,
-          registrationId: candidate.id,
-        }
+      ? candidate.registrationStatus === 'pending_payment' ||
+        candidate.registrationStatus === 'pending_cash'
+        ? {
+            name: 'participantPayment',
+            registrationId: candidate.id,
+          }
+        : {
+            name: 'participantRegister',
+            eventId: candidate.eventId,
+            registrationId: candidate.id,
+          }
       : { name: 'participantRegister', eventId };
 
     const participantAuthAllowed = await ensureParticipantAuthForEvent(event);
@@ -5598,6 +5694,18 @@ function App() {
 
   const renderScreen = () => {
     switch (screen.name) {
+      case 'privacyPolicy':
+        return (
+          <PrivacyPolicyScreen
+            appPublicUrl={buildPublicAppUrl()}
+            contactEmail={ADMIN_CONTACT_EMAIL}
+            language={language}
+            onLanguageChange={setLanguage}
+            onOpenHome={openPublicHome}
+            t={t}
+          />
+        );
+
       case 'role':
         return (
           <RoleSelectionScreen
@@ -5627,6 +5735,7 @@ function App() {
           return (
             <OrganizerProfileScreen
               organizers={organizersForProfile}
+              suggestedEmail={cleanText(organizerSecurity?.email ?? '')}
               onBack={() => setScreen({ name: 'role' })}
               onSignOut={() => {
                 void signOutOrganizerAccount();
@@ -5673,6 +5782,7 @@ function App() {
         return (
           <OrganizerProfileScreen
             organizers={organizersForProfile}
+            suggestedEmail={cleanText(organizerSecurity?.email ?? '')}
             onBack={() => setScreen({ name: 'role' })}
             onSignOut={() => {
               void signOutOrganizerAccount();
@@ -5813,6 +5923,7 @@ function App() {
               void openParticipantEventFromSearch(eventId);
             }}
             editableEventIds={participantEditableEventIds}
+            resumablePaymentEventIds={participantResumablePaymentEventIds}
             getEventPublicUrl={buildPublicEventUrl}
             appPublicUrl={buildPublicAppUrl()}
             sponsorSlots={appData.sponsorSlots}
@@ -5885,7 +5996,7 @@ function App() {
     }
   };
 
-  if (!isReady) {
+  if (!isReady && screen.name !== 'privacyPolicy') {
     return (
       <SafeAreaView style={styles.loadingSafeArea}>
         <StatusBar style='light' />

@@ -72,6 +72,42 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     privacy_policy_open_error_title: 'Errore apertura link',
     privacy_policy_open_error_message:
       'Non riesco ad aprire il link della Privacy Policy.',
+    privacy_policy_eyebrow: 'Informativa pubblica',
+    privacy_policy_page_title: 'Privacy Policy',
+    privacy_policy_page_intro:
+      'Informativa pubblica per webapp e app mobile. Ogni organizzatore resta titolare dei dati raccolti per il proprio evento; questa pagina descrive il perimetro tecnico della piattaforma.',
+    privacy_policy_page_last_updated: 'Aggiornata al 13 marzo 2026.',
+    privacy_policy_back_home: 'Apri webapp',
+    privacy_policy_scope_title: 'Titolare e ruoli',
+    privacy_policy_scope_body:
+      "L'organizzatore dell'evento e titolare del trattamento per iscrizioni, contatti e gestione operativa. La piattaforma Eventi e Gare fornisce infrastruttura tecnica, sincronizzazione dati, invio email configurato e funzioni di supporto amministrativo.",
+    privacy_policy_data_title: 'Dati trattati',
+    privacy_policy_data_item_1:
+      "Dati identificativi e di contatto del partecipante: nome, email, telefono se richiesto, citta e data di nascita se previsti dall'evento.",
+    privacy_policy_data_item_2:
+      "Dati di iscrizione e operativi: evento scelto, codice iscrizione, numero assegnato, eventuali partecipanti di gruppo, messaggi inviati all'organizzatore.",
+    privacy_policy_data_item_3:
+      'Dati pagamento e sicurezza: stato pagamento, riferimenti tecnici, antifrode e log tecnici strettamente necessari al servizio.',
+    privacy_policy_purposes_title: 'Finalita',
+    privacy_policy_purposes_body:
+      "Gestione iscrizione, comunicazioni operative, assegnazione numero, incasso quote quando previsto, adempimenti fiscali/amministrativi, sicurezza dell'account, prevenzione abusi e supporto tecnico.",
+    privacy_policy_basis_title: 'Base giuridica',
+    privacy_policy_basis_body:
+      "Esecuzione dei servizi richiesti dall'utente, consenso per i campi e i flag espliciti presenti nel flusso, obblighi legali/fiscali applicabili e legittimo interesse alla sicurezza della piattaforma.",
+    privacy_policy_additional_title: 'Diritti, contatti e note',
+    privacy_policy_retention_title: 'Conservazione',
+    privacy_policy_retention_body:
+      "I dati sono conservati per il tempo necessario alle finalita dichiarate dall'organizzatore, agli obblighi legali e alla tutela dei diritti. Non esiste una singola finestra automatica valida per tutti i casi; eventuali cache locali possono essere ridotte o eliminate per esigenze tecniche, mentre la retention ufficiale segue la policy pubblicata dall'organizzatore.",
+    privacy_policy_third_parties_title: 'Fornitori e pagamenti',
+    privacy_policy_third_parties_body:
+      "Per eventi a pagamento possono intervenire fornitori certificati di pagamento, come Stripe, oltre ai servizi infrastrutturali e email configurati dall'organizzatore. Ogni trasferimento verso terzi avviene solo per eseguire il servizio richiesto.",
+    privacy_policy_rights_title: 'Diritti e richieste',
+    privacy_policy_rights_body:
+      "Per accesso, rettifica, cancellazione, limitazione, opposizione o chiarimenti sulla singola manifestazione, il primo contatto resta l'organizzatore dell'evento. Per questioni tecniche di piattaforma puoi scrivere a {email}.",
+    privacy_policy_disclaimer_title: 'Nota importante',
+    privacy_policy_disclaimer_body:
+      "Questa pagina descrive la baseline tecnica della piattaforma. L'organizzatore puo integrare informative aggiuntive per il singolo evento e deve allinearle ai propri obblighi legali/privacy.",
+    privacy_policy_public_url_title: 'URL pubblico policy',
     close: 'Chiudi',
     confirm_action: 'Conferma',
     free_done_title: 'Iscrizione completata',
@@ -144,6 +180,9 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     guided_organizer_checklist_intro:
       "Inserisci prima un'email valida: e il requisito minimo per creare o aggiornare il profilo.",
     guided_organizer_checklist_ready: 'Requisiti minimi completi: puoi salvare il profilo.',
+    organizer_profile_prefill_title: 'Email gia riconosciuta',
+    organizer_profile_prefill_message:
+      'Stai usando l account autenticato {email}. Completa i dati profilo e salva senza reinserire la mail.',
     guided_event_checklist_title: 'Guida rapida creazione evento',
     guided_event_checklist_intro:
       'Ordine consigliato: dati base, periodo iscrizioni, quota/pagamenti, poi pubblicazione.',
@@ -412,10 +451,24 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     commissions_3: 'Commissioni 3%',
     provider_fees: 'Costo Stripe stimato',
     organizer_net_total: 'Netto organizzatore',
+    organizer_dashboard_next_step_title: 'Prossimo passo consigliato',
+    organizer_dashboard_next_step_create_event:
+      'Non hai ancora eventi: crea il primo evento e poi controlla subito visibilita, finestra iscrizioni e accesso partecipanti.',
+    organizer_dashboard_next_step_connect_stripe:
+      'Collega o aggiorna Stripe Connect prima di puntare su eventi a quota, cosi eviti blocchi ai checkout partecipanti.',
+    organizer_dashboard_next_step_claim_review:
+      'L evento "{event}" non e ancora pronto per la pubblicazione definitiva: rivedi claim, prova documentale e visibilita.',
+    organizer_dashboard_next_step_share_event:
+      'L evento "{event}" e pronto: copia o condividi subito il link pubblico dalla dashboard.',
+    organizer_dashboard_next_step_ready:
+      'Profilo e configurazione principale sono allineati. Da qui puoi creare un nuovo evento o gestire quelli gia pubblicati.',
+    organizer_selected_event_line: 'Evento selezionato: {event}',
     create_new_event: 'Crea nuovo evento',
     edit_event: 'Modifica evento',
     your_events: 'I tuoi eventi',
     no_events: 'Nessun evento creato.',
+    organizer_event_card_mobile_hint:
+      'Tocca la scheda per mostrare azioni rapide e strumenti evento.',
     event_free: 'Gratuito',
     event_fee: 'Quota {fee}',
     subscribers_count: 'Iscritti: {count}',
@@ -464,13 +517,18 @@ const translations: Record<AppLanguage, Record<string, string>> = {
       'Condividi link web e QR code ufficiale con partecipanti, social, poster e locandine.',
     event_public_tools_not_definitive:
       "Pubblica l'evento in modo definitivo (attivo e visibile) per sbloccare link pubblico e QR.",
+    event_public_tools_mobile_hint:
+      'Da mobile conviene copiare o condividere i link direttamente. Usa i QR soprattutto quando hai un secondo dispositivo davanti.',
     official_app_qr_title: 'QR ufficiale app',
     selected_event_qr_title: 'QR evento selezionato',
     copy_event_link: 'Copia link evento',
     share_event_link: 'Condividi link evento',
+    copy_webapp_link: 'Copia link webapp',
+    share_webapp_link: 'Condividi link webapp',
     event_qr_download: 'Scarica QR code',
     event_link_copied_title: 'Link copiato',
     event_link_copied_message: 'Il link pubblico evento e stato copiato negli appunti.',
+    public_link_copied_message: 'Il link pubblico e stato copiato negli appunti.',
     event_public_url_missing: 'Link pubblico evento non disponibile.',
     event_qr_not_ready: 'QR code non pronto. Riprova tra qualche secondo.',
     realtime_list: 'Lista iscritti in tempo reale',
@@ -518,6 +576,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_search_share_title: 'Segnala un evento mancante',
     participant_search_results_hint:
       'Ogni scheda mostra stato iscrizioni, costo, requisiti di accesso e link condivisibile.',
+    resume_payment_action: 'Riprendi pagamento',
     participant_search_metric_date: 'Data evento',
     participant_search_metric_deadline: 'Scadenza iscrizioni',
     participant_search_metric_access: 'Accesso richiesto',
@@ -579,6 +638,10 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_search_card_hint_title: 'Cosa controllare subito',
     participant_search_card_hint_open:
       'Evento pronto per l iscrizione: puoi aprire il form e completare i dati.',
+    participant_search_card_hint_resume_payment:
+      'Hai gia una sessione pagamento aperta: riaprila per completare o cambiare metodo.',
+    participant_search_card_hint_edit_registration:
+      "Hai gia un'iscrizione per questo evento: puoi riaprire la scheda e aggiornare i dati.",
     participant_search_card_hint_upcoming:
       'Evento visibile ma non ancora aperto: verifica la data di apertura iscrizioni.',
     participant_search_card_hint_closed:
@@ -804,6 +867,13 @@ const translations: Record<AppLanguage, Record<string, string>> = {
       'Completa il pagamento nel browser:\n{url}\n{openResult}\nDopo il pagamento, rientra in app e conferma di nuovo per sincronizzare lo stato.',
     payment_checkout_opened_ok: 'Browser aperto automaticamente.',
     payment_checkout_opened_manual: 'Apri manualmente il link se il browser non si e avviato.',
+    payment_session_status_title: 'Stato sessione',
+    payment_session_active_notice:
+      'La sessione pagamento e attiva fino a {value}. Se hai gia aperto Stripe, puoi tornare qui per riprendere o cambiare metodo.',
+    payment_session_expiring_notice:
+      'La sessione scade presto alle {value}. Completa il pagamento ora o apri una nuova sessione.',
+    payment_session_expired_notice:
+      'La sessione precedente e scaduta. Puoi aprire un nuovo checkout o scegliere il contante se disponibile.',
     registration_status_pending_payment: 'In attesa pagamento',
     registration_status_pending_cash: 'In attesa contanti',
     registration_status_paid: 'Pagata',
@@ -1097,6 +1167,42 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     privacy_policy_open_error_title: 'Link opening error',
     privacy_policy_open_error_message:
       'Unable to open the Privacy Policy link.',
+    privacy_policy_eyebrow: 'Public notice',
+    privacy_policy_page_title: 'Privacy Policy',
+    privacy_policy_page_intro:
+      'Public notice for the web app and mobile app. Each organizer remains the data controller for data collected for their own event; this page describes the platform technical scope.',
+    privacy_policy_page_last_updated: 'Last updated on March 13, 2026.',
+    privacy_policy_back_home: 'Open web app',
+    privacy_policy_scope_title: 'Controller and roles',
+    privacy_policy_scope_body:
+      'The event organizer is the data controller for registrations, contacts, and operational management. The Eventi e Gare platform provides technical infrastructure, data sync, configured email delivery, and administrative support functions.',
+    privacy_policy_data_title: 'Processed data',
+    privacy_policy_data_item_1:
+      'Participant identity and contact data: name, email, phone if required, city, and birth date when requested by the event.',
+    privacy_policy_data_item_2:
+      'Registration and operational data: selected event, registration code, assigned number, any group participants, and messages sent to the organizer.',
+    privacy_policy_data_item_3:
+      'Payment and security data: payment status, technical references, anti-fraud information, and technical logs strictly necessary for the service.',
+    privacy_policy_purposes_title: 'Purposes',
+    privacy_policy_purposes_body:
+      'Registration management, operational communications, number assignment, fee collection when applicable, tax/administrative obligations, account security, abuse prevention, and technical support.',
+    privacy_policy_basis_title: 'Legal basis',
+    privacy_policy_basis_body:
+      'Performance of the services requested by the user, consent for explicit fields and flags shown in the flow, applicable legal/tax obligations, and legitimate interest in platform security.',
+    privacy_policy_additional_title: 'Rights, contacts and notes',
+    privacy_policy_retention_title: 'Retention',
+    privacy_policy_retention_body:
+      'Data is kept for the time necessary for the purposes declared by the organizer, legal obligations, and protection of rights. There is no single automatic retention window valid for every case; local caches may be reduced or removed for technical reasons, while official retention follows the policy published by the organizer.',
+    privacy_policy_third_parties_title: 'Providers and payments',
+    privacy_policy_third_parties_body:
+      'For paid events, certified payment providers such as Stripe may be involved, in addition to infrastructure and email services configured by the organizer. Any transfer to third parties happens only to execute the requested service.',
+    privacy_policy_rights_title: 'Rights and requests',
+    privacy_policy_rights_body:
+      'For access, rectification, deletion, restriction, objection, or questions about a specific event, the first contact remains the event organizer. For platform technical issues you can write to {email}.',
+    privacy_policy_disclaimer_title: 'Important note',
+    privacy_policy_disclaimer_body:
+      'This page describes the platform technical baseline. Organizers may add event-specific notices and must align them with their own legal/privacy obligations.',
+    privacy_policy_public_url_title: 'Public policy URL',
     close: 'Close',
     confirm_action: 'Confirm',
     free_done_title: 'Registration completed',
@@ -1169,6 +1275,9 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     guided_organizer_checklist_intro:
       'Enter a valid email first: this is the minimum requirement to create or update the profile.',
     guided_organizer_checklist_ready: 'Minimum requirements complete: you can save the profile.',
+    organizer_profile_prefill_title: 'Recognized email',
+    organizer_profile_prefill_message:
+      'You are using the authenticated account {email}. Complete the profile and save without typing the email again.',
     guided_event_checklist_title: 'Quick event creation guide',
     guided_event_checklist_intro:
       'Recommended order: basic info, registration period, fee/payments, then publish.',
@@ -1440,10 +1549,24 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     commissions_3: 'Commissions 3%',
     provider_fees: 'Estimated Stripe fees',
     organizer_net_total: 'Organizer net',
+    organizer_dashboard_next_step_title: 'Recommended next step',
+    organizer_dashboard_next_step_create_event:
+      'You do not have any events yet: create the first one and then review visibility, registration window and participant access.',
+    organizer_dashboard_next_step_connect_stripe:
+      'Connect or refresh Stripe Connect before focusing on paid events so participant checkouts do not get blocked later.',
+    organizer_dashboard_next_step_claim_review:
+      'The event "{event}" is not ready for final publication yet: review claim details, proof documents and visibility.',
+    organizer_dashboard_next_step_share_event:
+      'The event "{event}" is ready: copy or share the public link directly from the dashboard.',
+    organizer_dashboard_next_step_ready:
+      'Profile and main setup are aligned. From here you can create a new event or manage the ones already published.',
+    organizer_selected_event_line: 'Selected event: {event}',
     create_new_event: 'Create new event',
     edit_event: 'Edit event',
     your_events: 'Your events',
     no_events: 'No events created.',
+    organizer_event_card_mobile_hint:
+      'Tap the card to reveal quick actions and event tools.',
     event_free: 'Free',
     event_fee: 'Fee {fee}',
     subscribers_count: 'Registered: {count}',
@@ -1492,13 +1615,18 @@ const translations: Record<AppLanguage, Record<string, string>> = {
       'Share the official web link and QR code with participants, social channels, posters and flyers.',
     event_public_tools_not_definitive:
       'Publish the event as definitive (active and visible) to unlock public link and QR.',
+    event_public_tools_mobile_hint:
+      'On mobile it is usually faster to copy or share links directly. Use QR codes mainly when you have a second device in front of you.',
     official_app_qr_title: 'Official app QR',
     selected_event_qr_title: 'Selected event QR',
     copy_event_link: 'Copy event link',
     share_event_link: 'Share event link',
+    copy_webapp_link: 'Copy web app link',
+    share_webapp_link: 'Share web app link',
     event_qr_download: 'Download QR code',
     event_link_copied_title: 'Link copied',
     event_link_copied_message: 'The public event link has been copied to clipboard.',
+    public_link_copied_message: 'The public link has been copied to clipboard.',
     event_public_url_missing: 'Public event link is not available.',
     event_qr_not_ready: 'QR code not ready yet. Try again in a few seconds.',
     realtime_list: 'Real-time registrations list',
@@ -1546,6 +1674,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_search_share_title: 'Suggest a missing event',
     participant_search_results_hint:
       'Each card shows registration status, cost, access requirements and a shareable link.',
+    resume_payment_action: 'Resume payment',
     participant_search_metric_date: 'Event date',
     participant_search_metric_deadline: 'Registration deadline',
     participant_search_metric_access: 'Required access',
@@ -1607,6 +1736,10 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     participant_search_card_hint_title: 'Check this first',
     participant_search_card_hint_open:
       'Event is ready for registration: you can open the form and complete the details.',
+    participant_search_card_hint_resume_payment:
+      'You already have a payment session open: reopen it to complete payment or switch method.',
+    participant_search_card_hint_edit_registration:
+      'You already have a registration for this event: reopen it to update the details.',
     participant_search_card_hint_upcoming:
       'Event is visible but not open yet: check the registration opening date.',
     participant_search_card_hint_closed:
@@ -1833,6 +1966,13 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     payment_checkout_opened_ok: 'Browser opened automatically.',
     payment_checkout_opened_manual:
       'Open the link manually if the browser did not start.',
+    payment_session_status_title: 'Session status',
+    payment_session_active_notice:
+      'Your payment session stays active until {value}. If you already opened Stripe, you can return here to resume or switch method.',
+    payment_session_expiring_notice:
+      'This session is expiring soon at {value}. Complete payment now or open a new session.',
+    payment_session_expired_notice:
+      'The previous session has expired. You can open a new checkout or switch to cash if available.',
     registration_status_pending_payment: 'Pending payment',
     registration_status_pending_cash: 'Pending cash',
     registration_status_paid: 'Paid',

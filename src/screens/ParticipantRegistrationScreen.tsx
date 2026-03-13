@@ -560,6 +560,28 @@ export function ParticipantRegistrationScreen({
                       {t('group_total_amount_line', { value: toMoney(totalAmount) })}
                     </Text>
                   ) : null}
+                  <View
+                    style={[
+                      styles.noticeCard,
+                      canSubmit ? styles.noticeCardSuccess : styles.noticeCardInfo,
+                    ]}
+                  >
+                    <Text style={styles.noticeTitle}>{t('guided_required_checklist_title')}</Text>
+                    <Text style={styles.noticeText}>
+                      {canSubmit
+                        ? t('guided_required_checklist_ready')
+                        : t('guided_required_checklist_missing', {
+                            count: validationLabels.length,
+                          })}
+                    </Text>
+                    {!canSubmit
+                      ? validationLabels.map((label) => (
+                          <Text key={label} style={styles.listSubText}>
+                            - {label}
+                          </Text>
+                        ))
+                      : null}
+                  </View>
                 </View>
 
                 <View style={styles.formSectionCard}>
@@ -724,11 +746,10 @@ export function ParticipantRegistrationScreen({
                   <Text style={styles.helperText}>{t('retention_policy_notice')}</Text>
 
                   <Pressable
-                    style={[styles.primaryButton, !canSubmit ? styles.primaryButtonDisabled : undefined]}
+                    style={styles.primaryButton}
                     onPress={() => {
                       void submit();
                     }}
-                    disabled={!canSubmit}
                   >
                     <Text style={styles.primaryButtonText}>{primaryActionLabel}</Text>
                   </Pressable>

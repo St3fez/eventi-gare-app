@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { SectionCard, TextField } from '../components/Common';
@@ -35,6 +35,20 @@ export function OrganizerAuthScreen({
   t,
 }: Props) {
   const [email, setEmail] = useState(status?.email ?? '');
+
+  useEffect(() => {
+    setEmail((current) => {
+      const normalizedCurrent = cleanText(current);
+      const nextEmail = cleanText(status?.email ?? '');
+      if (!nextEmail) {
+        return normalizedCurrent;
+      }
+      if (!normalizedCurrent || normalizedCurrent.toLowerCase() === nextEmail.toLowerCase()) {
+        return nextEmail;
+      }
+      return current;
+    });
+  }, [status?.email]);
 
   const socialReady = Boolean(status?.socialProvider);
   const emailReady = Boolean(status?.providers?.includes('email'));
@@ -124,6 +138,12 @@ export function OrganizerAuthScreen({
           value={email}
           onChangeText={setEmail}
           keyboardType='email-address'
+          autoCapitalize='none'
+          autoCorrect={false}
+          autoComplete='email'
+          textContentType='emailAddress'
+          inputMode='email'
+          returnKeyType='done'
         />
         <Text style={styles.helperText}>{t('organizer_security_otp_hint')}</Text>
         {!canSendMagicLink ? (

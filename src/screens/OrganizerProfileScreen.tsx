@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { SectionCard, TextField } from '../components/Common';
 import { Translator } from '../i18n';
@@ -9,6 +9,7 @@ import { cleanText } from '../utils/format';
 
 type Props = {
   organizers: OrganizerProfile[];
+  suggestedEmail?: string;
   onBack: () => void;
   onSignOut?: () => void;
   showSignOut?: boolean;
@@ -28,6 +29,7 @@ type Props = {
 
 export function OrganizerProfileScreen({
   organizers,
+  suggestedEmail,
   onBack,
   onSignOut,
   showSignOut = false,
@@ -35,7 +37,9 @@ export function OrganizerProfileScreen({
   onUseExisting,
   t,
 }: Props) {
-  const [email, setEmail] = useState('');
+  const normalizedSuggestedEmail = cleanText(suggestedEmail ?? '').toLowerCase();
+  const previousSuggestedEmailRef = useRef(normalizedSuggestedEmail);
+  const [email, setEmail] = useState(normalizedSuggestedEmail);
   const [organizationName, setOrganizationName] = useState('');
   const [organizationRole, setOrganizationRole] = useState<OrganizerRole>('presidente_fondazione');
   const [organizationRoleLabel, setOrganizationRoleLabel] = useState('');
@@ -54,10 +58,54 @@ export function OrganizerProfileScreen({
   }, [emailIsValid, t]);
   const canSubmit = missingRequiredLabels.length === 0;
 
+  useEffect(() => {
+    setEmail((current) => {
+      const normalizedCurrent = cleanText(current).toLowerCase();
+      const previousSuggested = previousSuggestedEmailRef.current;
+      previousSuggestedEmailRef.current = normalizedSuggestedEmail;
+
+      if (!normalizedSuggestedEmail) {
+        return current;
+      }
+
+      if (!normalizedCurrent || normalizedCurrent === previousSuggested) {
+        return normalizedSuggestedEmail;
+      }
+
+      return current;
+    });
+  }, [normalizedSuggestedEmail]);
+
+  const submit = () => {
+    if (!canSubmit) {
+      Alert.alert(t('invalid_email_title'), t('invalid_email_message'));
+      return;
+    }
+
+    onCreate({
+      email: normalizedEmail,
+      fiscalData,
+      bankAccount,
+      organizationName,
+      organizationRole,
+      organizationRoleLabel,
+      legalRepresentative,
+      officialPhone,
+    });
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps='handled'>
       <SectionCard title={t('organizer_access')} delayMs={0}>
         <Text style={styles.cardParagraph}>{t('organizer_access_intro')}</Text>
+        {normalizedSuggestedEmail ? (
+          <View style={[styles.noticeCard, styles.noticeCardInfo]}>
+            <Text style={styles.noticeTitle}>{t('organizer_profile_prefill_title')}</Text>
+            <Text style={styles.noticeText}>
+              {t('organizer_profile_prefill_message', { email: normalizedSuggestedEmail })}
+            </Text>
+          </View>
+        ) : null}
         <View style={styles.registrationCard}>
           <Text style={styles.fieldLabel}>{t('guided_organizer_checklist_title')}</Text>
           <Text style={styles.helperText}>{t('guided_organizer_checklist_intro')}</Text>
@@ -97,11 +145,25 @@ export function OrganizerProfileScreen({
           </View>
         ) : null}
 
-        <TextField label={t('email_required')} value={email} onChangeText={setEmail} keyboardType='email-address' />
+        <TextField
+          label={t('email_required')}
+          value={email}
+          onChangeText={setEmail}
+          keyboardType='email-address'
+          autoCapitalize='none'
+          autoCorrect={false}
+          autoComplete='email'
+          textContentType='emailAddress'
+          inputMode='email'
+          returnKeyType='next'
+        />
         <TextField
           label={t('organization_name_label')}
           value={organizationName}
           onChangeText={setOrganizationName}
+          autoComplete='organization'
+          textContentType='organizationName'
+          returnKeyType='next'
         />
         <Text style={styles.fieldLabel}>{t('organization_role_label')}</Text>
         <View style={styles.methodRow}>
@@ -174,6 +236,11 @@ export function OrganizerProfileScreen({
           value={officialPhone}
           onChangeText={setOfficialPhone}
           keyboardType='phone-pad'
+          autoCapitalize='none'
+          autoCorrect={false}
+          autoComplete='tel'
+          textContentType='telephoneNumber'
+          inputMode='tel'
         />
         <TextField
           label={t('fiscal_optional')}
@@ -188,22 +255,7 @@ export function OrganizerProfileScreen({
           placeholder={t('bank_placeholder')}
         />
 
-        <Pressable
-          style={[styles.primaryButton, !canSubmit ? styles.primaryButtonDisabled : undefined]}
-          disabled={!canSubmit}
-          onPress={() =>
-            onCreate({
-              email: normalizedEmail,
-              fiscalData,
-              bankAccount,
-              organizationName,
-              organizationRole,
-              organizationRoleLabel,
-              legalRepresentative,
-              officialPhone,
-            })
-          }
-        >
+        <Pressable style={styles.primaryButton} onPress={submit}>
           <Text style={styles.primaryButtonText}>{t('save_organizer')}</Text>
         </Pressable>
         {!canSubmit ? (
