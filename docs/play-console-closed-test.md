@@ -19,6 +19,8 @@ From project root:
 Output:
 - Main bundle: `android/app/build/outputs/bundle/release/app-release.aab`
 - Timestamped copy for upload: `dist/play/*.aab`
+- Deobfuscation file: `dist/play/*-mapping.txt`
+- Native debug symbols: `dist/play/*-native-debug-symbols.zip`
 
 If you want to force clean (slower; on Windows this may fail with CMake/codegen path issues):
 
@@ -67,10 +69,19 @@ In `App content`, complete:
 - Never lose keystore/passwords, or you cannot ship updates from this key.
 
 ## Android permissions
+Ads-related permissions kept explicit in manifest/merge for AdMob-enabled releases:
+- `com.google.android.gms.permission.AD_ID`
+- `android.permission.ACCESS_NETWORK_STATE`
+
 Unnecessary high-risk permissions were removed from release manifest:
 - `READ_EXTERNAL_STORAGE`
 - `WRITE_EXTERNAL_STORAGE`
 - `SYSTEM_ALERT_WINDOW`
+
+## Crash / ANR debugging
+- Release builds now enable R8/resource shrinking, so `mapping.txt` is generated automatically.
+- Upload `*-mapping.txt` to Play Console if requested for deobfuscation.
+- Keep `*-native-debug-symbols.zip` with the same release so native stack traces remain symbolicated.
 
 ## Next upload (version bump)
 Update:

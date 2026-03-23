@@ -1,9 +1,13 @@
 {
+  "react-native-google-mobile-ads": {
+    "android_app_id": "ca-app-pub-3940256099942544~3347511713",
+    "ios_app_id": "ca-app-pub-3940256099942544~1458002511"
+  },
   "expo": {
     "name": "Events",
     "slug": "eventi-slash-gare",
     "scheme": "eventigare",
-    "version": "1.0.5",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,7 +20,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.eventi.slash.gare",
-      "buildNumber": "7"
+      "buildNumber": "9"
     },
     "android": {
       "adaptiveIcon": {
@@ -24,7 +28,7 @@
         "backgroundColor": "#04192E"
       },
       "package": "com.eventi.slash.gare",
-      "versionCode": 7,
+      "versionCode": 9,
       "softwareKeyboardLayoutMode": "resize",
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",
