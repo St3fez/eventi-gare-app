@@ -1,5 +1,11 @@
 import { EventItem, RegistrationStatus } from '../types';
-import { cleanText, isValidEmailAddress, toIsoDate, tryToIsoDate } from './format';
+import {
+  cleanText,
+  isValidEmailAddress,
+  normalizeComparableText,
+  toIsoDate,
+  tryToIsoDate,
+} from './format';
 
 export type ParticipantEventAvailability =
   | 'registration_open'
@@ -137,6 +143,55 @@ export const compareParticipantEventsForSearch = (
     return availabilityDiff;
   }
   return toIsoDate(first.date).localeCompare(toIsoDate(second.date));
+};
+
+export type ParticipantPriceFilter = 'all' | 'free' | 'paid';
+
+type DiscoverableEventInput = Pick<EventItem, 'name' | 'location' | 'isFree' | 'date'> &
+  EventAvailabilityInput;
+
+export const isParticipantEventFinished = (
+  event: Pick<EventItem, 'date' | 'endDate'>,
+  todayIso = new Date().toISOString().slice(0, 10)
+): boolean => {
+  const lastDay = tryToIsoDate(event.endDate) || tryToIsoDate(event.date);
+  return Boolean(lastDay) && lastDay < todayIso;
+};
+
+export const filterParticipantDiscoverableEvents = <T extends DiscoverableEventInput>(
+  events: T[],
+  options: {
+    query?: string;
+    priceFilter?: ParticipantPriceFilter;
+    openOnly?: boolean;
+    todayIso?: string;
+  } = {}
+): T[] => {
+  const todayIso = options.todayIso ?? new Date().toISOString().slice(0, 10);
+  const terms = normalizeComparableText(options.query ?? '')
+    .split(' ')
+    .filter(Boolean);
+  const priceFilter = options.priceFilter ?? 'all';
+
+  return events
+    .filter((event) => cleanText(event.visibility) === 'public' && Boolean(event.active))
+    .filter((event) => !isParticipantEventFinished(event, todayIso))
+    .filter((event) =>
+      priceFilter === 'free' ? event.isFree : priceFilter === 'paid' ? !event.isFree : true
+    )
+    .filter((event) =>
+      options.openOnly
+        ? getParticipantEventAvailability(event, todayIso) === 'registration_open'
+        : true
+    )
+    .filter((event) => {
+      if (!terms.length) {
+        return true;
+      }
+      const haystack = normalizeComparableText(`${event.name} ${event.location}`);
+      return terms.every((term) => haystack.includes(term));
+    })
+    .sort((first, second) => compareParticipantEventsForSearch(first, second, todayIso));
 };
 
 export const getRegistrationMissingFields = (

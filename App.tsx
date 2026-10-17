@@ -33,8 +33,7 @@ import { AdMobBanner } from './src/components/AdMobBanner';
 import { FallbackScreen, FreeEventBanner } from './src/components/Common';
 import { FreeInterstitialModal } from './src/components/FreeInterstitialModal';
 import { LegalModal } from './src/components/LegalModal';
-import { ProcessingInterstitialModal } from './src/components/ProcessingInterstitialModal';
-import { AppLanguage, createTranslator } from './src/i18n';
+import { AppLanguage, createTranslator, detectDeviceLanguage } from './src/i18n';
 import { sendConfirmationEmail, sendNotificationEmail } from './src/services/email';
 import { sendEventClaimEmail } from './src/services/eventClaimEmail';
 import {
@@ -47,7 +46,7 @@ import { exportEventRegistrationsPdf } from './src/services/exportPdf';
 import { scoreOrganizerRisk } from './src/services/fraud';
 import { sendOrganizerComplianceEmail } from './src/services/organizerComplianceEmail';
 import { createParticipantCheckout } from './src/services/participantCheckout';
-import { initAdMob, loadInterstitialAd, showInterstitialAd } from './src/services/admob';
+import { initAdMob } from './src/services/admob';
 import {
   completeOAuthFromUrl,
   getWebAuthRedirectUrl,
@@ -69,7 +68,12 @@ import {
   expirePendingPaymentSessions,
   isPaymentSessionExpired,
 } from './src/services/paymentStateMachine';
-import { loadAppData, saveAppData } from './src/services/storage';
+import {
+  loadAppData,
+  loadLanguagePreference,
+  saveAppData,
+  saveLanguagePreference,
+} from './src/services/storage';
 import {
   deleteEventInSupabase,
   ensureSupabaseUser,
@@ -77,6 +81,7 @@ import {
   listParticipantRegistrationsFromSupabase,
   listPublicEventsFromSupabase,
   listOrganizerCatalogFromSupabase,
+  listOrganizerRegistrationsFromSupabase,
   OrganizerCatalogEventRow,
   OrganizerCatalogOrganizerRow,
   ParticipantRegistrationRow,
@@ -103,7 +108,7 @@ import { OrganizerProfileScreen } from './src/screens/OrganizerProfileScreen';
 import { ParticipantAuthScreen } from './src/screens/ParticipantAuthScreen';
 import { ParticipantPaymentScreen } from './src/screens/ParticipantPaymentScreen';
 import { ParticipantRegistrationScreen } from './src/screens/ParticipantRegistrationScreen';
-import { ParticipantSearchScreen } from './src/screens/ParticipantSearchScreen';
+import { ParticipantSearchScreen } from './src/screens/ParticipantEventSearchScreen';
 import { PrivacyPolicyScreen } from './src/screens/PrivacyPolicyScreen';
 import { RoleSelectionScreen } from './src/screens/RoleSelectionScreen';
 import { styles } from './src/styles';
@@ -747,8 +752,12 @@ const mergeOrganizerCatalogFromSupabase = (
         typeof row.assign_numbers === 'boolean'
           ? row.assign_numbers
           : existing?.assignNumbers ?? true,
-      registrationOpenDate: existing?.registrationOpenDate ?? createdAt.slice(0, 10),
-      registrationCloseDate: existing?.registrationCloseDate ?? eventEndDate,
+      registrationOpenDate:
+        tryToIsoDate(row.registration_open_date) ||
+        existing?.registrationOpenDate ||
+        createdAt.slice(0, 10),
+      registrationCloseDate:
+        tryToIsoDate(row.registration_close_date) || existing?.registrationCloseDate || eventEndDate,
       registrationsOpen:
         typeof row.registrations_open === 'boolean'
           ? row.registrations_open
@@ -1176,15 +1185,11 @@ function App() {
   const { width } = useWindowDimensions();
   const isDesktopLayout = width >= 1024;
   const [appData, setAppData] = useState<AppData>(createDefaultData);
-  const [language, setLanguage] = useState<AppLanguage>('it');
+  const [language, setLanguageState] = useState<AppLanguage>(detectDeviceLanguage);
   const [screen, setScreen] = useState<ScreenState>(getInitialScreenFromUrl);
   const [isReady, setIsReady] = useState(false);
   const [showLegalModal, setShowLegalModal] = useState(false);
   const [freeInterstitial, setFreeInterstitial] = useState<FreeInterstitial | null>(null);
-  const [processingInterstitial, setProcessingInterstitial] = useState<{
-    secondsRemaining: number;
-    sponsor?: string;
-  } | null>(null);
   const [organizerSecurity, setOrganizerSecurity] = useState<OrganizerSecurityStatus | null>(
     null
   );
@@ -1206,6 +1211,22 @@ function App() {
   const handledStripeConnectCallbackRef = useRef<string | null>(null);
   const pendingStripeConnectSecurityRef = useRef<string | null>(null);
   const t = useMemo(() => createTranslator(language), [language]);
+  const setLanguage = useCallback((next: AppLanguage) => {
+    setLanguageState(next);
+    void saveLanguagePreference(next);
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    void loadLanguagePreference().then((stored) => {
+      if (mounted && stored) {
+        setLanguageState(stored);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
   const appSubtitle = IS_DEMO_CHANNEL ? t('app_subtitle_demo') : t('app_subtitle');
 
   useEffect(() => {
@@ -1252,9 +1273,7 @@ function App() {
     if (!ADMOB_ENABLED) {
       return;
     }
-    void initAdMob().then(() => {
-      loadInterstitialAd();
-    });
+    void initAdMob();
   }, []);
 
   useEffect(() => {
@@ -1376,7 +1395,7 @@ function App() {
   }, [isReady]);
 
   useEffect(() => {
-    if (!isReady || IS_DEMO_CHANNEL || !PARTICIPANT_SECURITY_ENFORCED) {
+    if (!isReady || IS_DEMO_CHANNEL) {
       return;
     }
     if (!organizerSecurity?.securityReady) {
@@ -1441,6 +1460,39 @@ function App() {
     organizerSecurity?.securityReady,
     organizerSecurity?.userId,
   ]);
+
+  const dashboardOrganizerRemoteId =
+    screen.name === 'organizerDashboard'
+      ? cleanText(
+          appData.organizers.find((organizer) => organizer.id === screen.organizerId)?.remoteId ?? ''
+        )
+      : '';
+
+  useEffect(() => {
+    if (!isReady || IS_DEMO_CHANNEL || !dashboardOrganizerRemoteId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const refreshOrganizerRegistrations = async () => {
+      const result = await listOrganizerRegistrationsFromSupabase([dashboardOrganizerRemoteId]);
+      if (!result.ok || cancelled) {
+        return;
+      }
+      setAppData((current) => mergeParticipantRegistrationsFromSupabase(current, result.data));
+    };
+
+    void refreshOrganizerRegistrations();
+    const intervalId = setInterval(() => {
+      void refreshOrganizerRegistrations();
+    }, 20_000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [dashboardOrganizerRemoteId, isReady]);
 
   const refreshAdminAccess = useCallback(
     async (email?: string) => {
@@ -1677,7 +1729,8 @@ function App() {
   const activeOrganizerEmail = ORGANIZER_SECURITY_ENFORCED
     ? cleanText(organizerSecurity?.email ?? '').toLowerCase()
     : '';
-  const activeParticipantEmail = PARTICIPANT_SECURITY_ENFORCED
+  // A signed-in participant (Google or email link) can resume payments and edit registrations.
+  const activeParticipantEmail = organizerSecurity?.securityReady
     ? cleanText(organizerSecurity?.email ?? '').toLowerCase()
     : '';
 
@@ -1764,7 +1817,8 @@ function App() {
 
   const organizersForProfile = useMemo(() => {
     if (!ORGANIZER_SECURITY_ENFORCED) {
-      return appData.organizers;
+      // Placeholders only anchor public events from other organizers: never offer them as accounts.
+      return appData.organizers.filter((organizer) => !organizer.id.startsWith('org_pub_'));
     }
     if (!activeOrganizerUserId && !activeOrganizerEmail) {
       return [];
@@ -1886,6 +1940,16 @@ function App() {
     () => new Set(publicEventRemoteIds),
     [publicEventRemoteIds]
   );
+  const participantDiscoverableEvents = useMemo(
+    () =>
+      appData.events.filter(
+        (event) =>
+          IS_DEMO_CHANNEL ||
+          (Boolean(cleanText(event.remoteId ?? '')) &&
+            publicEventRemoteIdSet.has(cleanText(event.remoteId ?? '')))
+      ),
+    [appData.events, publicEventRemoteIdSet]
+  );
   const participantResumablePaymentEventIds = useMemo(() => {
     if (!activeParticipantEmail) {
       return [];
@@ -1921,8 +1985,12 @@ function App() {
     );
   }, [activeParticipantEmail, appData.registrations]);
 
-  const shouldShowMonetizationBanner =
-    screen.name !== 'role' && screen.name !== 'privacyPolicy';
+  const isBannerFreeScreen =
+    screen.name === 'role' ||
+    screen.name === 'privacyPolicy' ||
+    screen.name === 'participantRegister' ||
+    screen.name === 'participantPayment' ||
+    screen.name === 'participantAuth';
 
   const monetizationBanner = useMemo(() => {
     const activeSponsorSlots = appData.sponsorSlots.filter((slot) => isSponsorSlotVisible(slot));
@@ -1958,20 +2026,12 @@ function App() {
       fallbackSponsors.push(localSponsorText(participantEventForRegister?.localSponsor));
     } else if (screen.name === 'participantPayment') {
       fallbackSponsors.push(localSponsorText(participantEventForPayment?.localSponsor));
-    } else if (screen.name === 'participantSearch') {
-      fallbackSponsors.push(
-        localSponsorText(appData.events.find((event) => event.active && event.localSponsor)?.localSponsor)
-      );
     } else if (screen.name === 'organizerDashboard') {
       fallbackSponsors.push(
         localSponsorText(
           appData.events.find((event) => event.organizerId === screen.organizerId && event.localSponsor)
             ?.localSponsor
         )
-      );
-    } else if (screen.name === 'organizerCreate' || screen.name === 'organizerProfile') {
-      fallbackSponsors.push(
-        localSponsorText(appData.events.find((event) => event.active && event.localSponsor)?.localSponsor)
       );
     }
 
@@ -1996,11 +2056,11 @@ function App() {
     screen,
     t,
   ]);
+  const hasSponsorBanner = Boolean(monetizationBanner.sponsorName);
   const shouldUseAdMobBanner =
-    shouldShowMonetizationBanner &&
-    ADMOB_ENABLED &&
-    !monetizationBanner.sponsorName &&
-    Platform.OS !== 'web';
+    !isBannerFreeScreen && ADMOB_ENABLED && !hasSponsorBanner && Platform.OS !== 'web';
+  const shouldShowMonetizationBanner =
+    hasSponsorBanner ? screen.name !== 'role' && screen.name !== 'privacyPolicy' : shouldUseAdMobBanner;
 
   const withExpiredSessionsHandled = (source: AppData): AppData => {
     const retentionHandled = purgeExpiredRegistrationsByPolicy(source);
@@ -2426,34 +2486,6 @@ function App() {
     }
 
     return true;
-  };
-
-  const wait = (ms: number) =>
-    new Promise<void>((resolve) => {
-      setTimeout(() => resolve(), ms);
-    });
-
-  const showRegistrationCountdown = async (event: EventItem) => {
-    if (!ADMOB_ENABLED || Platform.OS === 'web') {
-      return;
-    }
-    const slot = appData.sponsorSlots.find(
-      (entry) => entry.eventId === event.id && isSponsorSlotVisible(entry)
-    );
-    const slotLabel = slot
-      ? cleanText(language === 'it' ? slot.sponsorNameIt : slot.sponsorNameEn)
-      : '';
-    const sponsor = slotLabel || localSponsorText(event.localSponsor) || undefined;
-    loadInterstitialAd();
-    for (let secondsRemaining = 5; secondsRemaining >= 1; secondsRemaining -= 1) {
-      setProcessingInterstitial({
-        secondsRemaining,
-        sponsor,
-      });
-      await wait(1000);
-    }
-    setProcessingInterstitial(null);
-    await showInterstitialAd();
   };
 
   const signInOrganizerWithOAuth = async (provider: 'google') => {
@@ -4566,137 +4598,135 @@ function App() {
       return;
     }
 
-    await showRegistrationCountdown(event);
+    const now = new Date().toISOString();
+    const groupParticipantsCount = Math.max(1, draft.groupParticipantsCount || 1);
+    const draftGroupParticipants = normalizeDraftGroupParticipants(draft);
+    const baseRegistration: RegistrationRecord = {
+      id: randomId('reg'),
+      eventId,
+      organizerId: event.organizerId,
+      fullName: cleanText(draft.fullName),
+      email: normalizedEmail,
+      phone: cleanText(draft.phone),
+      city: cleanText(draft.city),
+      birthDate: tryToIsoDate(draft.birthDate) || '',
+      privacyConsent: draft.privacyConsent,
+      retentionConsent: draft.retentionConsent,
+      groupParticipantsCount,
+      participantMessage: cleanText(draft.participantMessage),
+      groupParticipants: draftGroupParticipants,
+      assignedNumber: undefined,
+      registrationCode: buildRegistrationCode(event.name),
+      registrationStatus: 'paid',
+      paymentIntentId: undefined,
+      paymentStatus: 'not_required',
+      paymentAmount: 0,
+      paymentMethod: undefined,
+      paymentReference: undefined,
+      paymentSessionExpiresAt: undefined,
+      paymentCapturedAt: now,
+      paymentFailedReason: undefined,
+      refundedAt: undefined,
+      commissionAmount: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
 
-    try {
-      const now = new Date().toISOString();
-      const groupParticipantsCount = Math.max(1, draft.groupParticipantsCount || 1);
-      const draftGroupParticipants = normalizeDraftGroupParticipants(draft);
-      const baseRegistration: RegistrationRecord = {
-        id: randomId('reg'),
-        eventId,
-        organizerId: event.organizerId,
-        fullName: cleanText(draft.fullName),
-        email: normalizedEmail,
-        phone: cleanText(draft.phone),
-        city: cleanText(draft.city),
-        birthDate: tryToIsoDate(draft.birthDate) || '',
-        privacyConsent: draft.privacyConsent,
-        retentionConsent: draft.retentionConsent,
-        groupParticipantsCount,
-        participantMessage: cleanText(draft.participantMessage),
-        groupParticipants: draftGroupParticipants,
-        assignedNumber: undefined,
-        registrationCode: buildRegistrationCode(event.name),
-        registrationStatus: 'paid',
-        paymentIntentId: undefined,
-        paymentStatus: 'not_required',
-        paymentAmount: 0,
-        paymentMethod: undefined,
-        paymentReference: undefined,
-        paymentSessionExpiresAt: undefined,
-        paymentCapturedAt: now,
-        paymentFailedReason: undefined,
-        refundedAt: undefined,
-        commissionAmount: 0,
-        createdAt: now,
-        updatedAt: now,
-      };
+    const registration = withGroupAssignedNumbers(
+      sourceData,
+      event,
+      existingFreeRegistration
+        ? {
+            ...existingFreeRegistration,
+            ...baseRegistration,
+            id: existingFreeRegistration.id,
+            remoteId: existingFreeRegistration.remoteId,
+            registrationCode: existingFreeRegistration.registrationCode,
+            paymentIntentId: existingFreeRegistration.paymentIntentId,
+            createdAt: existingFreeRegistration.createdAt,
+          }
+        : baseRegistration
+    );
 
-      const registration = withGroupAssignedNumbers(
-        sourceData,
-        event,
-        existingFreeRegistration
-          ? {
-              ...existingFreeRegistration,
-              ...baseRegistration,
-              id: existingFreeRegistration.id,
-              remoteId: existingFreeRegistration.remoteId,
-              registrationCode: existingFreeRegistration.registrationCode,
-              paymentIntentId: existingFreeRegistration.paymentIntentId,
-              createdAt: existingFreeRegistration.createdAt,
-            }
-          : baseRegistration
+    const nextData: AppData = {
+      ...sourceData,
+      registrations: existingFreeRegistration
+        ? sourceData.registrations.map((entry) =>
+            entry.id === existingFreeRegistration.id ? registration : entry
+          )
+        : [registration, ...sourceData.registrations],
+    };
+
+    setAppData(nextData);
+
+    const syncResult = await syncRegistrationRecord(nextData, registration);
+    if (!syncResult.ok && !IS_DEMO_CHANNEL) {
+      setAppData(sourceData);
+      showAppAlert(
+        t('sync_not_completed_title'),
+        t('sync_not_completed_message', { reason: syncResult.reason })
       );
-
-      const nextData: AppData = {
-        ...sourceData,
-        registrations: existingFreeRegistration
-          ? sourceData.registrations.map((entry) =>
-              entry.id === existingFreeRegistration.id ? registration : entry
-            )
-          : [registration, ...sourceData.registrations],
-      };
-
-      setAppData(nextData);
-
-      const syncResult = await syncRegistrationRecord(nextData, registration);
-      if (!syncResult.ok && !IS_DEMO_CHANNEL) {
-        setAppData(sourceData);
-        showAppAlert(
-          t('sync_not_completed_title'),
-          t('sync_not_completed_message', { reason: syncResult.reason })
-        );
-        return;
-      }
-
-      const emailResult = await sendConfirmationEmail({
-        participantEmail: registration.email,
-        participantName: registration.fullName,
-        eventName: event.name,
-        amount: registration.paymentAmount,
-        registrationCode: registration.registrationCode,
-        assignedNumber: registration.assignedNumber,
-        groupParticipantsCount: registration.groupParticipantsCount,
-      });
-
-      setFreeInterstitial({
-        eventName: event.name,
-        registrationCode: registration.registrationCode,
-        sponsor: localSponsorText(event.localSponsor) || undefined,
-      });
-
-      const emailText = !emailResult.sent
-        ? t('email_failed', {
-            detail: emailResult.detail ?? `HTTP ${emailResult.statusCode ?? 'N/D'}`,
-          })
-        : emailResult.mode === 'simulated'
-          ? t('email_simulated')
-          : t('email_sent');
-      const updateEmailSummary = existingFreeRegistration
-        ? await notifyRegistrationActionByEmail({
-            event,
-            organizerEmail: organizer?.email,
-            registration,
-            action: 'updated',
-          })
-        : undefined;
-      const syncText = syncResult.ok
-        ? t('sync_ok_registration')
-        : t('sync_local_registration', { reason: syncResult.reason });
-
-      const numberLine =
-        typeof registration.assignedNumber === 'number'
-          ? t('number_assigned_line', { number: registration.assignedNumber })
-          : '';
-      const groupLine =
-        registration.groupParticipantsCount > 1
-          ? `\n${t('group_participants_line', { count: registration.groupParticipantsCount })}`
-          : '';
-
-      setPostRegistrationAlert({
-        title: t('registration_completed_title'),
-        message: `${t('registration_completed_message', {
-          code: registration.registrationCode,
-          number: numberLine,
-          email: updateEmailSummary ?? emailText,
-          sync: syncText,
-        })}${groupLine}`,
-        nextScreen: { name: 'participantSearch' },
-      });
-    } finally {
-      setProcessingInterstitial(null);
+      return;
     }
+
+    const emailResult = await sendConfirmationEmail({
+      participantEmail: registration.email,
+      participantName: registration.fullName,
+      eventName: event.name,
+      amount: registration.paymentAmount,
+      registrationCode: registration.registrationCode,
+      assignedNumber: registration.assignedNumber,
+      groupParticipantsCount: registration.groupParticipantsCount,
+    });
+
+    setFreeInterstitial({
+      eventName: event.name,
+      registrationCode: registration.registrationCode,
+      assignedNumber: registration.assignedNumber,
+      groupParticipantsCount: registration.groupParticipantsCount,
+      participantEmail: emailResult.sent && emailResult.mode !== 'simulated' ? registration.email : undefined,
+      emailFailed: !emailResult.sent,
+      sponsor: localSponsorText(event.localSponsor) || undefined,
+    });
+
+    const emailText = !emailResult.sent
+      ? t('email_failed', {
+          detail: emailResult.detail ?? `HTTP ${emailResult.statusCode ?? 'N/D'}`,
+        })
+      : emailResult.mode === 'simulated'
+        ? t('email_simulated')
+        : t('email_sent');
+    const updateEmailSummary = existingFreeRegistration
+      ? await notifyRegistrationActionByEmail({
+          event,
+          organizerEmail: organizer?.email,
+          registration,
+          action: 'updated',
+        })
+      : undefined;
+    const syncText = syncResult.ok
+      ? t('sync_ok_registration')
+      : t('sync_local_registration', { reason: syncResult.reason });
+
+    const numberLine =
+      typeof registration.assignedNumber === 'number'
+        ? t('number_assigned_line', { number: registration.assignedNumber })
+        : '';
+    const groupLine =
+      registration.groupParticipantsCount > 1
+        ? `\n${t('group_participants_line', { count: registration.groupParticipantsCount })}`
+        : '';
+
+    setPostRegistrationAlert({
+      title: t('registration_completed_title'),
+      message: `${t('registration_completed_message', {
+        code: registration.registrationCode,
+        number: numberLine,
+        email: updateEmailSummary ?? emailText,
+        sync: syncText,
+      })}${groupLine}`,
+      nextScreen: { name: 'participantSearch' },
+    });
   };
 
   const openPaidRegistration = async (eventId: string, draft: RegistrationDraft) => {
@@ -4855,131 +4885,125 @@ function App() {
       return;
     }
 
-    await showRegistrationCountdown(event);
+    const now = new Date().toISOString();
+    const groupParticipantsCount = Math.max(1, draft.groupParticipantsCount || 1);
+    const expiresAt = addMinutesIso(PAYMENT_SESSION_MINUTES);
+    const paymentAmount = Number.parseFloat((event.feeAmount * groupParticipantsCount).toFixed(2));
+    const commissionAmount = Number.parseFloat(
+      (event.baseFeeAmount * groupParticipantsCount * COMMISSION_RATE).toFixed(2)
+    );
+    const registrationId = existingPending?.id ?? randomId('reg');
+    const existingIntent = existingPending?.paymentIntentId
+      ? sourceData.paymentIntents.find((entry) => entry.id === existingPending.paymentIntentId)
+      : undefined;
+    const paymentIntentId = existingIntent?.id ?? randomId('pi');
 
-    try {
-      const now = new Date().toISOString();
-      const groupParticipantsCount = Math.max(1, draft.groupParticipantsCount || 1);
-      const expiresAt = addMinutesIso(PAYMENT_SESSION_MINUTES);
-      const paymentAmount = Number.parseFloat((event.feeAmount * groupParticipantsCount).toFixed(2));
-      const commissionAmount = Number.parseFloat(
-        (event.baseFeeAmount * groupParticipantsCount * COMMISSION_RATE).toFixed(2)
-      );
-      const registrationId = existingPending?.id ?? randomId('reg');
-      const existingIntent = existingPending?.paymentIntentId
-        ? sourceData.paymentIntents.find((entry) => entry.id === existingPending.paymentIntentId)
-        : undefined;
-      const paymentIntentId = existingIntent?.id ?? randomId('pi');
+    const registration: RegistrationRecord = {
+      id: registrationId,
+      remoteId: existingPending?.remoteId,
+      eventId,
+      organizerId: event.organizerId,
+      fullName: cleanText(draft.fullName),
+      email: normalizedEmail,
+      phone: cleanText(draft.phone),
+      city: cleanText(draft.city),
+      birthDate: tryToIsoDate(draft.birthDate) || '',
+      privacyConsent: draft.privacyConsent,
+      retentionConsent: draft.retentionConsent,
+      groupParticipantsCount,
+      participantMessage: cleanText(draft.participantMessage),
+      groupParticipants: draftGroupParticipants,
+      assignedNumber: undefined,
+      registrationCode: existingPending?.registrationCode ?? buildRegistrationCode(event.name),
+      registrationStatus: 'pending_payment',
+      paymentIntentId,
+      paymentStatus: 'pending',
+      paymentAmount,
+      paymentMethod: undefined,
+      paymentReference: undefined,
+      paymentSessionExpiresAt: expiresAt,
+      paymentCapturedAt: undefined,
+      paymentFailedReason: undefined,
+      refundedAt: undefined,
+      commissionAmount,
+      createdAt: existingPending?.createdAt ?? now,
+      updatedAt: now,
+    };
 
-      const registration: RegistrationRecord = {
-        id: registrationId,
-        remoteId: existingPending?.remoteId,
-        eventId,
-        organizerId: event.organizerId,
-        fullName: cleanText(draft.fullName),
-        email: normalizedEmail,
-        phone: cleanText(draft.phone),
-        city: cleanText(draft.city),
-        birthDate: tryToIsoDate(draft.birthDate) || '',
-        privacyConsent: draft.privacyConsent,
-        retentionConsent: draft.retentionConsent,
-        groupParticipantsCount,
-        participantMessage: cleanText(draft.participantMessage),
-        groupParticipants: draftGroupParticipants,
-        assignedNumber: undefined,
-        registrationCode: existingPending?.registrationCode ?? buildRegistrationCode(event.name),
-        registrationStatus: 'pending_payment',
-        paymentIntentId,
-        paymentStatus: 'pending',
-        paymentAmount,
-        paymentMethod: undefined,
-        paymentReference: undefined,
-        paymentSessionExpiresAt: expiresAt,
-        paymentCapturedAt: undefined,
-        paymentFailedReason: undefined,
-        refundedAt: undefined,
-        commissionAmount,
-        createdAt: existingPending?.createdAt ?? now,
-        updatedAt: now,
-      };
-
-      const paymentIntent: PaymentIntentRecord = existingIntent
-        ? {
-            ...existingIntent,
-            registrationId,
-            eventId,
-            organizerId: event.organizerId,
-            provider: 'stripe',
-            amount: paymentAmount,
-            status: 'pending',
-            failureReason: undefined,
-            expiresAt,
-            updatedAt: now,
-          }
-        : {
-            id: paymentIntentId,
-            registrationId,
-            eventId,
-            organizerId: event.organizerId,
-            provider: 'stripe',
-            currency: 'EUR',
-            amount: paymentAmount,
-            status: 'pending',
-            idempotencyKey: randomId('idem'),
-            providerPaymentIntentId: undefined,
-            webhookEventId: undefined,
-            failureReason: undefined,
-            expiresAt,
-            createdAt: now,
-            updatedAt: now,
-          };
-
-      const nextData: AppData = {
-        ...sourceData,
-        registrations: existingPending
-          ? sourceData.registrations.map((entry) =>
-              entry.id === existingPending.id ? registration : entry
-            )
-          : [registration, ...sourceData.registrations],
-        paymentIntents: existingIntent
-          ? sourceData.paymentIntents.map((entry) =>
-              entry.id === existingIntent.id ? paymentIntent : entry
-            )
-          : [paymentIntent, ...sourceData.paymentIntents],
-      };
-
-      setAppData(nextData);
-      const syncResult = await syncRegistrationRecord(nextData, registration);
-      if (!syncResult.ok) {
-        showAppAlert(
-          t('sync_not_completed_title'),
-          t('sync_not_completed_message', { reason: syncResult.reason })
-        );
-        if (!IS_DEMO_CHANNEL) {
-          setAppData(sourceData);
-          return;
+    const paymentIntent: PaymentIntentRecord = existingIntent
+      ? {
+          ...existingIntent,
+          registrationId,
+          eventId,
+          organizerId: event.organizerId,
+          provider: 'stripe',
+          amount: paymentAmount,
+          status: 'pending',
+          failureReason: undefined,
+          expiresAt,
+          updatedAt: now,
         }
+      : {
+          id: paymentIntentId,
+          registrationId,
+          eventId,
+          organizerId: event.organizerId,
+          provider: 'stripe',
+          currency: 'EUR',
+          amount: paymentAmount,
+          status: 'pending',
+          idempotencyKey: randomId('idem'),
+          providerPaymentIntentId: undefined,
+          webhookEventId: undefined,
+          failureReason: undefined,
+          expiresAt,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+    const nextData: AppData = {
+      ...sourceData,
+      registrations: existingPending
+        ? sourceData.registrations.map((entry) =>
+            entry.id === existingPending.id ? registration : entry
+          )
+        : [registration, ...sourceData.registrations],
+      paymentIntents: existingIntent
+        ? sourceData.paymentIntents.map((entry) =>
+            entry.id === existingIntent.id ? paymentIntent : entry
+          )
+        : [paymentIntent, ...sourceData.paymentIntents],
+    };
+
+    setAppData(nextData);
+    const syncResult = await syncRegistrationRecord(nextData, registration);
+    if (!syncResult.ok) {
+      showAppAlert(
+        t('sync_not_completed_title'),
+        t('sync_not_completed_message', { reason: syncResult.reason })
+      );
+      if (!IS_DEMO_CHANNEL) {
+        setAppData(sourceData);
+        return;
       }
-      if (existingPending) {
-        const emailSummary = await notifyRegistrationActionByEmail({
-          event,
-          organizerEmail: organizer?.email,
-          registration,
-          action: 'updated',
-        });
-        Alert.alert(
-          t('registration_updated_title'),
-          `${t('registration_updated_message', {
-            sync: syncResult.ok
-              ? t('sync_state_ok')
-              : t('sync_state_fail', { reason: syncResult.reason }),
-          })}\n${emailSummary}`
-        );
-      }
-      setScreen({ name: 'participantPayment', registrationId: registration.id });
-    } finally {
-      setProcessingInterstitial(null);
     }
+    if (existingPending) {
+      const emailSummary = await notifyRegistrationActionByEmail({
+        event,
+        organizerEmail: organizer?.email,
+        registration,
+        action: 'updated',
+      });
+      Alert.alert(
+        t('registration_updated_title'),
+        `${t('registration_updated_message', {
+          sync: syncResult.ok
+            ? t('sync_state_ok')
+            : t('sync_state_fail', { reason: syncResult.reason }),
+        })}\n${emailSummary}`
+      );
+    }
+    setScreen({ name: 'participantPayment', registrationId: registration.id });
   };
 
   const confirmPaidRegistration = async (registrationId: string, payment: PaymentInput) => {
@@ -5709,8 +5733,16 @@ function App() {
       case 'role':
         return (
           <RoleSelectionScreen
-            eventCount={appData.events.length}
-            registrationCount={appData.registrations.length}
+            events={participantDiscoverableEvents}
+            editableEventIds={participantEditableEventIds}
+            resumablePaymentEventIds={participantResumablePaymentEventIds}
+            onSelectEvent={(eventId) => {
+              void openParticipantEventFromSearch(eventId);
+            }}
+            onOpenSearch={() => {
+              setParticipantPostAuthTarget(null);
+              setScreen({ name: 'participantSearch' });
+            }}
             onOrganizer={() => {
               if (!ORGANIZER_SECURITY_ENFORCED) {
                 setScreen({ name: 'organizerProfile' });
@@ -5718,11 +5750,8 @@ function App() {
               }
               setScreen({ name: 'organizerAuth' });
             }}
-            onParticipant={() => {
-              setParticipantPostAuthTarget(null);
-              setScreen({ name: 'participantSearch' });
-            }}
             onOpenLegal={() => setShowLegalModal(true)}
+            onOpenPrivacy={() => setScreen({ name: 'privacyPolicy' })}
             appPublicUrl={buildPublicAppUrl()}
             language={language}
             onLanguageChange={setLanguage}
@@ -5910,12 +5939,7 @@ function App() {
       case 'participantSearch':
         return (
           <ParticipantSearchScreen
-            events={appData.events.filter(
-              (event) =>
-                IS_DEMO_CHANNEL ||
-                (Boolean(cleanText(event.remoteId ?? '')) &&
-                  publicEventRemoteIdSet.has(cleanText(event.remoteId ?? '')))
-            )}
+            events={participantDiscoverableEvents}
             onBack={() => {
               setScreen({ name: 'role' });
             }}
@@ -5924,9 +5948,7 @@ function App() {
             }}
             editableEventIds={participantEditableEventIds}
             resumablePaymentEventIds={participantResumablePaymentEventIds}
-            getEventPublicUrl={buildPublicEventUrl}
-            appPublicUrl={buildPublicAppUrl()}
-            sponsorSlots={appData.sponsorSlots}
+            language={language}
             t={t}
           />
         );
@@ -6008,6 +6030,10 @@ function App() {
     );
   }
 
+  const shouldHideHeader =
+    Platform.OS === 'android' &&
+    (screen.name === 'role' || screen.name === 'participantSearch');
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style='light' />
@@ -6017,14 +6043,16 @@ function App() {
           <View style={[styles.backgroundOrb, styles.backgroundOrbBottom]} />
         </View>
 
-        <View style={styles.headerShell}>
-          <View style={[styles.headerRow, isDesktopLayout ? styles.headerRowDesktop : undefined]}>
-            <View>
-              <Text style={styles.appTitle}>{t('app_name')}</Text>
-              <Text style={styles.appSubtitle}>{appSubtitle}</Text>
+        {!shouldHideHeader ? (
+          <View style={styles.headerShell}>
+            <View style={[styles.headerRow, isDesktopLayout ? styles.headerRowDesktop : undefined]}>
+              <View>
+                <Text style={styles.appTitle}>{t('app_name')}</Text>
+                <Text style={styles.appSubtitle}>{appSubtitle}</Text>
+              </View>
             </View>
           </View>
-        </View>
+        ) : null}
 
         <View style={[styles.screenWrapper, isDesktopLayout ? styles.screenWrapperDesktop : undefined]}>
           {renderScreen()}
@@ -6046,17 +6074,11 @@ function App() {
           if (!postRegistrationAlert) {
             return;
           }
-          const { title, message, nextScreen } = postRegistrationAlert;
+          // The modal already summarises code, number and email: no second alert.
+          const { nextScreen } = postRegistrationAlert;
           setPostRegistrationAlert(null);
-          showAppAlert(title, message);
           setScreen(nextScreen);
         }}
-        t={t}
-      />
-      <ProcessingInterstitialModal
-        visible={Boolean(processingInterstitial)}
-        secondsRemaining={processingInterstitial?.secondsRemaining ?? 0}
-        sponsor={processingInterstitial?.sponsor}
         t={t}
       />
     </SafeAreaView>

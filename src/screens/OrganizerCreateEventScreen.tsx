@@ -11,7 +11,14 @@ import {
   STRIPE_PROVIDER_FEE_FIXED,
   STRIPE_PROVIDER_FEE_RATE,
 } from '../constants';
-import { SectionCard, StatusBadge, SwitchRow, TextField } from '../components/Common';
+import {
+  DisclosureSection,
+  SectionCard,
+  SegmentedControl,
+  StatusBadge,
+  SwitchRow,
+  TextField,
+} from '../components/Common';
 import { AppLanguage, Translator } from '../i18n';
 import { verificationStatusLabel } from '../services/fraud';
 import { styles } from '../styles';
@@ -174,6 +181,19 @@ export function OrganizerCreateEventScreen({
   );
   const [claimAttachment, setClaimAttachment] = useState<EventClaimAttachment | null>(null);
   const [claimNote, setClaimNote] = useState('');
+  // New events: end date and registration close follow the event date until edited by hand.
+  const [endDateTouched, setEndDateTouched] = useState(Boolean(initialEvent));
+  const [registrationCloseTouched, setRegistrationCloseTouched] = useState(Boolean(initialEvent));
+
+  const handleDateChange = (value: string) => {
+    setDate(value);
+    if (!endDateTouched) {
+      setEndDate(value);
+    }
+    if (!registrationCloseTouched) {
+      setRegistrationCloseDate(value);
+    }
+  };
 
   useEffect(() => {
     setName(initialEvent?.name ?? '');
@@ -211,6 +231,8 @@ export function OrganizerCreateEventScreen({
     setClaimEvidenceFileName(initialEvent?.claimEvidenceFileName ?? '');
     setClaimAttachment(null);
     setClaimNote('');
+    setEndDateTouched(Boolean(initialEvent));
+    setRegistrationCloseTouched(Boolean(initialEvent));
   }, [initialEvent?.id, todayIso]);
 
   const pickEventLogo = async () => {
@@ -531,220 +553,64 @@ export function OrganizerCreateEventScreen({
   return (
     <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps='handled'>
       <SectionCard title={initialEvent ? t('edit_event') : t('create_event')} delayMs={0}>
-        <Text style={styles.cardParagraph}>{t('organizer_label', { email: organizer.email })}</Text>
-        <Text style={styles.cardParagraph}>
-          {t('verification_status', {
-            status: verificationStatusLabel(organizer.verificationStatus, language),
-            payout: organizer.payoutEnabled ? t('payout_active') : t('payout_inactive'),
-          })}
-        </Text>
-        <Text style={styles.helperText}>{t('event_claim_intro_short')}</Text>
-        <View style={styles.registrationCard}>
-          <Text style={styles.fieldLabel}>{t('guided_event_checklist_title')}</Text>
-          <Text style={styles.helperText}>{t('guided_event_checklist_intro')}</Text>
-          {missingRequiredLabels.length === 0 ? (
-            <Text style={styles.helperText}>{t('guided_event_checklist_ready')}</Text>
-          ) : (
-            <>
-              <Text style={styles.helperText}>
-                {t('guided_required_checklist_missing', { count: missingRequiredLabels.length })}
-              </Text>
-              {missingRequiredLabels.map((label) => (
-                <Text key={label} style={styles.listSubText}>
-                  - {label}
-                </Text>
-              ))}
-            </>
-          )}
-        </View>
-        <View style={styles.heroPanel}>
-          <Text style={styles.heroEyebrow}>
-            {initialEvent ? t('event_edit_summary_title') : t('event_create_summary_title')}
-          </Text>
-          <Text style={styles.emphasisParagraph}>
-            {cleanText(name) || t('event_summary_name_placeholder')}
-          </Text>
-          <View style={styles.statusBadgeRow}>
-            <StatusBadge
-              label={isFree ? t('free_event_label') : t('participant_search_paid')}
-              tone={isFree ? 'success' : 'warning'}
-            />
-            <StatusBadge
-              label={
-                visibility === 'public'
-                  ? t('event_visibility_public_short')
-                  : t('event_visibility_hidden_short')
-              }
-            />
-            <StatusBadge
-              label={
-                participantPhoneRequired
-                  ? t('badge_phone_short_required')
-                  : t('badge_phone_short_optional')
-              }
-            />
-            <StatusBadge
-              label={
-                participantAuthMode === 'email'
-                  ? t('participant_auth_mode_email')
-                  : participantAuthMode === 'social_verified'
-                    ? t('participant_auth_mode_social')
-                    : participantAuthMode === 'flexible'
-                      ? t('participant_auth_mode_flexible')
-                      : t('participant_auth_mode_anonymous')
-              }
-            />
-          </View>
-          <Text style={styles.helperText}>{t('guided_event_checklist_intro')}</Text>
-          <View
-            style={[
-              styles.noticeCard,
-              !isFree && claimStatus !== 'approved'
-                ? styles.noticeCardWarning
-                : canSubmit
-                  ? styles.noticeCardSuccess
-                  : styles.noticeCardInfo,
-            ]}
-          >
-            <Text style={styles.noticeTitle}>{t('guided_event_checklist_title')}</Text>
-            <Text style={styles.noticeText}>
-              {!isFree && claimStatus !== 'approved'
-                ? t('event_claim_publish_blocked')
-                : canSubmit
-                  ? t('guided_event_checklist_ready')
-                  : t('guided_required_checklist_missing', { count: missingRequiredLabels.length })}
-            </Text>
-          </View>
-        </View>
+        <Text style={styles.cardParagraph}>{t('event_quick_intro')}</Text>
 
-        <TextField
-          label={t('event_name_required')}
-          value={name}
-          onChangeText={setName}
-          returnKeyType='next'
-        />
-        <TextField
-          label={t('location_required')}
-          value={location}
-          onChangeText={setLocation}
-          returnKeyType='next'
-        />
-        <TextField
-          label={t('event_start_date_label')}
-          value={date}
-          onChangeText={setDate}
-          placeholder={t('event_date_placeholder')}
-          autoCapitalize='none'
-          autoCorrect={false}
-          inputMode='numeric'
-          returnKeyType='next'
-        />
-        <TextField
-          label={t('event_end_date_label')}
-          value={endDate}
-          onChangeText={setEndDate}
-          placeholder={t('event_date_placeholder')}
-          autoCapitalize='none'
-          autoCorrect={false}
-          inputMode='numeric'
-          returnKeyType='next'
-        />
-        <TextField
-          label={t('event_time_label')}
-          value={startTime}
-          onChangeText={setStartTime}
-          placeholder={t('event_time_placeholder')}
-          autoCapitalize='none'
-          autoCorrect={false}
-          inputMode='numeric'
-          returnKeyType='next'
-        />
-        <TextField
-          label={t('registration_open_date_label')}
-          value={registrationOpenDate}
-          onChangeText={setRegistrationOpenDate}
-          placeholder={t('event_date_placeholder')}
-          autoCapitalize='none'
-          autoCorrect={false}
-          inputMode='numeric'
-          returnKeyType='next'
-        />
-        <TextField
-          label={t('registration_close_date_label')}
-          value={registrationCloseDate}
-          onChangeText={setRegistrationCloseDate}
-          placeholder={t('event_date_placeholder')}
-          autoCapitalize='none'
-          autoCorrect={false}
-          inputMode='numeric'
-          returnKeyType='done'
-        />
-
-        <SwitchRow
-          label={t('event_visibility_public')}
-          value={visibility === 'public'}
-          onValueChange={(next) => {
-            if (!isFree && claimStatus !== 'approved' && next) {
-              Alert.alert(t('event_claim_title'), t('event_claim_visibility_locked'));
-              setVisibility('hidden');
-              return;
-            }
-            setVisibility(next ? 'public' : 'hidden');
-          }}
-          helper={
-            !isFree && claimStatus !== 'approved'
-              ? t('event_claim_visibility_helper')
-              : t('event_visibility_helper')
-          }
+        <SegmentedControl<'free' | 'paid'>
+          options={[
+            { value: 'free', label: t('event_type_free') },
+            { value: 'paid', label: t('event_type_paid') },
+          ]}
+          value={isFree ? 'free' : 'paid'}
+          onChange={(next) => handlePaidToggle(next === 'free')}
         />
 
         <View style={styles.formSectionCard}>
-          <Text style={styles.sectionHeaderTitle}>{t('participant_access_section_title')}</Text>
-          <Text style={styles.helperText}>{t('participant_access_policy_note')}</Text>
-          <Text style={styles.fieldLabel}>{t('participant_auth_mode_label')}</Text>
-          <View style={styles.methodRow}>
-            {[
-              ['anonymous', t('participant_auth_mode_anonymous')],
-              ['email', t('participant_auth_mode_email')],
-              ['social_verified', t('participant_auth_mode_social')],
-              ['flexible', t('participant_auth_mode_flexible')],
-            ].map(([value, label]) => (
-              <Pressable
-                key={value}
-                style={[
-                  styles.methodChip,
-                  participantAuthMode === value ? styles.methodChipActive : undefined,
-                ]}
-                onPress={() => setParticipantAuthMode(value as ParticipantAuthMode)}
-              >
-                <Text
-                  style={[
-                    styles.methodChipText,
-                    participantAuthMode === value ? styles.methodChipTextActive : undefined,
-                  ]}
-                >
-                  {label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-          <SwitchRow
-            label={t('participant_phone_required_label')}
-            value={participantPhoneRequired}
-            onValueChange={setParticipantPhoneRequired}
-            helper={t('participant_phone_required_helper')}
+          <Text style={styles.sectionHeaderTitle}>{t('event_section_essentials')}</Text>
+          <TextField
+            label={t('event_name_required')}
+            value={name}
+            onChangeText={setName}
+            placeholder={t('search_name_placeholder')}
+            returnKeyType='next'
+          />
+          <TextField
+            label={t('location_required')}
+            value={location}
+            onChangeText={setLocation}
+            returnKeyType='next'
+          />
+          <TextField
+            label={t('event_start_date_label')}
+            value={date}
+            onChangeText={handleDateChange}
+            placeholder={t('event_date_placeholder')}
+            autoCapitalize='none'
+            autoCorrect={false}
+            inputMode='numeric'
+            returnKeyType='next'
+          />
+          <TextField
+            label={t('event_time_label')}
+            value={startTime}
+            onChangeText={setStartTime}
+            placeholder={t('event_time_placeholder')}
+            autoCapitalize='none'
+            autoCorrect={false}
+            inputMode='numeric'
+            returnKeyType='done'
           />
         </View>
 
-        <SwitchRow
-          label={t('free_event_switch')}
-          value={isFree}
-          onValueChange={(value) => handlePaidToggle(value)}
-          helper={t('free_event_helper')}
-        />
-
         {!isFree ? (
-          <View style={styles.blockSpacing}>
+          <View style={styles.formSectionCard}>
+            <Text style={styles.sectionHeaderTitle}>{t('event_section_paid')}</Text>
+            <Text style={styles.helperText}>{t('event_section_paid_hint')}</Text>
+            <Text style={styles.helperText}>
+              {t('verification_status', {
+                status: verificationStatusLabel(organizer.verificationStatus, language),
+                payout: organizer.payoutEnabled ? t('payout_active') : t('payout_inactive'),
+              })}
+            </Text>
             <TextField
               label={t('base_fee_label')}
               value={baseFeeAmount}
@@ -940,43 +806,151 @@ export function OrganizerCreateEventScreen({
           </View>
         ) : null}
 
-        <SwitchRow
-          label={t('assign_numbers')}
-          value={assignNumbers}
-          onValueChange={setAssignNumbers}
-        />
+        <DisclosureSection
+          title={t('event_section_advanced')}
+          hint={t('event_section_advanced_hint')}
+          initiallyOpen={Boolean(initialEvent)}
+        >
+          <TextField
+            label={t('event_end_date_label')}
+            value={endDate}
+            onChangeText={(value) => {
+              setEndDateTouched(true);
+              setEndDate(value);
+            }}
+            placeholder={t('event_date_placeholder')}
+            autoCapitalize='none'
+            autoCorrect={false}
+            inputMode='numeric'
+          />
+          <TextField
+            label={t('registration_open_date_label')}
+            value={registrationOpenDate}
+            onChangeText={setRegistrationOpenDate}
+            placeholder={t('event_date_placeholder')}
+            autoCapitalize='none'
+            autoCorrect={false}
+            inputMode='numeric'
+          />
+          <TextField
+            label={t('registration_close_date_label')}
+            value={registrationCloseDate}
+            onChangeText={(value) => {
+              setRegistrationCloseTouched(true);
+              setRegistrationCloseDate(value);
+            }}
+            placeholder={t('event_date_placeholder')}
+            autoCapitalize='none'
+            autoCorrect={false}
+            inputMode='numeric'
+          />
+          <Text style={styles.helperText}>{t('event_registration_window_hint')}</Text>
 
-        <Text style={styles.fieldLabel}>{t('logo_optional')}</Text>
-        <Pressable style={styles.secondaryButton} onPress={() => void pickEventLogo()}>
-          <Text style={styles.secondaryButtonText}>{t('event_logo_pick_button')}</Text>
-        </Pressable>
-        <Text style={styles.helperText}>{logoFileName || t('document_not_selected')}</Text>
-        {logoUrl ? <Image source={{ uri: logoUrl }} style={styles.sponsorLogoPreview} /> : null}
+          <SwitchRow
+            label={t('event_visibility_public')}
+            value={visibility === 'public'}
+            onValueChange={(next) => {
+              if (!isFree && claimStatus !== 'approved' && next) {
+                Alert.alert(t('event_claim_title'), t('event_claim_visibility_locked'));
+                setVisibility('hidden');
+                return;
+              }
+              setVisibility(next ? 'public' : 'hidden');
+            }}
+            helper={
+              !isFree && claimStatus !== 'approved'
+                ? t('event_claim_visibility_helper')
+                : t('event_visibility_helper')
+            }
+          />
 
-        <TextField
-          label={t('sponsor_optional')}
-          value={localSponsorText}
-          onChangeText={setLocalSponsorText}
-          placeholder={t('sponsor_placeholder')}
-        />
-        <Text style={styles.fieldLabel}>{t('sponsor_local_logo_optional')}</Text>
-        <Pressable style={styles.secondaryButton} onPress={() => void pickLocalSponsorLogo()}>
-          <Text style={styles.secondaryButtonText}>{t('sponsor_local_logo_pick_button')}</Text>
-        </Pressable>
-        <Text style={styles.helperText}>{localSponsorFileName || t('document_not_selected')}</Text>
-        {localSponsorLogoUrl ? (
-          <Image source={{ uri: localSponsorLogoUrl }} style={styles.sponsorLogoPreview} />
+          <View style={styles.formSectionCard}>
+            <Text style={styles.sectionHeaderTitle}>{t('participant_access_section_title')}</Text>
+            <Text style={styles.helperText}>{t('participant_access_policy_note')}</Text>
+            <Text style={styles.fieldLabel}>{t('participant_auth_mode_label')}</Text>
+            <View style={styles.methodRow}>
+              {[
+                ['anonymous', t('participant_auth_mode_anonymous')],
+                ['email', t('participant_auth_mode_email')],
+                ['social_verified', t('participant_auth_mode_social')],
+                ['flexible', t('participant_auth_mode_flexible')],
+              ].map(([value, label]) => (
+                <Pressable
+                  key={value}
+                  style={[
+                    styles.methodChip,
+                    participantAuthMode === value ? styles.methodChipActive : undefined,
+                  ]}
+                  onPress={() => setParticipantAuthMode(value as ParticipantAuthMode)}
+                >
+                  <Text
+                    style={[
+                      styles.methodChipText,
+                      participantAuthMode === value ? styles.methodChipTextActive : undefined,
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <SwitchRow
+              label={t('participant_phone_required_label')}
+              value={participantPhoneRequired}
+              onValueChange={setParticipantPhoneRequired}
+              helper={t('participant_phone_required_helper')}
+            />
+          </View>
+
+          <SwitchRow
+            label={t('assign_numbers')}
+            value={assignNumbers}
+            onValueChange={setAssignNumbers}
+          />
+
+          <Text style={styles.sectionHeaderTitle}>{t('event_section_branding')}</Text>
+          <Text style={styles.fieldLabel}>{t('logo_optional')}</Text>
+          <Pressable style={styles.secondaryButton} onPress={() => void pickEventLogo()}>
+            <Text style={styles.secondaryButtonText}>{t('event_logo_pick_button')}</Text>
+          </Pressable>
+          <Text style={styles.helperText}>{logoFileName || t('document_not_selected')}</Text>
+          {logoUrl ? <Image source={{ uri: logoUrl }} style={styles.sponsorLogoPreview} /> : null}
+
+          <TextField
+            label={t('sponsor_optional')}
+            value={localSponsorText}
+            onChangeText={setLocalSponsorText}
+            placeholder={t('sponsor_placeholder')}
+          />
+          <Text style={styles.fieldLabel}>{t('sponsor_local_logo_optional')}</Text>
+          <Pressable style={styles.secondaryButton} onPress={() => void pickLocalSponsorLogo()}>
+            <Text style={styles.secondaryButtonText}>{t('sponsor_local_logo_pick_button')}</Text>
+          </Pressable>
+          <Text style={styles.helperText}>{localSponsorFileName || t('document_not_selected')}</Text>
+          {localSponsorLogoUrl ? (
+            <Image source={{ uri: localSponsorLogoUrl }} style={styles.sponsorLogoPreview} />
+          ) : null}
+
+          <TextField
+            label={t('privacy_module')}
+            value={privacyText}
+            onChangeText={setPrivacyText}
+            multiline
+          />
+        </DisclosureSection>
+
+        {!canSubmit ? (
+          <View style={[styles.noticeCard, styles.noticeCardInfo]}>
+            <Text style={styles.noticeText}>
+              {t('guided_required_checklist_missing', { count: missingRequiredLabels.length })}
+              {': '}
+              {missingRequiredLabels.join(', ')}
+            </Text>
+          </View>
         ) : null}
 
-        <TextField
-          label={t('privacy_module')}
-          value={privacyText}
-          onChangeText={setPrivacyText}
-          multiline
-        />
-
         <Pressable
-          style={styles.primaryButton}
+          style={[styles.primaryButton, !canSubmit ? styles.primaryButtonDisabled : undefined]}
           onPress={() => {
             void submit();
           }}
@@ -989,9 +963,6 @@ export function OrganizerCreateEventScreen({
                 : t('save_paid_event_draft')}
           </Text>
         </Pressable>
-        {!canSubmit ? (
-          <Text style={styles.helperText}>{t('guided_complete_required_fields_hint')}</Text>
-        ) : null}
         <Pressable style={styles.secondaryButton} onPress={onBack}>
           <Text style={styles.secondaryButtonText}>{t('back_dashboard')}</Text>
         </Pressable>

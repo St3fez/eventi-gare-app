@@ -106,8 +106,10 @@ export const ORGANIZER_SECURITY_ENFORCED =
 const participantSecurityFromEnv = parseEnvBoolean(
   expoPublicEnv.PARTICIPANT_SECURITY_ENFORCED
 );
+// Off by default: each event decides via participantAuthMode (anonymous/email/Google).
+// Set EXPO_PUBLIC_PARTICIPANT_SECURITY_ENFORCED=true to force login on every event.
 export const PARTICIPANT_SECURITY_ENFORCED =
-  !IS_DEMO_CHANNEL && (participantSecurityFromEnv ?? true);
+  !IS_DEMO_CHANNEL && (participantSecurityFromEnv ?? false);
 
 const demoAllOpenFromEnv = parseEnvBoolean(expoPublicEnv.DEMO_ALL_OPEN);
 export const DEMO_ALL_OPEN = demoAllOpenFromEnv ?? IS_DEMO_CHANNEL;

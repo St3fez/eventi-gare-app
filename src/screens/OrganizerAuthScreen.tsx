@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { SectionCard, TextField } from '../components/Common';
@@ -50,129 +50,83 @@ export function OrganizerAuthScreen({
     });
   }, [status?.email]);
 
-  const socialReady = Boolean(status?.socialProvider);
-  const emailReady = Boolean(status?.providers?.includes('email'));
   const securityReady = Boolean(status?.securityReady);
   const normalizedEmail = cleanText(email).toLowerCase();
   const canSendMagicLink = isValidEmailAddress(normalizedEmail);
-  const missingSecuritySteps = useMemo(() => {
-    const missing: string[] = [];
-    if (!socialReady) {
-      missing.push(t('organizer_security_social_status', { value: t('organizer_security_missing') }));
-    }
-    if (!emailReady) {
-      missing.push(t('organizer_security_email_status', { value: t('organizer_security_missing') }));
-    }
-    return missing;
-  }, [emailReady, socialReady, t]);
 
   const noticeStyle =
     notice?.tone === 'error'
       ? styles.noticeCardError
       : notice?.tone === 'success'
-      ? styles.noticeCardSuccess
-      : styles.noticeCardInfo;
+        ? styles.noticeCardSuccess
+        : styles.noticeCardInfo;
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps='handled'>
       <SectionCard title={t('organizer_security_title')} delayMs={0}>
-        <Text style={styles.cardParagraph}>{t('organizer_security_intro')}</Text>
-        <Text style={styles.helperText}>
-          {t('organizer_security_account', {
-            value: status?.email || t('organizer_security_not_logged'),
-          })}
-        </Text>
         {notice ? (
           <View style={[styles.noticeCard, noticeStyle]}>
             <Text style={styles.noticeTitle}>{notice.title}</Text>
             <Text style={styles.noticeText}>{notice.message}</Text>
           </View>
         ) : null}
-        <View style={styles.registrationCard}>
-          <Text style={styles.fieldLabel}>{t('organizer_security_ready_status', {
-            value: securityReady
-              ? t('organizer_security_ready')
-              : t('organizer_security_not_ready'),
-          })}</Text>
-          {!securityReady && missingSecuritySteps.length ? (
-            <>
-              {missingSecuritySteps.map((label) => (
-                <Text key={label} style={styles.listSubText}>
-                  - {label}
-                </Text>
-              ))}
-            </>
-          ) : null}
-          <Text style={styles.listSubText}>
-            {t('organizer_security_social_status', {
-              value: socialReady
-                ? `${t('organizer_security_ok')} (${String(status?.socialProvider).toUpperCase()})`
-                : t('organizer_security_missing'),
-            })}
-          </Text>
-          <Text style={styles.listSubText}>
-            {t('organizer_security_email_status', {
-              value: emailReady ? t('organizer_security_ok') : t('organizer_security_missing'),
-            })}
-          </Text>
-          <Text style={styles.listSubText}>
-            {t('organizer_security_ready_status', {
-              value: securityReady
-                ? t('organizer_security_ready')
-                : t('organizer_security_not_ready'),
-            })}
-          </Text>
-        </View>
 
-        <Pressable style={styles.primaryButton} onPress={() => void onGoogleSignIn()}>
-          <Text style={styles.primaryButtonText}>{t('organizer_security_google')}</Text>
-        </Pressable>
-        {status?.email ? (
-          <Pressable style={styles.secondaryButton} onPress={() => void onSignOut()}>
-            <Text style={styles.secondaryButtonText}>{t('organizer_security_signout')}</Text>
-          </Pressable>
-        ) : null}
+        {securityReady ? (
+          <>
+            <View style={[styles.noticeCard, styles.noticeCardSuccess]}>
+              <Text style={styles.noticeText}>
+                {t('organizer_auth_signed_in', { email: status?.email ?? '' })}
+              </Text>
+            </View>
+            <Pressable style={styles.primaryButton} onPress={() => void onContinue()}>
+              <Text style={styles.primaryButtonText}>{t('organizer_security_continue')}</Text>
+            </Pressable>
+            <Pressable style={styles.secondaryButton} onPress={() => void onSignOut()}>
+              <Text style={styles.secondaryButtonText}>{t('organizer_security_signout')}</Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <Text style={styles.cardParagraph}>{t('organizer_security_intro')}</Text>
+            <Pressable style={styles.primaryButton} onPress={() => void onGoogleSignIn()}>
+              <Text style={styles.primaryButtonText}>{t('organizer_security_google')}</Text>
+            </Pressable>
 
-        <TextField
-          label={t('organizer_security_email_label')}
-          value={email}
-          onChangeText={setEmail}
-          keyboardType='email-address'
-          autoCapitalize='none'
-          autoCorrect={false}
-          autoComplete='email'
-          textContentType='emailAddress'
-          inputMode='email'
-          returnKeyType='done'
-        />
-        <Text style={styles.helperText}>{t('organizer_security_otp_hint')}</Text>
-        {!canSendMagicLink ? (
-          <Text style={styles.helperText}>{t('invalid_email_message')}</Text>
-        ) : null}
-        <Pressable
-          style={[styles.inlineActionButton, !canSendMagicLink ? styles.primaryButtonDisabled : undefined]}
-          onPress={() => void onEmailMagicLinkRequest(normalizedEmail)}
-          disabled={!canSendMagicLink}
-        >
-          <Text style={styles.inlineActionButtonText}>
-            {t('organizer_security_otp_send')}
-          </Text>
-        </Pressable>
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>{t('organizer_auth_or')}</Text>
+              <View style={styles.dividerLine} />
+            </View>
 
-        <Pressable
-          style={securityReady ? styles.primaryButton : styles.secondaryButton}
-          onPress={() => void onContinue()}
-        >
-          <Text
-            style={
-              securityReady ? styles.primaryButtonText : styles.secondaryButtonText
-            }
-          >
-            {t('organizer_security_continue')}
-          </Text>
-        </Pressable>
-        <Pressable style={styles.secondaryButton} onPress={onBack}>
-          <Text style={styles.secondaryButtonText}>{t('back_home')}</Text>
+            <TextField
+              label={t('organizer_security_email_label')}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType='email-address'
+              autoCapitalize='none'
+              autoCorrect={false}
+              autoComplete='email'
+              textContentType='emailAddress'
+              inputMode='email'
+              returnKeyType='send'
+            />
+            <Pressable
+              style={[styles.secondaryButton, !canSendMagicLink ? styles.primaryButtonDisabled : undefined]}
+              onPress={() => void onEmailMagicLinkRequest(normalizedEmail)}
+              disabled={!canSendMagicLink}
+            >
+              <Text style={styles.secondaryButtonText}>{t('organizer_security_otp_send')}</Text>
+            </Pressable>
+            <Text style={styles.helperText}>{t('organizer_security_otp_hint')}</Text>
+
+            <Pressable onPress={() => void onContinue()} accessibilityRole='button'>
+              <Text style={styles.textLink}>{t('organizer_auth_already')}</Text>
+            </Pressable>
+          </>
+        )}
+
+        <Pressable onPress={onBack} accessibilityRole='button'>
+          <Text style={styles.textLink}>← {t('back_home')}</Text>
         </Pressable>
       </SectionCard>
     </ScrollView>

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 
-import { SectionCard, TextField } from '../components/Common';
+import { DisclosureSection, SectionCard, TextField } from '../components/Common';
 import { Translator } from '../i18n';
 import { styles } from '../styles';
 import { OrganizerProfile, OrganizerRole } from '../types';
@@ -97,7 +97,7 @@ export function OrganizerProfileScreen({
   return (
     <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps='handled'>
       <SectionCard title={t('organizer_access')} delayMs={0}>
-        <Text style={styles.cardParagraph}>{t('organizer_access_intro')}</Text>
+        <Text style={styles.cardParagraph}>{t('organizer_quick_intro')}</Text>
         {normalizedSuggestedEmail ? (
           <View style={[styles.noticeCard, styles.noticeCardInfo]}>
             <Text style={styles.noticeTitle}>{t('organizer_profile_prefill_title')}</Text>
@@ -106,25 +106,6 @@ export function OrganizerProfileScreen({
             </Text>
           </View>
         ) : null}
-        <View style={styles.registrationCard}>
-          <Text style={styles.fieldLabel}>{t('guided_organizer_checklist_title')}</Text>
-          <Text style={styles.helperText}>{t('guided_organizer_checklist_intro')}</Text>
-          {canSubmit ? (
-            <Text style={styles.helperText}>{t('guided_organizer_checklist_ready')}</Text>
-          ) : (
-            <>
-              <Text style={styles.helperText}>
-                {t('guided_required_checklist_missing', { count: missingRequiredLabels.length })}
-              </Text>
-              {missingRequiredLabels.map((label) => (
-                <Text key={label} style={styles.listSubText}>
-                  - {label}
-                </Text>
-              ))}
-            </>
-          )}
-        </View>
-
         {organizers.length > 0 ? (
           <View style={styles.blockSpacing}>
             <Text style={styles.fieldLabel}>{t('existing_organizers')}</Text>
@@ -165,102 +146,104 @@ export function OrganizerProfileScreen({
           textContentType='organizationName'
           returnKeyType='next'
         />
-        <Text style={styles.fieldLabel}>{t('organization_role_label')}</Text>
-        <View style={styles.methodRow}>
-          <Pressable
-            style={[
-              styles.methodChip,
-              organizationRole === 'presidente_fondazione' ? styles.methodChipActive : undefined,
-            ]}
-            onPress={() => setOrganizationRole('presidente_fondazione')}
-          >
-            <Text
+        <DisclosureSection
+          title={t('organizer_optional_section')}
+          hint={t('organizer_optional_section_hint')}
+        >
+          <Text style={styles.fieldLabel}>{t('organization_role_label')}</Text>
+          <View style={styles.methodRow}>
+            <Pressable
               style={[
-                styles.methodChipText,
-                organizationRole === 'presidente_fondazione'
-                  ? styles.methodChipTextActive
-                  : undefined,
+                styles.methodChip,
+                organizationRole === 'presidente_fondazione' ? styles.methodChipActive : undefined,
               ]}
+              onPress={() => setOrganizationRole('presidente_fondazione')}
             >
-              {t('organization_role_president')}
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.methodChip,
-              organizationRole === 'segretario_associazione'
-                ? styles.methodChipActive
-                : undefined,
-            ]}
-            onPress={() => setOrganizationRole('segretario_associazione')}
-          >
-            <Text
+              <Text
+                style={[
+                  styles.methodChipText,
+                  organizationRole === 'presidente_fondazione'
+                    ? styles.methodChipTextActive
+                    : undefined,
+                ]}
+              >
+                {t('organization_role_president')}
+              </Text>
+            </Pressable>
+            <Pressable
               style={[
-                styles.methodChipText,
+                styles.methodChip,
                 organizationRole === 'segretario_associazione'
-                  ? styles.methodChipTextActive
+                  ? styles.methodChipActive
                   : undefined,
               ]}
+              onPress={() => setOrganizationRole('segretario_associazione')}
             >
-              {t('organization_role_secretary')}
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.methodChip, organizationRole === 'altro' ? styles.methodChipActive : undefined]}
-            onPress={() => setOrganizationRole('altro')}
-          >
-            <Text
-              style={[
-                styles.methodChipText,
-                organizationRole === 'altro' ? styles.methodChipTextActive : undefined,
-              ]}
+              <Text
+                style={[
+                  styles.methodChipText,
+                  organizationRole === 'segretario_associazione'
+                    ? styles.methodChipTextActive
+                    : undefined,
+                ]}
+              >
+                {t('organization_role_secretary')}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.methodChip, organizationRole === 'altro' ? styles.methodChipActive : undefined]}
+              onPress={() => setOrganizationRole('altro')}
             >
-              {t('organization_role_other')}
-            </Text>
-          </Pressable>
-        </View>
-        {organizationRole === 'altro' ? (
+              <Text
+                style={[
+                  styles.methodChipText,
+                  organizationRole === 'altro' ? styles.methodChipTextActive : undefined,
+                ]}
+              >
+                {t('organization_role_other')}
+              </Text>
+            </Pressable>
+          </View>
+          {organizationRole === 'altro' ? (
+            <TextField
+              label={t('organization_role_other_label')}
+              value={organizationRoleLabel}
+              onChangeText={setOrganizationRoleLabel}
+            />
+          ) : null}
           <TextField
-            label={t('organization_role_other_label')}
-            value={organizationRoleLabel}
-            onChangeText={setOrganizationRoleLabel}
+            label={t('legal_representative_label')}
+            value={legalRepresentative}
+            onChangeText={setLegalRepresentative}
           />
-        ) : null}
-        <TextField
-          label={t('legal_representative_label')}
-          value={legalRepresentative}
-          onChangeText={setLegalRepresentative}
-        />
-        <TextField
-          label={t('official_phone_label')}
-          value={officialPhone}
-          onChangeText={setOfficialPhone}
-          keyboardType='phone-pad'
-          autoCapitalize='none'
-          autoCorrect={false}
-          autoComplete='tel'
-          textContentType='telephoneNumber'
-          inputMode='tel'
-        />
-        <TextField
-          label={t('fiscal_optional')}
-          value={fiscalData}
-          onChangeText={setFiscalData}
-          placeholder={t('fiscal_placeholder')}
-        />
-        <TextField
-          label={t('bank_label')}
-          value={bankAccount}
-          onChangeText={setBankAccount}
-          placeholder={t('bank_placeholder')}
-        />
+          <TextField
+            label={t('official_phone_label')}
+            value={officialPhone}
+            onChangeText={setOfficialPhone}
+            keyboardType='phone-pad'
+            autoCapitalize='none'
+            autoCorrect={false}
+            autoComplete='tel'
+            textContentType='telephoneNumber'
+            inputMode='tel'
+          />
+          <TextField
+            label={t('fiscal_optional')}
+            value={fiscalData}
+            onChangeText={setFiscalData}
+            placeholder={t('fiscal_placeholder')}
+          />
+          <TextField
+            label={t('bank_label')}
+            value={bankAccount}
+            onChangeText={setBankAccount}
+            placeholder={t('bank_placeholder')}
+          />
+        </DisclosureSection>
 
         <Pressable style={styles.primaryButton} onPress={submit}>
-          <Text style={styles.primaryButtonText}>{t('save_organizer')}</Text>
+          <Text style={styles.primaryButtonText}>{t('organizer_continue')}</Text>
         </Pressable>
-        {!canSubmit ? (
-          <Text style={styles.helperText}>{t('guided_complete_required_fields_hint')}</Text>
-        ) : null}
         {showSignOut && onSignOut ? (
           <Pressable style={styles.secondaryButton} onPress={onSignOut}>
             <Text style={styles.secondaryButtonText}>{t('organizer_security_signout')}</Text>

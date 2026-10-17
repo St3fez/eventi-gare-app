@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   ensureSupabaseUser,
+  listOrganizerRegistrationsFromSupabase,
   listPublicEventsFromSupabase,
   upsertOrganizerInSupabase,
   upsertRegistrationInSupabase,
@@ -333,6 +334,51 @@ test('listPublicEventsFromSupabase falls back to legacy query when extended colu
   assertDone();
 });
 
+test('listPublicEventsFromSupabase reads the registration window and retries without it on older schemas', async () => {
+  const row = {
+    id: 'evt_remote',
+    organizer_id: 'org_remote',
+    name: 'Trail Test',
+    location: 'Torino',
+    event_date: '2026-04-20',
+    event_end_date: '2026-04-20',
+    is_free: true,
+    fee_amount: 0,
+    privacy_text: 'privacy',
+    logo_url: null,
+    local_sponsor: null,
+    assign_numbers: true,
+    active: true,
+    created_at: '2026-03-01T10:00:00.000Z',
+    updated_at: '2026-03-01T10:00:00.000Z',
+  };
+  const { client, assertDone } = createQueryClient([
+    {
+      kind: 'order',
+      error: new Error('column events.registration_open_date does not exist'),
+      assertQuery: (query) => {
+        assert.ok(query.select?.includes('registration_close_date'));
+      },
+    },
+    {
+      kind: 'order',
+      data: [row],
+      assertQuery: (query) => {
+        assert.ok(query.select?.includes('event_end_date'));
+        assert.ok(!query.select?.includes('registration_open_date'));
+      },
+    },
+  ]);
+
+  const result = await listPublicEventsFromSupabase({ client });
+
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.data[0].event_end_date, '2026-04-20');
+  }
+  assertDone();
+});
+
 test('upsertOrganizerInSupabase falls back to legacy payload when the schema is older', async () => {
   const organizer = createOrganizer();
   const { client, assertDone } = createQueryClient([
@@ -492,5 +538,33 @@ test('upsertRegistrationInSupabase normalizes payloads and falls back when exten
   if (result.ok) {
     assert.equal(result.data.id, 'reg_remote');
   }
+  assertDone();
+});
+
+test('listOrganizerRegistrationsFromSupabase reads registrations of the organizer events', async () => {
+  const { client, assertDone } = createQueryClient([
+    {
+      kind: 'order',
+      data: [{ id: 'reg_remote', event_id: 'evt_remote', organizer_id: 'org_remote', full_name: 'Giulia' }],
+      assertQuery: (query) => {
+        assert.equal(query.table, 'registrations');
+        assert.deepEqual(query.filters[0], { type: 'in', field: 'organizer_id', value: ['org_remote'] });
+      },
+    },
+  ]);
+
+  const result = await listOrganizerRegistrationsFromSupabase(['org_remote', ' '], { client });
+
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.data[0].full_name, 'Giulia');
+  }
+  assertDone();
+});
+
+test('listOrganizerRegistrationsFromSupabase skips the query without organizer ids', async () => {
+  const { client, assertDone } = createQueryClient([]);
+  const result = await listOrganizerRegistrationsFromSupabase([], { client });
+  assert.deepEqual(result, { ok: true, data: [] });
   assertDone();
 });

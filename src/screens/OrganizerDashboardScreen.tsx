@@ -194,6 +194,7 @@ export function OrganizerDashboardScreen({
   const { width } = useWindowDimensions();
   const isDesktopLayout = width >= 1180;
   const [selectedEventId, setSelectedEventId] = useState<string | undefined>(events[0]?.id);
+  const [expandedActionsEventId, setExpandedActionsEventId] = useState<string | null>(null);
   const [sponsorName, setSponsorName] = useState('');
   const [sponsorNameIt, setSponsorNameIt] = useState('');
   const [sponsorNameEn, setSponsorNameEn] = useState('');
@@ -455,16 +456,7 @@ export function OrganizerDashboardScreen({
     await onDeleteEventPermanently(eventId);
   };
 
-  const confirmEditEvent = async (event: EventItem) => {
-    const confirmed = await requestHumanConfirmation({
-      title: t('event_edit_confirm_title'),
-      message: t('event_edit_confirm_message', { name: event.name }),
-      confirmLabel: t('edit_event'),
-      cancelLabel: t('close'),
-    });
-    if (!confirmed) {
-      return;
-    }
+  const openEditEvent = (event: EventItem) => {
     setSelectedEventId(event.id);
     onEditEvent(event.id);
   };
@@ -1081,6 +1073,9 @@ export function OrganizerDashboardScreen({
     });
   };
 
+  const hasPaidEvents = events.some((event) => !event.isFree);
+  const showPaymentsSection = hasPaidEvents || stripeConnectStatus !== 'not_connected';
+
   const dashboardNextStep = useMemo(() => {
     if (!events.length) {
       return {
@@ -1090,7 +1085,8 @@ export function OrganizerDashboardScreen({
       };
     }
 
-    if (stripeConnectStatus === 'not_connected') {
+    // Stripe only matters to organizers who actually run paid events.
+    if (hasPaidEvents && stripeConnectStatus === 'not_connected') {
       return {
         tone: 'warning' as const,
         message: t('organizer_dashboard_next_step_connect_stripe'),
@@ -1125,6 +1121,7 @@ export function OrganizerDashboardScreen({
     };
   }, [
     events.length,
+    hasPaidEvents,
     selectedEvent,
     selectedEventIsDefinitive,
     selectedEventPublicUrl,
@@ -1138,19 +1135,18 @@ export function OrganizerDashboardScreen({
         <View style={[styles.screenSplitColumn, isDesktopLayout ? styles.screenSplitColumnMain : undefined]}>
           <SectionCard title={t('organizer_dashboard')} delayMs={0}>
             <Text style={styles.cardParagraph}>{t('account_label', { email: organizer.email })}</Text>
-            <Text style={styles.cardParagraph}>
-              {t('antifraud_status', {
-                status: verificationStatusLabel(organizer.verificationStatus, language),
-                payout: organizer.payoutEnabled ? t('payout_enabled') : t('payout_blocked'),
-              })}
-            </Text>
-            <Text style={styles.helperText}>{t('risk_score', { score: organizer.riskScore })}</Text>
-            {organizer.riskFlags.length > 0 ? (
-              <Text style={styles.helperText}>
-                {t('risk_flags', { flags: organizer.riskFlags.join(' | ') })}
-              </Text>
+            {/* Verification and payouts only concern paid events; risk score/flags are internal. */}
+            {hasPaidEvents ? (
+              <>
+                <Text style={styles.cardParagraph}>
+                  {t('antifraud_status', {
+                    status: verificationStatusLabel(organizer.verificationStatus, language),
+                    payout: organizer.payoutEnabled ? t('payout_enabled') : t('payout_blocked'),
+                  })}
+                </Text>
+                <Text style={styles.helperText}>{t('event_claim_intro_short')}</Text>
+              </>
             ) : null}
-            <Text style={styles.helperText}>{t('event_claim_intro_short')}</Text>
             <View
               style={[
                 styles.noticeCard,
@@ -1172,9 +1168,7 @@ export function OrganizerDashboardScreen({
             {dashboardNextStep.action === 'edit_selected' && selectedEvent ? (
               <Pressable
                 style={styles.secondaryButton}
-                onPress={() => {
-                  void confirmEditEvent(selectedEvent);
-                }}
+                onPress={() => openEditEvent(selectedEvent)}
               >
                 <Text style={styles.secondaryButtonText}>{t('edit_event')}</Text>
               </Pressable>
@@ -1185,55 +1179,62 @@ export function OrganizerDashboardScreen({
               </Pressable>
             ) : null}
 
-            <View style={styles.blockSpacing}>
-              <Text style={styles.fieldLabel}>{t('stripe_connect_title')}</Text>
-              <Text style={styles.helperText}>
-                {t('stripe_connect_status_line', {
-                  status:
-                    stripeConnectStatus === 'ready'
-                      ? t('stripe_connect_status_ready')
-                      : stripeConnectStatus === 'pending'
-                        ? t('stripe_connect_status_pending')
-                        : t('stripe_connect_status_not_connected'),
-                })}
-              </Text>
-              {stripeConnectRequirements.length > 0 ? (
+            {/* Payments setup is noise for organizers who only run free events. */}
+            {showPaymentsSection ? (
+              <View style={styles.blockSpacing}>
+                <Text style={styles.fieldLabel}>{t('stripe_connect_title')}</Text>
                 <Text style={styles.helperText}>
-                  {t('stripe_connect_requirements', {
-                    count: stripeConnectRequirements.length,
+                  {t('stripe_connect_status_line', {
+                    status:
+                      stripeConnectStatus === 'ready'
+                        ? t('stripe_connect_status_ready')
+                        : stripeConnectStatus === 'pending'
+                          ? t('stripe_connect_status_pending')
+                          : t('stripe_connect_status_not_connected'),
                   })}
                 </Text>
-              ) : null}
-              <Pressable
-                style={styles.primaryButton}
-                onPress={() => {
-                  void onStartStripeConnect(organizer.id);
-                }}
-              >
-                <Text style={styles.primaryButtonText}>{t('stripe_connect_start')}</Text>
-              </Pressable>
-              <Pressable
-                style={styles.secondaryButton}
-                onPress={() => {
-                  void onSyncStripeConnect(organizer.id);
-                }}
-              >
-                <Text style={styles.secondaryButtonText}>{t('stripe_connect_refresh')}</Text>
-              </Pressable>
-            </View>
+                {stripeConnectRequirements.length > 0 ? (
+                  <Text style={styles.helperText}>
+                    {t('stripe_connect_requirements', {
+                      count: stripeConnectRequirements.length,
+                    })}
+                  </Text>
+                ) : null}
+                <Pressable
+                  style={styles.primaryButton}
+                  onPress={() => {
+                    void onStartStripeConnect(organizer.id);
+                  }}
+                >
+                  <Text style={styles.primaryButtonText}>{t('stripe_connect_start')}</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.secondaryButton}
+                  onPress={() => {
+                    void onSyncStripeConnect(organizer.id);
+                  }}
+                >
+                  <Text style={styles.secondaryButtonText}>{t('stripe_connect_refresh')}</Text>
+                </Pressable>
+              </View>
+            ) : null}
 
             <View style={styles.inlineMetricRow}>
               <MetricChip label={t('created_events')} value={String(events.length)} />
               <MetricChip label={t('registered_users')} value={String(organizerParticipantCount)} />
             </View>
-            <View style={styles.inlineMetricRow}>
-              <MetricChip label={t('gross_revenue')} value={toMoney(grossRevenue)} />
-              <MetricChip label={t('commissions_3')} value={toMoney(totalCommission)} />
-              <MetricChip label={t('provider_fees')} value={toMoney(totalProviderFees)} />
-            </View>
-            <View style={styles.inlineMetricRow}>
-              <MetricChip label={t('organizer_net_total')} value={toMoney(totalOrganizerNet)} />
-            </View>
+            {showPaymentsSection ? (
+              <>
+                <View style={styles.inlineMetricRow}>
+                  <MetricChip label={t('gross_revenue')} value={toMoney(grossRevenue)} />
+                  <MetricChip label={t('commissions_3')} value={toMoney(totalCommission)} />
+                  <MetricChip label={t('provider_fees')} value={toMoney(totalProviderFees)} />
+                </View>
+                <View style={styles.inlineMetricRow}>
+                  <MetricChip label={t('organizer_net_total')} value={toMoney(totalOrganizerNet)} />
+                </View>
+              </>
+            ) : null}
 
             <Pressable style={styles.primaryButton} onPress={onNewEvent}>
               <Text style={styles.primaryButtonText}>{t('create_new_event')}</Text>
@@ -1386,177 +1387,394 @@ export function OrganizerDashboardScreen({
                       </Pressable>
 
                       {showEventActions ? (
-                        <View style={styles.inlineActionRow}>
-                          <Pressable
-                            style={styles.inlineActionButton}
-                            onPress={() => {
-                              void confirmEditEvent(event);
-                            }}
-                          >
-                            <Text style={styles.inlineActionButtonText}>{t('edit_event')}</Text>
-                          </Pressable>
-                          <Pressable
-                            style={[styles.inlineActionButton, styles.inlineActionButtonWarning]}
-                            onPress={() => {
-                              void confirmToggleEventRegistrations(event);
-                            }}
-                          >
-                            <Text style={styles.inlineActionButtonText}>
-                              {event.registrationsOpen
-                                ? t('close_registrations')
-                                : t('open_registrations')}
-                            </Text>
-                          </Pressable>
-                          <Pressable
-                            style={[
-                              styles.inlineActionButton,
-                              event.active
-                                ? styles.inlineActionButtonWarning
-                                : styles.inlineActionButtonSuccess,
-                            ]}
-                            onPress={() => {
-                              void confirmToggleEventStatus(event);
-                            }}
-                          >
-                            <Text style={styles.inlineActionButtonText}>
-                              {event.active ? t('deactivate') : t('activate')}
-                            </Text>
-                          </Pressable>
-                          <Pressable
-                            style={[styles.inlineActionButton, styles.inlineActionButtonWarning]}
-                            onPress={() => {
-                              void confirmCloseEvent(event);
-                            }}
-                          >
-                            <Text style={styles.inlineActionButtonText}>{t('close_event')}</Text>
-                          </Pressable>
-                          <Pressable
-                            style={[styles.inlineActionButton, styles.inlineActionButtonSuccess]}
-                            onPress={() => {
-                              void confirmReopenEvent(event);
-                            }}
-                          >
-                            <Text style={styles.inlineActionButtonText}>{t('reopen_event')}</Text>
-                          </Pressable>
-                          {isAdmin ? (
+                        <>
+                          <View style={styles.inlineActionRow}>
                             <Pressable
-                              style={[styles.inlineActionButton, styles.inlineActionButtonDanger]}
+                              style={styles.inlineActionButton}
+                              onPress={() => openEditEvent(event)}
+                            >
+                              <Text style={styles.inlineActionButtonText}>{t('edit_event')}</Text>
+                            </Pressable>
+                            <Pressable
+                              style={[
+                                styles.inlineActionButton,
+                                event.registrationsOpen
+                                  ? styles.inlineActionButtonWarning
+                                  : styles.inlineActionButtonSuccess,
+                              ]}
                               onPress={() => {
-                                void confirmDeleteEventPermanently(event.id, event.name);
+                                void confirmToggleEventRegistrations(event);
                               }}
                             >
                               <Text style={styles.inlineActionButtonText}>
-                                {t('event_delete_forever')}
+                                {event.registrationsOpen
+                                  ? t('close_registrations')
+                                  : t('open_registrations')}
                               </Text>
                             </Pressable>
+                            <Pressable
+                              style={styles.inlineActionButton}
+                              onPress={() => {
+                                void onExportEvent(event.id);
+                              }}
+                            >
+                              <Text style={styles.inlineActionButtonText}>{t('export_csv')}</Text>
+                            </Pressable>
+                            <Pressable
+                              style={styles.inlineActionButton}
+                              onPress={() => {
+                                void onExportEventPdf(event.id);
+                              }}
+                            >
+                              <Text style={styles.inlineActionButtonText}>{t('export_pdf')}</Text>
+                            </Pressable>
+                          </View>
+                          <Pressable
+                            onPress={() =>
+                              setExpandedActionsEventId((current) =>
+                                current === event.id ? null : event.id
+                              )
+                            }
+                            accessibilityRole='button'
+                            accessibilityState={{ expanded: expandedActionsEventId === event.id }}
+                          >
+                            <Text style={styles.textLinkLeft}>
+                              {expandedActionsEventId === event.id
+                                ? t('event_more_actions_hide')
+                                : t('event_more_actions_show')}
+                            </Text>
+                          </Pressable>
+                          {expandedActionsEventId === event.id ? (
+                            <View style={styles.inlineActionRow}>
+                              <Pressable
+                                style={[
+                                  styles.inlineActionButton,
+                                  event.active
+                                    ? styles.inlineActionButtonWarning
+                                    : styles.inlineActionButtonSuccess,
+                                ]}
+                                onPress={() => {
+                                  void confirmToggleEventStatus(event);
+                                }}
+                              >
+                                <Text style={styles.inlineActionButtonText}>
+                                  {event.active ? t('deactivate') : t('activate')}
+                                </Text>
+                              </Pressable>
+                              {event.closedAt ? (
+                                <Pressable
+                                  style={[styles.inlineActionButton, styles.inlineActionButtonSuccess]}
+                                  onPress={() => {
+                                    void confirmReopenEvent(event);
+                                  }}
+                                >
+                                  <Text style={styles.inlineActionButtonText}>{t('reopen_event')}</Text>
+                                </Pressable>
+                              ) : (
+                                <Pressable
+                                  style={[styles.inlineActionButton, styles.inlineActionButtonWarning]}
+                                  onPress={() => {
+                                    void confirmCloseEvent(event);
+                                  }}
+                                >
+                                  <Text style={styles.inlineActionButtonText}>{t('close_event')}</Text>
+                                </Pressable>
+                              )}
+                              {isAdmin ? (
+                                <Pressable
+                                  style={[styles.inlineActionButton, styles.inlineActionButtonDanger]}
+                                  onPress={() => {
+                                    void confirmDeleteEventPermanently(event.id, event.name);
+                                  }}
+                                >
+                                  <Text style={styles.inlineActionButtonText}>
+                                    {t('event_delete_forever')}
+                                  </Text>
+                                </Pressable>
+                              ) : null}
+                            </View>
                           ) : null}
-                          <Pressable
-                            style={styles.inlineActionButton}
-                            onPress={() => {
-                              void onExportEvent(event.id);
-                            }}
-                          >
-                            <Text style={styles.inlineActionButtonText}>{t('export_csv')}</Text>
-                          </Pressable>
-                          <Pressable
-                            style={styles.inlineActionButton}
-                            onPress={() => {
-                              void onExportEventPdf(event.id);
-                            }}
-                          >
-                            <Text style={styles.inlineActionButtonText}>{t('export_pdf')}</Text>
-                          </Pressable>
-                        </View>
+                        </>
                       ) : null}
                     </View>
                   );
                 })
             )}
           </SectionCard>
-        </View>
 
-        <View style={[styles.screenSplitColumn, isDesktopLayout ? styles.screenSplitColumnSide : undefined]}>
-          <SectionCard title={t('event_claim_section_title')} delayMs={120}>
+          <SectionCard title={t('realtime_list')} delayMs={270}>
             {!selectedEvent ? (
-              <Text style={styles.helperText}>{t('select_event_for_list')}</Text>
-            ) : selectedEvent.isFree ? (
-              <Text style={styles.helperText}>{t('event_claim_not_required_message')}</Text>
+              <Text style={styles.cardParagraph}>{t('select_event_for_list')}</Text>
             ) : (
               <>
-                <Text style={styles.cardParagraph}>
-                  {t('event_claim_status_line', { status: selectedEventClaimStatusLabel })}
-                </Text>
-                <Text style={styles.helperText}>
-                  {t('event_claim_contact_line', { email: ADMIN_CONTACT_EMAIL })}
-                </Text>
-                {selectedEvent.claimSubmissionMethod === 'official_email' ? (
-                  <Text style={styles.helperText}>
-                    {t('event_claim_official_email_line', {
-                      email: selectedEvent.claimOfficialEmail || '-',
-                    })}
+                <TextField
+                  label={t('registration_filter_query')}
+                  value={registrationQuery}
+                  onChangeText={setRegistrationQuery}
+                  placeholder={t('registration_filter_query_placeholder')}
+                />
+                <Text style={styles.fieldLabel}>{t('registration_filter_status')}</Text>
+                <View style={styles.methodRow}>
+                  {[ 
+                    ['all', t('registration_filter_all')],
+                    ['pending_payment', t('registration_status_pending_payment')],
+                    ['pending_cash', t('registration_status_pending_cash')],
+                    ['paid', t('registration_status_paid')],
+                    ['payment_failed', t('registration_status_payment_failed')],
+                    ['cancelled', t('registration_status_cancelled')],
+                    ['refunded', t('registration_status_refunded')],
+                  ].map(([status, label]) => (
+                    <Pressable
+                      key={status}
+                      style={[
+                        styles.methodChip,
+                        registrationStatusFilter === status ? styles.methodChipActive : undefined,
+                      ]}
+                      onPress={() =>
+                        setRegistrationStatusFilter(
+                          status as
+                            | 'all'
+                            | 'pending_payment'
+                            | 'pending_cash'
+                            | 'paid'
+                            | 'payment_failed'
+                            | 'cancelled'
+                            | 'refunded'
+                        )
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.methodChipText,
+                          registrationStatusFilter === status
+                            ? styles.methodChipTextActive
+                            : undefined,
+                        ]}
+                      >
+                        {label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <SwitchRow
+                  label={t('registration_simple_view')}
+                  value={simpleListView}
+                  onValueChange={setSimpleListView}
+                />
+                {eventRegistrations.length === 0 ? (
+                  <Text style={styles.cardParagraph}>
+                    {t('no_registrations_for_event', { event: selectedEvent.name })}
                   </Text>
                 ) : (
-                  <Text style={styles.helperText}>
-                    {t('event_claim_social_line', {
-                      handle: selectedEvent.claimSocialHandle || '-',
-                    })}
-                  </Text>
+                  eventRegistrations.map((entry) => {
+                    const intent = entry.paymentIntentId
+                      ? paymentIntentMap.get(entry.paymentIntentId)
+                      : undefined;
+                    const split = getRegistrationSplit(entry);
+                    const numberText =
+                      typeof entry.assignedNumber === 'number'
+                        ? t('number_suffix', { number: entry.assignedNumber })
+                        : '';
+                    const groupParticipantsLine = entry.groupParticipants
+                      .map((participant) => {
+                        const name = cleanText(participant.fullName);
+                        if (!name) {
+                          return '';
+                        }
+                        if (typeof participant.assignedNumber === 'number') {
+                          return `${name} (#${participant.assignedNumber})`;
+                        }
+                        return name;
+                      })
+                      .filter(Boolean)
+                      .join(' | ');
+                    return (
+                      <View key={entry.id} style={styles.registrationCard}>
+                        <View style={styles.statusBadgeRow}>
+                          <StatusBadge label={registrationStatusLabel(entry.registrationStatus)} />
+                          <StatusBadge label={paymentStatusLabel(entry.paymentStatus)} />
+                          {typeof entry.assignedNumber === 'number' ? (
+                            <StatusBadge
+                              label={t('number_assigned_badge', { number: entry.assignedNumber })}
+                              tone='success'
+                            />
+                          ) : null}
+                        </View>
+                        <Text style={styles.listTitle}>{entry.fullName}</Text>
+                        <Text style={styles.listSubText}>{entry.email}</Text>
+                        {entry.groupParticipantsCount > 1 ? (
+                          <Text style={styles.listSubText}>
+                            {t('group_participants_line', { count: entry.groupParticipantsCount })}
+                          </Text>
+                        ) : null}
+                        {groupParticipantsLine ? (
+                          <Text style={styles.listSubText}>
+                            {t('group_participants_names_line', { value: groupParticipantsLine })}
+                          </Text>
+                        ) : null}
+                        {cleanText(entry.participantMessage ?? '') ? (
+                          <Text style={styles.listSubText}>
+                            {t('participant_message_line', {
+                              value: cleanText(entry.participantMessage ?? ''),
+                            })}
+                          </Text>
+                        ) : null}
+                        <Text style={styles.listSubText}>
+                          {t('code_number_line', {
+                            code: entry.registrationCode,
+                            number: numberText,
+                          })}
+                        </Text>
+                        <Text style={styles.listSubText}>
+                          {t('registration_payment_state', {
+                            reg: registrationStatusLabel(entry.registrationStatus),
+                            pay: paymentStatusLabel(entry.paymentStatus),
+                          })}
+                        </Text>
+                        {!simpleListView ? (
+                          <>
+                            <Text style={styles.listSubText}>
+                              {t('amount_commission', {
+                                amount: toMoney(entry.paymentAmount),
+                                commission: toMoney(entry.commissionAmount),
+                              })}
+                            </Text>
+                            {split ? (
+                              <Text style={styles.listSubText}>
+                                {t('registration_split_line', {
+                                  base: toMoney(split.baseTotal),
+                                  commission: toMoney(split.commissionTotal),
+                                  provider: toMoney(split.providerFeeTotal),
+                                  net: toMoney(split.organizerNetTotal),
+                                })}
+                              </Text>
+                            ) : null}
+                            {entry.paymentReference ? (
+                              <Text style={styles.listSubText}>
+                                {t('payment_reference', { reference: entry.paymentReference })}
+                              </Text>
+                            ) : null}
+                            {intent ? (
+                              <Text style={styles.listSubText}>
+                                {t('payment_intent_line', { id: intent.id, status: intent.status })}
+                              </Text>
+                            ) : null}
+                            {entry.paymentFailedReason ? (
+                              <Text style={styles.listSubText}>
+                                {t('payment_error_reason', { reason: entry.paymentFailedReason })}
+                              </Text>
+                            ) : null}
+                          </>
+                        ) : null}
+                        {entry.registrationStatus === 'pending_cash' ? (
+                          <Pressable
+                            style={[styles.inlineActionButton, styles.inlineActionButtonSuccess]}
+                            onPress={() => {
+                              void confirmCashRegistration(entry);
+                            }}
+                          >
+                            <Text style={styles.inlineActionButtonText}>
+                              {t('cash_payment_confirm_by_organizer')}
+                            </Text>
+                          </Pressable>
+                        ) : null}
+                        <Text style={styles.listSubText}>
+                          {t('registration_date', { date: formatDate(entry.createdAt.slice(0, 10)) })}
+                        </Text>
+                      </View>
+                    );
+                  })
                 )}
-                <Text style={styles.helperText}>
-                  {t('event_claim_proof_line', {
-                    file: selectedEvent.claimEvidenceFileName || t('document_not_selected'),
-                  })}
-                </Text>
-                {selectedEvent.claimRequestedAt ? (
-                  <Text style={styles.helperText}>
-                    {t('event_claim_requested_at_line', {
-                      date: formatDate(selectedEvent.claimRequestedAt.slice(0, 10)),
-                    })}
-                  </Text>
-                ) : null}
-                {selectedEvent.claimApprovedAt ? (
-                  <Text style={styles.helperText}>
-                    {t('event_claim_approved_at_line', {
-                      date: formatDate(selectedEvent.claimApprovedAt.slice(0, 10)),
-                      reviewer: selectedEvent.claimApprovedBy || 'admin',
-                    })}
-                  </Text>
-                ) : null}
-                {selectedEvent.claimRejectedReason ? (
-                  <Text style={styles.helperText}>
-                    {t('event_claim_rejected_reason_line', {
-                      reason: selectedEvent.claimRejectedReason,
-                    })}
-                  </Text>
-                ) : null}
-                {!isPaidEventClaimApproved(selectedEvent) ? (
-                  <Text style={styles.helperText}>{t('event_claim_publish_blocked')}</Text>
-                ) : (
-                  <Text style={styles.helperText}>{t('event_claim_publish_ready')}</Text>
-                )}
-                {isAdmin && isPaidEventClaimPending(selectedEvent) ? (
-                  <>
-                    <Pressable
-                      style={styles.primaryButton}
-                      onPress={() => {
-                        void confirmApproveEventClaim(selectedEvent);
-                      }}
-                    >
-                      <Text style={styles.primaryButtonText}>{t('event_claim_approve_button')}</Text>
-                    </Pressable>
-                    <Pressable
-                      style={styles.secondaryButton}
-                      onPress={() => {
-                        void confirmRejectEventClaim(selectedEvent);
-                      }}
-                    >
-                      <Text style={styles.secondaryButtonText}>{t('event_claim_reject_button')}</Text>
-                    </Pressable>
-                  </>
-                ) : null}
               </>
             )}
           </SectionCard>
+        </View>
+
+        <View style={[styles.screenSplitColumn, isDesktopLayout ? styles.screenSplitColumnSide : undefined]}>
+          {hasPaidEvents || isAdmin ? (
+            <SectionCard title={t('event_claim_section_title')} delayMs={120}>
+              {!selectedEvent ? (
+                <Text style={styles.helperText}>{t('select_event_for_list')}</Text>
+              ) : selectedEvent.isFree ? (
+                <Text style={styles.helperText}>{t('event_claim_not_required_message')}</Text>
+              ) : (
+                <>
+                  <Text style={styles.cardParagraph}>
+                    {t('event_claim_status_line', { status: selectedEventClaimStatusLabel })}
+                  </Text>
+                  <Text style={styles.helperText}>
+                    {t('event_claim_contact_line', { email: ADMIN_CONTACT_EMAIL })}
+                  </Text>
+                  {selectedEvent.claimSubmissionMethod === 'official_email' ? (
+                    <Text style={styles.helperText}>
+                      {t('event_claim_official_email_line', {
+                        email: selectedEvent.claimOfficialEmail || '-',
+                      })}
+                    </Text>
+                  ) : (
+                    <Text style={styles.helperText}>
+                      {t('event_claim_social_line', {
+                        handle: selectedEvent.claimSocialHandle || '-',
+                      })}
+                    </Text>
+                  )}
+                  <Text style={styles.helperText}>
+                    {t('event_claim_proof_line', {
+                      file: selectedEvent.claimEvidenceFileName || t('document_not_selected'),
+                    })}
+                  </Text>
+                  {selectedEvent.claimRequestedAt ? (
+                    <Text style={styles.helperText}>
+                      {t('event_claim_requested_at_line', {
+                        date: formatDate(selectedEvent.claimRequestedAt.slice(0, 10)),
+                      })}
+                    </Text>
+                  ) : null}
+                  {selectedEvent.claimApprovedAt ? (
+                    <Text style={styles.helperText}>
+                      {t('event_claim_approved_at_line', {
+                        date: formatDate(selectedEvent.claimApprovedAt.slice(0, 10)),
+                        reviewer: selectedEvent.claimApprovedBy || 'admin',
+                      })}
+                    </Text>
+                  ) : null}
+                  {selectedEvent.claimRejectedReason ? (
+                    <Text style={styles.helperText}>
+                      {t('event_claim_rejected_reason_line', {
+                        reason: selectedEvent.claimRejectedReason,
+                      })}
+                    </Text>
+                  ) : null}
+                  {!isPaidEventClaimApproved(selectedEvent) ? (
+                    <Text style={styles.helperText}>{t('event_claim_publish_blocked')}</Text>
+                  ) : (
+                    <Text style={styles.helperText}>{t('event_claim_publish_ready')}</Text>
+                  )}
+                  {isAdmin && isPaidEventClaimPending(selectedEvent) ? (
+                    <>
+                      <Pressable
+                        style={styles.primaryButton}
+                        onPress={() => {
+                          void confirmApproveEventClaim(selectedEvent);
+                        }}
+                      >
+                        <Text style={styles.primaryButtonText}>{t('event_claim_approve_button')}</Text>
+                      </Pressable>
+                      <Pressable
+                        style={styles.secondaryButton}
+                        onPress={() => {
+                          void confirmRejectEventClaim(selectedEvent);
+                        }}
+                      >
+                        <Text style={styles.secondaryButtonText}>{t('event_claim_reject_button')}</Text>
+                      </Pressable>
+                    </>
+                  ) : null}
+                </>
+              )}
+            </SectionCard>
+          ) : null}
 
           <SectionCard title={t('event_public_tools')} delayMs={130}>
             {!selectedEvent ? (
@@ -1618,40 +1836,43 @@ export function OrganizerDashboardScreen({
             )}
           </SectionCard>
 
-          <SectionCard title={t('organizer_compliance_section')} delayMs={150}>
-            <Text style={styles.cardParagraph}>{t('organizer_antifraud_intro')}</Text>
-            <Pressable
-              style={styles.secondaryButton}
-              onPress={() => {
-                void pickAntifraudProofDocument(
-                  setOrganizerAntifraudProofDocuments,
-                  setOrganizerAntifraudAttachments
-                );
-              }}
-            >
-              <Text style={styles.secondaryButtonText}>{t('organizer_antifraud_upload')}</Text>
-            </Pressable>
-            <Text style={styles.fieldLabel}>{t('uploaded_documents_title')}</Text>
-            {organizerUploadedDocuments.length === 0 ? (
-              <Text style={styles.helperText}>{t('uploaded_documents_empty')}</Text>
-            ) : (
-              organizerUploadedDocuments.map((entry, index) => (
-                <Text key={`${entry}_${index}`} style={styles.helperText}>
-                  {entry}
+          {/* Verification documents only matter for paid events. */}
+          {hasPaidEvents || isAdmin ? (
+            <SectionCard title={t('organizer_compliance_section')} delayMs={150}>
+              <Text style={styles.cardParagraph}>{t('organizer_antifraud_intro')}</Text>
+              <Pressable
+                style={styles.secondaryButton}
+                onPress={() => {
+                  void pickAntifraudProofDocument(
+                    setOrganizerAntifraudProofDocuments,
+                    setOrganizerAntifraudAttachments
+                  );
+                }}
+              >
+                <Text style={styles.secondaryButtonText}>{t('organizer_antifraud_upload')}</Text>
+              </Pressable>
+              <Text style={styles.fieldLabel}>{t('uploaded_documents_title')}</Text>
+              {organizerUploadedDocuments.length === 0 ? (
+                <Text style={styles.helperText}>{t('uploaded_documents_empty')}</Text>
+              ) : (
+                organizerUploadedDocuments.map((entry, index) => (
+                  <Text key={`${entry}_${index}`} style={styles.helperText}>
+                    {entry}
+                  </Text>
+                ))
+              )}
+              <Pressable style={styles.primaryButton} onPress={saveOrganizerAntifraudDocuments}>
+                <Text style={styles.primaryButtonText}>{t('save_organizer_documents')}</Text>
+              </Pressable>
+              <Pressable style={styles.secondaryButton} onPress={sendOrganizerAntifraudEmail}>
+                <Text style={styles.secondaryButtonText}>
+                  {t('send_documents_admin', {
+                    email: ADMIN_CONTACT_EMAIL,
+                  })}
                 </Text>
-              ))
-            )}
-            <Pressable style={styles.primaryButton} onPress={saveOrganizerAntifraudDocuments}>
-              <Text style={styles.primaryButtonText}>{t('save_organizer_documents')}</Text>
-            </Pressable>
-            <Pressable style={styles.secondaryButton} onPress={sendOrganizerAntifraudEmail}>
-              <Text style={styles.secondaryButtonText}>
-                {t('send_documents_admin', {
-                  email: ADMIN_CONTACT_EMAIL,
-                })}
-              </Text>
-            </Pressable>
-          </SectionCard>
+              </Pressable>
+            </SectionCard>
+          ) : null}
 
           {isAdmin ? (
             <SectionCard title={t('admin_organizer_documents_section')} delayMs={165}>
@@ -2116,193 +2337,6 @@ export function OrganizerDashboardScreen({
         </View>
       </View>
 
-      <SectionCard title={t('realtime_list')} delayMs={270}>
-        {!selectedEvent ? (
-          <Text style={styles.cardParagraph}>{t('select_event_for_list')}</Text>
-        ) : (
-          <>
-            <TextField
-              label={t('registration_filter_query')}
-              value={registrationQuery}
-              onChangeText={setRegistrationQuery}
-              placeholder={t('registration_filter_query_placeholder')}
-            />
-            <Text style={styles.fieldLabel}>{t('registration_filter_status')}</Text>
-            <View style={styles.methodRow}>
-              {[ 
-                ['all', t('registration_filter_all')],
-                ['pending_payment', t('registration_status_pending_payment')],
-                ['pending_cash', t('registration_status_pending_cash')],
-                ['paid', t('registration_status_paid')],
-                ['payment_failed', t('registration_status_payment_failed')],
-                ['cancelled', t('registration_status_cancelled')],
-                ['refunded', t('registration_status_refunded')],
-              ].map(([status, label]) => (
-                <Pressable
-                  key={status}
-                  style={[
-                    styles.methodChip,
-                    registrationStatusFilter === status ? styles.methodChipActive : undefined,
-                  ]}
-                  onPress={() =>
-                    setRegistrationStatusFilter(
-                      status as
-                        | 'all'
-                        | 'pending_payment'
-                        | 'pending_cash'
-                        | 'paid'
-                        | 'payment_failed'
-                        | 'cancelled'
-                        | 'refunded'
-                    )
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.methodChipText,
-                      registrationStatusFilter === status
-                        ? styles.methodChipTextActive
-                        : undefined,
-                    ]}
-                  >
-                    {label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-
-            <SwitchRow
-              label={t('registration_simple_view')}
-              value={simpleListView}
-              onValueChange={setSimpleListView}
-            />
-            {eventRegistrations.length === 0 ? (
-              <Text style={styles.cardParagraph}>
-                {t('no_registrations_for_event', { event: selectedEvent.name })}
-              </Text>
-            ) : (
-              eventRegistrations.map((entry) => {
-                const intent = entry.paymentIntentId
-                  ? paymentIntentMap.get(entry.paymentIntentId)
-                  : undefined;
-                const split = getRegistrationSplit(entry);
-                const numberText =
-                  typeof entry.assignedNumber === 'number'
-                    ? t('number_suffix', { number: entry.assignedNumber })
-                    : '';
-                const groupParticipantsLine = entry.groupParticipants
-                  .map((participant) => {
-                    const name = cleanText(participant.fullName);
-                    if (!name) {
-                      return '';
-                    }
-                    if (typeof participant.assignedNumber === 'number') {
-                      return `${name} (#${participant.assignedNumber})`;
-                    }
-                    return name;
-                  })
-                  .filter(Boolean)
-                  .join(' | ');
-                return (
-                  <View key={entry.id} style={styles.registrationCard}>
-                    <View style={styles.statusBadgeRow}>
-                      <StatusBadge label={registrationStatusLabel(entry.registrationStatus)} />
-                      <StatusBadge label={paymentStatusLabel(entry.paymentStatus)} />
-                      {typeof entry.assignedNumber === 'number' ? (
-                        <StatusBadge
-                          label={t('number_assigned_badge', { number: entry.assignedNumber })}
-                          tone='success'
-                        />
-                      ) : null}
-                    </View>
-                    <Text style={styles.listTitle}>{entry.fullName}</Text>
-                    <Text style={styles.listSubText}>{entry.email}</Text>
-                    {entry.groupParticipantsCount > 1 ? (
-                      <Text style={styles.listSubText}>
-                        {t('group_participants_line', { count: entry.groupParticipantsCount })}
-                      </Text>
-                    ) : null}
-                    {groupParticipantsLine ? (
-                      <Text style={styles.listSubText}>
-                        {t('group_participants_names_line', { value: groupParticipantsLine })}
-                      </Text>
-                    ) : null}
-                    {cleanText(entry.participantMessage ?? '') ? (
-                      <Text style={styles.listSubText}>
-                        {t('participant_message_line', {
-                          value: cleanText(entry.participantMessage ?? ''),
-                        })}
-                      </Text>
-                    ) : null}
-                    <Text style={styles.listSubText}>
-                      {t('code_number_line', {
-                        code: entry.registrationCode,
-                        number: numberText,
-                      })}
-                    </Text>
-                    <Text style={styles.listSubText}>
-                      {t('registration_payment_state', {
-                        reg: registrationStatusLabel(entry.registrationStatus),
-                        pay: paymentStatusLabel(entry.paymentStatus),
-                      })}
-                    </Text>
-                    {!simpleListView ? (
-                      <>
-                        <Text style={styles.listSubText}>
-                          {t('amount_commission', {
-                            amount: toMoney(entry.paymentAmount),
-                            commission: toMoney(entry.commissionAmount),
-                          })}
-                        </Text>
-                        {split ? (
-                          <Text style={styles.listSubText}>
-                            {t('registration_split_line', {
-                              base: toMoney(split.baseTotal),
-                              commission: toMoney(split.commissionTotal),
-                              provider: toMoney(split.providerFeeTotal),
-                              net: toMoney(split.organizerNetTotal),
-                            })}
-                          </Text>
-                        ) : null}
-                        {entry.paymentReference ? (
-                          <Text style={styles.listSubText}>
-                            {t('payment_reference', { reference: entry.paymentReference })}
-                          </Text>
-                        ) : null}
-                        {intent ? (
-                          <Text style={styles.listSubText}>
-                            {t('payment_intent_line', { id: intent.id, status: intent.status })}
-                          </Text>
-                        ) : null}
-                        {entry.paymentFailedReason ? (
-                          <Text style={styles.listSubText}>
-                            {t('payment_error_reason', { reason: entry.paymentFailedReason })}
-                          </Text>
-                        ) : null}
-                      </>
-                    ) : null}
-                    {entry.registrationStatus === 'pending_cash' ? (
-                      <Pressable
-                        style={[styles.inlineActionButton, styles.inlineActionButtonSuccess]}
-                        onPress={() => {
-                          void confirmCashRegistration(entry);
-                        }}
-                      >
-                        <Text style={styles.inlineActionButtonText}>
-                          {t('cash_payment_confirm_by_organizer')}
-                        </Text>
-                      </Pressable>
-                    ) : null}
-                    <Text style={styles.listSubText}>
-                      {t('registration_date', { date: formatDate(entry.createdAt.slice(0, 10)) })}
-                    </Text>
-                  </View>
-                );
-              })
-            )}
-          </>
-        )}
-      </SectionCard>
     </ScrollView>
   );
 }

@@ -4,6 +4,7 @@ import test from 'node:test';
 import { EventItem } from '../src/types';
 import {
   compareParticipantEventsForSearch,
+  filterParticipantDiscoverableEvents,
   getParticipantEventAvailability,
   getParticipantMessageValidationIssues,
   getParticipantPaymentSessionState,
@@ -290,5 +291,54 @@ test('getParticipantPaymentSessionState detects active, expiring and expired ses
   assert.equal(
     getParticipantPaymentSessionState('2026-03-13T09:59:00.000Z', now),
     'expired'
+  );
+});
+
+test('filterParticipantDiscoverableEvents lists upcoming public events without a query', () => {
+  const today = '2026-04-05';
+  const events = [
+    createEvent({ id: 'later', date: '2026-05-10', endDate: '2026-05-10', registrationCloseDate: '2026-05-09' }),
+    createEvent({ id: 'open', date: '2026-04-20', endDate: '2026-04-20' }),
+    createEvent({ id: 'past', date: '2026-03-01', endDate: '2026-03-01', registrationCloseDate: '2026-02-28' }),
+    createEvent({ id: 'hidden', visibility: 'hidden' }),
+    createEvent({ id: 'inactive', active: false }),
+  ];
+  const result = filterParticipantDiscoverableEvents(events, { todayIso: today });
+  assert.deepEqual(
+    result.map((event) => event.id),
+    ['open', 'later']
+  );
+});
+
+test('filterParticipantDiscoverableEvents matches name or location, accent-insensitive', () => {
+  const today = '2026-04-05';
+  const events = [
+    createEvent({ id: 'torino', name: 'Trail Demo', location: 'Torino' }),
+    createEvent({ id: 'forli', name: 'Mezza maratona', location: 'Forlì' }),
+  ];
+  assert.deepEqual(
+    filterParticipantDiscoverableEvents(events, { query: 'forli', todayIso: today }).map((e) => e.id),
+    ['forli']
+  );
+  assert.deepEqual(
+    filterParticipantDiscoverableEvents(events, { query: 'trail torino', todayIso: today }).map((e) => e.id),
+    ['torino']
+  );
+});
+
+test('filterParticipantDiscoverableEvents applies price and open-only filters', () => {
+  const today = '2026-04-05';
+  const events = [
+    createEvent({ id: 'free-open' }),
+    createEvent({ id: 'paid-open', isFree: false, feeAmount: 10 }),
+    createEvent({ id: 'free-upcoming', registrationOpenDate: '2026-04-15', registrationCloseDate: '2026-04-18' }),
+  ];
+  assert.deepEqual(
+    filterParticipantDiscoverableEvents(events, { priceFilter: 'paid', todayIso: today }).map((e) => e.id),
+    ['paid-open']
+  );
+  assert.deepEqual(
+    filterParticipantDiscoverableEvents(events, { priceFilter: 'free', openOnly: true, todayIso: today }).map((e) => e.id),
+    ['free-open']
   );
 });

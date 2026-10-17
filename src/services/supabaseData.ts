@@ -96,6 +96,16 @@ const buildEventExtendedPayload = (event: EventItem, organizerRemoteId: string) 
   last_participants_reset_at: event.lastParticipantsResetAt ?? null,
 });
 
+const buildEventWindowPayload = (event: EventItem, organizerRemoteId: string) => ({
+  ...buildEventExtendedPayload(event, organizerRemoteId),
+  registration_open_date: nullableDate(event.registrationOpenDate),
+  registration_close_date: nullableDate(event.registrationCloseDate),
+});
+
+// Registration window columns were added after the extended schema: retry without them first.
+const isUnsupportedEventWindowFieldError = (message: string): boolean =>
+  /registration_open_date|registration_close_date/i.test(message);
+
 const isUnsupportedEventFieldError = (message: string): boolean =>
   /event_end_date|event_time|participant_auth_mode|participant_phone_required|claim_status|claim_submission_method|claim_official_email|claim_social_handle|claim_evidence_file_name|claim_requested_at|claim_approved_at|claim_approved_by|claim_rejected_at|claim_rejected_reason|cash_payment_enabled|cash_payment_instructions|cash_payment_deadline|registrations_open|closed_at|definitive_published_at|season_version|last_participants_reset_at/i.test(
     message
@@ -177,6 +187,8 @@ export type OrganizerCatalogEventRow = OrganizerCatalogEventLegacyRow & {
   definitive_published_at?: string | null;
   season_version?: number;
   last_participants_reset_at?: string | null;
+  registration_open_date?: string | null;
+  registration_close_date?: string | null;
 };
 
 const ORGANIZER_CATALOG_SELECT_EXTENDED =
@@ -187,6 +199,8 @@ const ORGANIZER_CATALOG_SELECT_LEGACY =
 
 const EVENT_CATALOG_SELECT_EXTENDED =
   'id,organizer_id,name,location,event_date,event_end_date,event_time,is_free,fee_amount,privacy_text,logo_url,local_sponsor,assign_numbers,participant_auth_mode,participant_phone_required,claim_status,claim_submission_method,claim_official_email,claim_social_handle,claim_evidence_file_name,claim_requested_at,claim_approved_at,claim_approved_by,claim_rejected_at,claim_rejected_reason,cash_payment_enabled,cash_payment_instructions,cash_payment_deadline,registrations_open,closed_at,definitive_published_at,season_version,last_participants_reset_at,active,created_at,updated_at';
+
+const EVENT_CATALOG_SELECT_WINDOW = `${EVENT_CATALOG_SELECT_EXTENDED},registration_open_date,registration_close_date`;
 
 const EVENT_CATALOG_SELECT_LEGACY =
   'id,organizer_id,name,location,event_date,is_free,fee_amount,privacy_text,logo_url,local_sponsor,assign_numbers,active,created_at,updated_at';
@@ -300,11 +314,19 @@ export const listOrganizerCatalogFromSupabase = async (
   let eventsData: OrganizerCatalogEventRow[] = [];
   let eventsError: Error | null = null;
 
-  const eventsExtended = await client
+  let eventsExtended = await client
     .from('events')
-    .select(EVENT_CATALOG_SELECT_EXTENDED)
+    .select(EVENT_CATALOG_SELECT_WINDOW)
     .in('organizer_id', organizerIds)
     .order('event_date', { ascending: true });
+
+  if (eventsExtended.error && isUnsupportedEventWindowFieldError(eventsExtended.error.message)) {
+    eventsExtended = await client
+      .from('events')
+      .select(EVENT_CATALOG_SELECT_EXTENDED)
+      .in('organizer_id', organizerIds)
+      .order('event_date', { ascending: true });
+  }
 
   if (eventsExtended.error) {
     if (isUnsupportedEventFieldError(eventsExtended.error.message)) {
@@ -348,11 +370,19 @@ export const listPublicEventsFromSupabase = async (
   let eventsData: OrganizerCatalogEventRow[] = [];
   let eventsError: Error | null = null;
 
-  const eventsExtended = await client
+  let eventsExtended = await client
     .from('events')
-    .select(EVENT_CATALOG_SELECT_EXTENDED)
+    .select(EVENT_CATALOG_SELECT_WINDOW)
     .eq('active', true)
     .order('event_date', { ascending: true });
+
+  if (eventsExtended.error && isUnsupportedEventWindowFieldError(eventsExtended.error.message)) {
+    eventsExtended = await client
+      .from('events')
+      .select(EVENT_CATALOG_SELECT_EXTENDED)
+      .eq('active', true)
+      .order('event_date', { ascending: true });
+  }
 
   if (eventsExtended.error) {
     if (isUnsupportedEventFieldError(eventsExtended.error.message)) {
@@ -378,6 +408,43 @@ export const listPublicEventsFromSupabase = async (
     ok: true,
     data: eventsData,
   };
+};
+
+// Registrations made by participants on other devices: RLS limits rows to the caller's own events.
+export const listOrganizerRegistrationsFromSupabase = async (
+  organizerRemoteIds: string[],
+  deps?: SupabaseDataDependencies
+): Promise<SyncResult<ParticipantRegistrationRow[]>> => {
+  const client = resolveSupabaseClient(deps);
+  if (!client) {
+    return fail('Supabase non configurato.');
+  }
+  const ids = organizerRemoteIds.map((id) => cleanText(id)).filter(Boolean);
+  if (!ids.length) {
+    return { ok: true, data: [] };
+  }
+
+  let { data, error } = await client
+    .from('registrations')
+    .select(REGISTRATION_SELECT_EXTENDED)
+    .in('organizer_id', ids)
+    .order('created_at', { ascending: false });
+
+  if (error && isUnsupportedRegistrationFieldError(error.message)) {
+    const legacy = await client
+      .from('registrations')
+      .select(REGISTRATION_SELECT_LEGACY)
+      .in('organizer_id', ids)
+      .order('created_at', { ascending: false });
+    data = legacy.data;
+    error = legacy.error;
+  }
+
+  if (error) {
+    return fail(`Lettura iscrizioni organizzatore fallita: ${error.message}`);
+  }
+
+  return { ok: true, data: (data ?? []) as ParticipantRegistrationRow[] };
 };
 
 export const listParticipantRegistrationsFromSupabase = async (
@@ -647,9 +714,15 @@ export const insertEventInSupabase = async (
 
   let { data, error } = await client
     .from('events')
-    .insert(extendedPayload)
+    .insert(buildEventWindowPayload(event, organizerRemoteId))
     .select('id')
     .single();
+
+  if (error && isUnsupportedEventWindowFieldError(error.message)) {
+    const retry = await client.from('events').insert(extendedPayload).select('id').single();
+    data = retry.data;
+    error = retry.error;
+  }
 
   if (error && isUnsupportedEventFieldError(error.message)) {
     const fallback = await client.from('events').insert(legacyPayload).select('id').single();
@@ -685,10 +758,21 @@ export const updateEventInSupabase = async (
 
   let { data, error } = await client
     .from('events')
-    .update(extendedPayload)
+    .update(buildEventWindowPayload(event, organizerRemoteId))
     .eq('id', eventRemoteId)
     .select('id')
     .single();
+
+  if (error && isUnsupportedEventWindowFieldError(error.message)) {
+    const retry = await client
+      .from('events')
+      .update(extendedPayload)
+      .eq('id', eventRemoteId)
+      .select('id')
+      .single();
+    data = retry.data;
+    error = retry.error;
+  }
 
   if (error && isUnsupportedEventFieldError(error.message)) {
     const fallback = await client

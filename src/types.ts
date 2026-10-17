@@ -330,6 +330,10 @@ export type PaymentInput = {
 export type FreeInterstitial = {
   eventName: string;
   registrationCode: string;
+  assignedNumber?: number;
+  groupParticipantsCount?: number;
+  participantEmail?: string;
+  emailFailed?: boolean;
   sponsor?: string;
 };
 

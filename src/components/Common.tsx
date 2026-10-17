@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -212,6 +212,111 @@ export function StatusBadge({ label, tone = 'neutral' }: StatusBadgeProps) {
       >
         {label}
       </Text>
+    </View>
+  );
+}
+
+type DisclosureSectionProps = {
+  title: string;
+  hint?: string;
+  initiallyOpen?: boolean;
+  children: React.ReactNode;
+};
+
+export function DisclosureSection({
+  title,
+  hint,
+  initiallyOpen = false,
+  children,
+}: DisclosureSectionProps) {
+  const [open, setOpen] = useState(initiallyOpen);
+
+  return (
+    <View style={styles.formSectionCard}>
+      <Pressable
+        style={styles.disclosureHeader}
+        onPress={() => setOpen((current) => !current)}
+        accessibilityRole='button'
+        accessibilityState={{ expanded: open }}
+      >
+        <View style={styles.disclosureHeaderText}>
+          <Text style={styles.sectionHeaderTitle}>{title}</Text>
+          {hint && !open ? <Text style={styles.helperText}>{hint}</Text> : null}
+        </View>
+        <Text style={styles.disclosureChevron}>{open ? '−' : '+'}</Text>
+      </Pressable>
+      {open ? children : null}
+    </View>
+  );
+}
+
+type SegmentedOption<T extends string> = {
+  value: T;
+  label: string;
+};
+
+type SegmentedControlProps<T extends string> = {
+  options: SegmentedOption<T>[];
+  value: T;
+  onChange: (value: T) => void;
+};
+
+export function SegmentedControl<T extends string>({
+  options,
+  value,
+  onChange,
+}: SegmentedControlProps<T>) {
+  return (
+    <View style={styles.segmented}>
+      {options.map((option) => {
+        const active = option.value === value;
+        return (
+          <Pressable
+            key={option.value}
+            style={[styles.segmentedItem, active ? styles.segmentedItemActive : undefined]}
+            onPress={() => onChange(option.value)}
+            accessibilityRole='button'
+            accessibilityState={{ selected: active }}
+          >
+            <Text
+              style={[styles.segmentedItemText, active ? styles.segmentedItemTextActive : undefined]}
+            >
+              {option.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+type LanguageToggleProps = {
+  language: 'it' | 'en';
+  onChange: (language: 'it' | 'en') => void;
+};
+
+export function LanguageToggle({ language, onChange }: LanguageToggleProps) {
+  return (
+    <View style={styles.languageSwitchWrap}>
+      {(['it', 'en'] as const).map((code) => {
+        const active = language === code;
+        return (
+          <Pressable
+            key={code}
+            style={[styles.languageChip, active ? styles.languageChipActive : undefined]}
+            onPress={() => onChange(code)}
+            accessibilityRole='button'
+            accessibilityState={{ selected: active }}
+            accessibilityLabel={code === 'it' ? 'Italiano' : 'English'}
+          >
+            <Text
+              style={[styles.languageChipText, active ? styles.languageChipTextActive : undefined]}
+            >
+              {code.toUpperCase()}
+            </Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }

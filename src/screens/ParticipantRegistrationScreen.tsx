@@ -260,6 +260,9 @@ export function ParticipantRegistrationScreen({
   );
 
   const canSubmit = validationIssues.length === 0;
+  const hasParticipantMessage = Boolean(cleanText(participantMessage));
+  // Missing-field hints appear only after a first attempt, not while the form is still empty.
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const canSendMessage = messageValidationIssues.length === 0;
   const showAlert = (title: string, message: string) => {
     if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.alert === 'function') {
@@ -314,6 +317,7 @@ export function ParticipantRegistrationScreen({
   };
 
   const buildDraft = (): RegistrationDraft | null => {
+    setSubmitAttempted(true);
     if (validationIssues.length > 0) {
       showValidationAlert(validationIssues[0]);
       return null;
@@ -462,14 +466,6 @@ export function ParticipantRegistrationScreen({
                   }
                   tone={event.isFree ? 'success' : 'warning'}
                 />
-                <StatusBadge label={participantAuthModeLabel} />
-                <StatusBadge
-                  label={
-                    event.participantPhoneRequired
-                      ? t('badge_phone_short_required')
-                      : t('badge_phone_short_optional')
-                  }
-                />
               </View>
               <Text style={styles.listSubText}>{t('place_label', { value: event.location })}</Text>
               <Text style={styles.listSubText}>
@@ -485,114 +481,22 @@ export function ParticipantRegistrationScreen({
                 <Text style={styles.helperText}>{t('paid_pending_helper')}</Text>
               ) : null}
               <Text style={styles.helperText}>{event.privacyText}</Text>
-              <View style={styles.flowCard}>
-                <View style={styles.flowStepRow}>
-                  <Text style={styles.flowStepIndex}>1</Text>
-                  <Text style={styles.flowStepText}>{t('registration_step_personal_hint')}</Text>
-                </View>
-                <View style={styles.flowStepRow}>
-                  <Text style={styles.flowStepIndex}>2</Text>
-                  <Text style={styles.flowStepText}>{t('registration_step_group_hint')}</Text>
-                </View>
-                <View style={styles.flowStepRow}>
-                  <Text style={styles.flowStepIndex}>3</Text>
-                  <Text style={styles.flowStepText}>{t('registration_step_consents_hint')}</Text>
-                </View>
-              </View>
             </SectionCard>
           </View>
 
           <View style={[styles.screenSplitColumn, isDesktopLayout ? styles.screenSplitColumnMain : undefined]}>
             <SectionCard title={t('participant_data')} delayMs={120}>
               <View style={styles.sectionStack}>
-                <View style={styles.heroPanel}>
-                  <Text style={styles.heroEyebrow}>{t('registration_summary_title')}</Text>
-                  <Text style={styles.emphasisParagraph}>{event.name}</Text>
-                  <View style={styles.miniMetricsGrid}>
-                    <View
-                      style={[
-                        styles.miniMetricCard,
-                        isCompactLayout ? styles.miniMetricCardCompact : undefined,
-                      ]}
-                    >
-                      <Text style={styles.miniMetricValue}>
-                        {progressSummary.completedSteps}/{progressSummary.totalSteps}
-                      </Text>
-                      <Text style={styles.miniMetricLabel}>{t('registration_progress_label')}</Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.miniMetricCard,
-                        isCompactLayout ? styles.miniMetricCardCompact : undefined,
-                      ]}
-                    >
-                      <Text style={styles.miniMetricValue}>{parsedGroupCount}</Text>
-                      <Text style={styles.miniMetricLabel}>
-                        {t('registration_participants_metric')}
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.miniMetricCard,
-                        isCompactLayout ? styles.miniMetricCardCompact : undefined,
-                      ]}
-                    >
-                      <Text style={styles.miniMetricValue}>
-                        {event.isFree ? t('registration_total_free_value') : toMoney(totalAmount)}
-                      </Text>
-                      <Text style={styles.miniMetricLabel}>{t('registration_total_metric')}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.statusBadgeRow}>
-                    <StatusBadge label={t('registration_step_personal')} tone={progressSummary.personalComplete ? 'success' : 'warning'} />
-                    <StatusBadge label={t('registration_step_group')} tone={progressSummary.groupComplete ? 'success' : 'warning'} />
-                    <StatusBadge label={t('registration_step_consents')} tone={progressSummary.consentComplete ? 'success' : 'warning'} />
-                    <StatusBadge label={summaryBadgeLabel} tone={summaryBadgeTone} />
-                  </View>
-                  <Text style={styles.helperText}>{t('registration_summary_hint')}</Text>
-                  <Text style={styles.helperText}>
-                    {event.isFree
-                      ? t('registration_free_flow_hint')
-                      : t('registration_paid_flow_hint')}
-                  </Text>
-                  {!event.isFree ? (
-                    <Text style={styles.helperText}>
+                {!event.isFree ? (
+                  <View style={[styles.noticeCard, styles.noticeCardInfo]}>
+                    <Text style={styles.noticeText}>
                       {t('group_total_amount_line', { value: toMoney(totalAmount) })}
                     </Text>
-                  ) : null}
-                  <View
-                    style={[
-                      styles.noticeCard,
-                      canSubmit ? styles.noticeCardSuccess : styles.noticeCardInfo,
-                    ]}
-                  >
-                    <Text style={styles.noticeTitle}>{t('guided_required_checklist_title')}</Text>
-                    <Text style={styles.noticeText}>
-                      {canSubmit
-                        ? t('guided_required_checklist_ready')
-                        : t('guided_required_checklist_missing', {
-                            count: validationLabels.length,
-                          })}
-                    </Text>
-                    {!canSubmit
-                      ? validationLabels.map((label) => (
-                          <Text key={label} style={styles.listSubText}>
-                            - {label}
-                          </Text>
-                        ))
-                      : null}
                   </View>
-                </View>
+                ) : null}
 
                 <View style={styles.formSectionCard}>
-                  <View style={styles.sectionHeaderRow}>
-                    <Text style={styles.sectionHeaderTitle}>{t('registration_step_personal')}</Text>
-                    <StatusBadge label={participantAuthModeLabel} />
-                  </View>
-                  <Text style={styles.helperText}>
-                    {t('participant_auth_required_line', { mode: participantAuthModeLabel })}
-                  </Text>
-                  <Text style={styles.helperText}>{phoneRequirementHint}</Text>
+                  <Text style={styles.sectionHeaderTitle}>{t('registration_step_personal')}</Text>
                   <Text style={styles.helperText}>{t('registration_email_usage_hint')}</Text>
                   <TextField
                     label={t('full_name_required')}
@@ -712,27 +616,6 @@ export function ParticipantRegistrationScreen({
 
                 <View style={styles.formSectionCard}>
                   <Text style={styles.sectionHeaderTitle}>{t('registration_step_consents')}</Text>
-                  <View style={styles.registrationCard}>
-                    <Text style={styles.fieldLabel}>{t('guided_required_checklist_title')}</Text>
-                    <Text style={styles.helperText}>{t('guided_required_checklist_intro')}</Text>
-                    {validationLabels.length === 0 ? (
-                      <Text style={styles.helperText}>{t('guided_required_checklist_ready')}</Text>
-                    ) : (
-                      <>
-                        <Text style={styles.helperText}>
-                          {t('guided_required_checklist_missing', {
-                            count: validationLabels.length,
-                          })}
-                        </Text>
-                        {validationLabels.map((label) => (
-                          <Text key={label} style={styles.listSubText}>
-                            - {label}
-                          </Text>
-                        ))}
-                      </>
-                    )}
-                  </View>
-
                   <CheckboxRow
                     value={privacyConsent}
                     onToggle={() => setPrivacyConsent((value) => !value)}
@@ -753,12 +636,19 @@ export function ParticipantRegistrationScreen({
                   >
                     <Text style={styles.primaryButtonText}>{primaryActionLabel}</Text>
                   </Pressable>
-                  {!canSubmit ? (
-                    <Text style={styles.helperText}>
-                      {t('guided_complete_required_fields_hint')}
-                    </Text>
+                  {submitAttempted && !canSubmit ? (
+                    <View style={[styles.noticeCard, styles.noticeCardWarning]}>
+                      <Text style={styles.noticeText}>
+                        {t('registration_missing_fields', {
+                          fields: validationLabels
+                            .map((label) => label.replace(/\s*\*$/, ''))
+                            .join(' · '),
+                        })}
+                      </Text>
+                    </View>
                   ) : null}
-                  {onSendMessageToOrganizer ? (
+                  {/* Only offered once the participant has actually written something. */}
+                  {onSendMessageToOrganizer && hasParticipantMessage ? (
                     <Pressable
                       style={[
                         styles.secondaryButton,
@@ -772,7 +662,7 @@ export function ParticipantRegistrationScreen({
                       </Text>
                     </Pressable>
                   ) : null}
-                  {onSendMessageToOrganizer && !canSendMessage ? (
+                  {onSendMessageToOrganizer && hasParticipantMessage && !canSendMessage ? (
                     <Text style={styles.helperText}>
                       {t('participant_message_requirements_hint')}
                     </Text>
