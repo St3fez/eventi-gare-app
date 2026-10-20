@@ -8,10 +8,10 @@
     "slug": "eventi-slash-gare",
     "scheme": "eventigare",
     "version": "1.1.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -28,7 +28,7 @@
         "backgroundColor": "#04192E"
       },
       "package": "com.eventi.slash.gare",
-      "versionCode": 11,
+      "versionCode": 12,
       "softwareKeyboardLayoutMode": "resize",
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",

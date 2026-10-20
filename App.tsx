@@ -5,11 +5,11 @@ import {
   Alert,
   Linking,
   Platform,
-  SafeAreaView,
   Text,
   View,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   ADMIN_CONTACT_EMAIL,
@@ -6085,4 +6085,12 @@ function App() {
   );
 }
 
-export default App;
+function AppRoot() {
+  return (
+    <SafeAreaProvider>
+      <App />
+    </SafeAreaProvider>
+  );
+}
+
+export default AppRoot;

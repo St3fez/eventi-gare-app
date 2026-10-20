@@ -161,7 +161,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     privacy_policy_page_title: 'Privacy Policy',
     privacy_policy_page_intro:
       'Informativa pubblica per webapp e app mobile. Ogni organizzatore resta titolare dei dati raccolti per il proprio evento; questa pagina descrive il perimetro tecnico della piattaforma.',
-    privacy_policy_page_last_updated: 'Aggiornata al 13 marzo 2026.',
+    privacy_policy_page_last_updated: 'Aggiornata al 20 ottobre 2026.',
     privacy_policy_back_home: 'Apri webapp',
     privacy_policy_scope_title: 'Titolare e ruoli',
     privacy_policy_scope_body:
@@ -185,13 +185,22 @@ const translations: Record<AppLanguage, Record<string, string>> = {
       "I dati sono conservati per il tempo necessario alle finalita dichiarate dall'organizzatore, agli obblighi legali e alla tutela dei diritti. Non esiste una singola finestra automatica valida per tutti i casi; eventuali cache locali possono essere ridotte o eliminate per esigenze tecniche, mentre la retention ufficiale segue la policy pubblicata dall'organizzatore.",
     privacy_policy_third_parties_title: 'Fornitori e pagamenti',
     privacy_policy_third_parties_body:
-      "Per eventi a pagamento possono intervenire fornitori certificati di pagamento, come Stripe, oltre ai servizi infrastrutturali e email configurati dall'organizzatore. Ogni trasferimento verso terzi avviene solo per eseguire il servizio richiesto.",
+      "La piattaforma si appoggia a Supabase per database, autenticazione e sincronizzazione dei dati. Per eventi a pagamento interviene Stripe come fornitore certificato di pagamento: i dati della carta sono trattati direttamente da Stripe e non vengono mai salvati dalla piattaforma. Nell'app mobile Google AdMob puo mostrare annunci (vedi sezione Pubblicita). Si aggiungono i servizi email configurati dall'organizzatore. Ogni trasferimento verso terzi avviene solo per eseguire il servizio richiesto; i dati non vengono venduti.",
     privacy_policy_rights_title: 'Diritti e richieste',
     privacy_policy_rights_body:
       "Per accesso, rettifica, cancellazione, limitazione, opposizione o chiarimenti sulla singola manifestazione, il primo contatto resta l'organizzatore dell'evento. Per questioni tecniche di piattaforma puoi scrivere a {email}.",
     privacy_policy_disclaimer_title: 'Nota importante',
     privacy_policy_disclaimer_body:
       "Questa pagina descrive la baseline tecnica della piattaforma. L'organizzatore puo integrare informative aggiuntive per il singolo evento e deve allinearle ai propri obblighi legali/privacy.",
+    privacy_policy_ads_title: 'Pubblicita',
+    privacy_policy_ads_body:
+      "L'app Android puo mostrare annunci tramite Google AdMob, solo in modalita non personalizzata. Per erogare e misurare gli annunci e prevenire frodi, Google puo trattare l'identificatore pubblicitario del dispositivo, l'indirizzo IP e dati tecnici del dispositivo, secondo la propria informativa (policies.google.com/privacy). Puoi reimpostare o eliminare l'ID pubblicitario dalle impostazioni Android. La webapp non mostra annunci AdMob.",
+    privacy_policy_security_title: 'Sicurezza',
+    privacy_policy_security_body:
+      "Tutti i dati viaggiano cifrati tramite HTTPS (TLS) tra app, webapp e server. L'accesso ai dati e limitato da regole di autorizzazione per ruolo, cosi ogni organizzatore vede solo i dati dei propri eventi.",
+    privacy_policy_deletion_title: 'Cancellazione dei dati',
+    privacy_policy_deletion_body:
+      "Puoi chiedere la cancellazione della tua iscrizione o del tuo account organizzatore e dei dati collegati scrivendo a {email}, indicando l'email usata e l'evento. La richiesta viene evasa entro 30 giorni, salvo i dati che la legge impone di conservare (ad esempio i dati fiscali dei pagamenti).",
     privacy_policy_public_url_title: 'URL pubblico policy',
     close: 'Chiudi',
     confirm_action: 'Conferma',
@@ -1343,7 +1352,7 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     privacy_policy_page_title: 'Privacy Policy',
     privacy_policy_page_intro:
       'Public notice for the web app and mobile app. Each organizer remains the data controller for data collected for their own event; this page describes the platform technical scope.',
-    privacy_policy_page_last_updated: 'Last updated on March 13, 2026.',
+    privacy_policy_page_last_updated: 'Last updated on October 20, 2026.',
     privacy_policy_back_home: 'Open web app',
     privacy_policy_scope_title: 'Controller and roles',
     privacy_policy_scope_body:
@@ -1367,13 +1376,22 @@ const translations: Record<AppLanguage, Record<string, string>> = {
       'Data is kept for the time necessary for the purposes declared by the organizer, legal obligations, and protection of rights. There is no single automatic retention window valid for every case; local caches may be reduced or removed for technical reasons, while official retention follows the policy published by the organizer.',
     privacy_policy_third_parties_title: 'Providers and payments',
     privacy_policy_third_parties_body:
-      'For paid events, certified payment providers such as Stripe may be involved, in addition to infrastructure and email services configured by the organizer. Any transfer to third parties happens only to execute the requested service.',
+      'The platform relies on Supabase for database, authentication, and data sync. For paid events, Stripe acts as a certified payment provider: card data is handled directly by Stripe and is never stored by the platform. In the mobile app, Google AdMob may show ads (see the Advertising section). Email services configured by the organizer are also used. Any transfer to third parties happens only to execute the requested service; data is never sold.',
     privacy_policy_rights_title: 'Rights and requests',
     privacy_policy_rights_body:
       'For access, rectification, deletion, restriction, objection, or questions about a specific event, the first contact remains the event organizer. For platform technical issues you can write to {email}.',
     privacy_policy_disclaimer_title: 'Important note',
     privacy_policy_disclaimer_body:
       'This page describes the platform technical baseline. Organizers may add event-specific notices and must align them with their own legal/privacy obligations.',
+    privacy_policy_ads_title: 'Advertising',
+    privacy_policy_ads_body:
+      "The Android app may show ads through Google AdMob, in non-personalized mode only. To serve and measure ads and prevent fraud, Google may process the device advertising ID, IP address, and technical device data, according to its own policy (policies.google.com/privacy). You can reset or delete the advertising ID in Android settings. The web app does not show AdMob ads.",
+    privacy_policy_security_title: 'Security',
+    privacy_policy_security_body:
+      'All data is encrypted in transit with HTTPS (TLS) between the app, the web app, and the servers. Data access is restricted by role-based authorization rules, so each organizer only sees data for their own events.',
+    privacy_policy_deletion_title: 'Data deletion',
+    privacy_policy_deletion_body:
+      'You can request deletion of your registration or organizer account and related data by writing to {email}, stating the email you used and the event. Requests are fulfilled within 30 days, except for data the law requires us to keep (for example tax records of payments).',
     privacy_policy_public_url_title: 'Public policy URL',
     close: 'Close',
     confirm_action: 'Confirm',

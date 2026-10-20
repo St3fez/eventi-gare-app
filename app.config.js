@@ -83,7 +83,7 @@ const mergedExperiments = {
 const baseExpoConfig = {
   ...expoConfig,
   experiments: mergedExperiments,
-  plugins: pluginsWithoutAdMob,
+  plugins: [...pluginsWithoutAdMob, './plugins/withReleaseSigning'],
 };
 
 const androidAppId = normalize(process.env.ADMOB_ANDROID_APP_ID) ?? DEFAULT_ADMOB_ANDROID_APP_ID;

@@ -133,8 +133,23 @@ export function PrivacyPolicyScreen({
             </View>
 
             <View style={styles.formSectionCard}>
+              <Text style={styles.sectionHeaderTitle}>{t('privacy_policy_ads_title')}</Text>
+              <Text style={styles.cardParagraph}>{t('privacy_policy_ads_body')}</Text>
+            </View>
+
+            <View style={styles.formSectionCard}>
+              <Text style={styles.sectionHeaderTitle}>{t('privacy_policy_security_title')}</Text>
+              <Text style={styles.cardParagraph}>{t('privacy_policy_security_body')}</Text>
+            </View>
+
+            <View style={styles.formSectionCard}>
               <Text style={styles.sectionHeaderTitle}>{t('privacy_policy_rights_title')}</Text>
               <Text style={styles.cardParagraph}>{t('privacy_policy_rights_body', { email: contactEmail })}</Text>
+            </View>
+
+            <View style={styles.formSectionCard}>
+              <Text style={styles.sectionHeaderTitle}>{t('privacy_policy_deletion_title')}</Text>
+              <Text style={styles.cardParagraph}>{t('privacy_policy_deletion_body', { email: contactEmail })}</Text>
             </View>
 
             <View style={styles.formSectionCard}>

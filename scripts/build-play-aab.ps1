@@ -30,7 +30,7 @@ function Remove-DuplicateAppTheme {
   $normalized = [regex]::Replace($raw, $duplicatePattern, '')
 
   if ($normalized -ne $raw) {
-    Set-Content -Path $stylesPath -Value $normalized -Encoding UTF8
+    [System.IO.File]::WriteAllText($stylesPath, $normalized, (New-Object System.Text.UTF8Encoding($false)))
     Write-Host "Normalized Android styles.xml (removed duplicate AppTheme)."
   }
 }
@@ -58,7 +58,7 @@ function Ensure-GradleProperty {
   }
 
   if ($updated -ne $raw) {
-    Set-Content -Path $Path -Value $updated -Encoding UTF8
+    [System.IO.File]::WriteAllText($Path, $updated, (New-Object System.Text.UTF8Encoding($false)))
   }
 }
 
@@ -87,7 +87,7 @@ function Ensure-ReleaseAndroidConfig {
   )
 
   if ($updated -ne $raw) {
-    Set-Content -Path $buildGradlePath -Value $updated -Encoding UTF8
+    [System.IO.File]::WriteAllText($buildGradlePath, $updated, (New-Object System.Text.UTF8Encoding($false)))
   }
 }
 

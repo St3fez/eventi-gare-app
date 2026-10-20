@@ -58,3 +58,6 @@ yarn-error.*
 android/keystore.properties
 android/app/upload-keystore.jks
 android/upload-keystore.credentials.txt
+
+# Release signing (never commit)
+/android-signing/
